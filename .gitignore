@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+dist/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+frontend/dist/
+*.tsbuildinfo
+
+# Entorno — NUNCA commitear
+.env
+.env.local
+.env.*.local
+backend/.env
+frontend/.env
+
+# Uploads locales
+backend/uploads/
+
+# Logs
+*.log
+logs/
+
+# Claves y certificados — NUNCA commitear
+*.pem
+*.key
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo

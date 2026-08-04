@@ -1,0 +1,13 @@
+{
+  "name": "tienda",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently --kill-others-on-fail -n BACK,FRONT -c green.bold,cyan.bold \"npm run dev:back\" \"npm run dev:front\"",
+    "dev:back": "cd backend && python -m uvicorn app.main:app --reload --port 8000",
+    "dev:front": "npm --prefix frontend run dev"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0"
+  }
+}

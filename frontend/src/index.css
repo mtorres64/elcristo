@@ -1,0 +1,41 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-size: 17px;
+  }
+
+  button, a.btn-primary, a.btn-outline {
+    border-radius: 8px;
+  }
+
+  body {
+    @apply text-[#1A1A1A] antialiased;
+    background-color: #F5F5F3;
+    font-family: "Inter", system-ui, sans-serif;
+  }
+
+  h1, h2, h3 {
+    font-family: "Playfair Display", Georgia, serif;
+  }
+}
+
+@layer utilities {
+  .section-label {
+    @apply text-xs uppercase tracking-widest text-[#7A7A7A] font-medium;
+  }
+  .section-title {
+    @apply font-serif text-2xl font-semibold text-[#1A1A1A] tracking-tight;
+  }
+  .link-arrow {
+    @apply text-xs uppercase tracking-widest text-[#1A2B1C] font-semibold hover:underline flex items-center gap-1;
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center bg-forest-deep text-white px-8 py-3 text-xs uppercase tracking-widest font-semibold hover:bg-[#243D26] transition-colors duration-200;
+  }
+  .btn-outline {
+    @apply inline-flex items-center justify-center border border-forest-deep text-forest-deep px-8 py-3 text-xs uppercase tracking-widest font-semibold hover:bg-forest-deep hover:text-white transition-colors duration-200;
+  }
+}
