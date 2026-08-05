@@ -138,8 +138,9 @@ export function CategoryNew() {
       }
       toast.success(`"${category.name}" creada`);
       navigate("/seller/categories");
-    } catch {
-      toast.error("No se pudo crear la categoría");
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail;
+      toast.error(typeof detail === "string" ? detail : "No se pudo crear la categoría");
       setSaving(false);
     }
   }

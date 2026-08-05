@@ -185,8 +185,9 @@ export function CategoryEdit() {
       }
       toast.success("Categoría actualizada");
       navigate("/seller/categories");
-    } catch {
-      toast.error("No se pudo guardar los cambios");
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail;
+      toast.error(typeof detail === "string" ? detail : "No se pudo guardar los cambios");
       setSaving(false);
     }
   }
