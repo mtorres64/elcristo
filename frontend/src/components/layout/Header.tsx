@@ -1,10 +1,32 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useState, useRef } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { useCart } from "../../hooks/useCart";
 
 export function Header() {
   const { itemCount } = useCart();
+  const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  function openSearch() {
+    setSearchOpen(true);
+    setTimeout(() => searchInputRef.current?.focus(), 50);
+  }
+
+  function closeSearch() {
+    setSearchOpen(false);
+    setSearchTerm("");
+  }
+
+  function handleSearchSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const q = searchTerm.trim();
+    if (!q) return;
+    closeSearch();
+    navigate(`/products?q=${encodeURIComponent(q)}`);
+  }
 
   return (
     <header className="bg-white border-b border-[#E8E2D8] sticky top-0 z-50">
@@ -29,7 +51,11 @@ export function Header() {
 
         {/* Actions */}
         <div className="flex items-center gap-4">
-          <button className="text-[#1A2B1C] hover:text-forest-accent transition-colors" aria-label="Buscar">
+          <button
+            onClick={openSearch}
+            className="text-[#1A2B1C] hover:text-forest-accent transition-colors"
+            aria-label="Buscar"
+          >
             <SearchIcon />
           </button>
           <button className="text-[#1A2B1C] hover:text-forest-accent transition-colors" aria-label="Mi cuenta">
@@ -58,6 +84,46 @@ export function Header() {
           </button>
         </div>
       </div>
+
+      {/* Search overlay */}
+      {searchOpen && (
+        <div className="border-t border-[#E8E2D8] bg-white px-6 py-3">
+          <form onSubmit={handleSearchSubmit} className="max-w-screen-xl mx-auto flex items-center gap-3">
+            <div className="flex-1 relative">
+              <svg
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#ABABAB]"
+                viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <path d="M21 21l-4.35-4.35" />
+              </svg>
+              <input
+                ref={searchInputRef}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Buscar plantas, macetas, accesorios..."
+                className="w-full pl-9 pr-4 py-2 border border-[#E8E2D8] rounded-lg text-sm text-[#1A1A1A] placeholder-[#ABABAB] bg-white focus:outline-none focus:border-[#1A2B1C] transition-colors"
+              />
+            </div>
+            <button
+              type="submit"
+              className="bg-[#1A2B1C] text-white text-xs font-semibold uppercase tracking-widest px-5 py-2.5 rounded-lg hover:bg-[#253824] transition-colors"
+            >
+              Buscar
+            </button>
+            <button
+              type="button"
+              onClick={closeSearch}
+              className="text-[#8A8A8A] hover:text-[#1A1A1A] transition-colors"
+              aria-label="Cerrar búsqueda"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </form>
+        </div>
+      )}
 
       {/* Mobile menu */}
       {menuOpen && (

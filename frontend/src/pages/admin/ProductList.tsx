@@ -8,7 +8,7 @@ import type { ProductSummary } from "../../types/product";
 import toast from "react-hot-toast";
 
 // ─── Constants ────────────────────────────────────────────────────
-const PAGE_SIZE = 15;
+const PAGE_SIZE = 8;
 
 const INPUT =
   "rounded-lg border border-[#E8E2D8] px-3 py-2 text-sm text-[#1A1A1A] bg-white placeholder-[#ABABAB] focus:outline-none focus:border-[#1A2B1C] transition-colors";

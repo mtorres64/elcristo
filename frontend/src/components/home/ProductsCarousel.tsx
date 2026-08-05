@@ -69,7 +69,11 @@ export function ProductsCarousel() {
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <h2 className="section-title">Elegidas para Vos</h2>
-          <Link to="/products" className="link-arrow">
+          <Link
+            to={{ pathname: "/products", search: "" }}
+            className="link-arrow"
+            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          >
             Ver Todas las Plantas
             <ArrowRight />
           </Link>

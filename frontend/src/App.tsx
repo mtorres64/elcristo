@@ -3,6 +3,8 @@ import { useEffect } from "react";
 import { AuthProvider } from "./context/AuthContext";
 import { CartProvider } from "./context/CartContext";
 import { Home } from "./pages/Home";
+import { Categories } from "./pages/Categories";
+import { Products } from "./pages/Products";
 import { ProductDetail } from "./pages/ProductDetail";
 import { ProductNew } from "./pages/admin/ProductNew";
 import { ProductEdit } from "./pages/admin/ProductEdit";
@@ -32,9 +34,10 @@ export default function App() {
           <ScrollToTop />
           <Routes>
             <Route path="/" element={<Home />} />
+            <Route path="/categories" element={<Categories />} />
             <Route path="/login" element={<PlaceholderPage title="Login" />} />
             <Route path="/register" element={<PlaceholderPage title="Registrarse" />} />
-            <Route path="/products" element={<PlaceholderPage title="Productos" />} />
+            <Route path="/products" element={<Products />} />
             <Route path="/products/:productId" element={<ProductDetail />} />
             <Route path="/store/:slug" element={<PlaceholderPage title="Tienda pública" />} />
             <Route path="/cart" element={<PlaceholderPage title="Carrito" />} />

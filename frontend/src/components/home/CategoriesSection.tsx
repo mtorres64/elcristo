@@ -34,7 +34,7 @@ export function CategoriesSection() {
         {/* Header */}
         <div className="flex items-center justify-between mb-7">
           <h2 className="section-title">Nuestras Categorías</h2>
-          <Link to="/products" className="link-arrow">
+          <Link to="/categories" className="link-arrow">
             Ver Todas
             <ArrowRight />
           </Link>

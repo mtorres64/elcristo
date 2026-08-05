@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Link, useParams } from "react-router-dom";
 import { AdminLayout } from "../../components/admin/AdminLayout";
 import { productService } from "../../services/product.service";
+import { useCategories } from "../../hooks/useCategories";
 import toast from "react-hot-toast";
 
 /* ─── Types ──────────────────────────────────────────────────── */
@@ -44,6 +45,7 @@ const CARE_OPTIONS: Record<string, string[]> = {
 /* ─── Page ───────────────────────────────────────────────────── */
 export function ProductEdit() {
   const { productId } = useParams<{ productId: string }>();
+  const { categories: categoryList } = useCategories(100);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -338,10 +340,12 @@ export function ProductEdit() {
                             onChange={(e) => setCategory(e.target.value)}
                             className={SELECT}
                           >
-                            <option value="plantas-interior">Plantas de interior</option>
-                            <option value="plantas-exterior">Plantas de exterior</option>
-                            <option value="cactus">Cactus y suculentas</option>
-                            <option value="arboles">Árboles ornamentales</option>
+                            <option value="">Sin categoría</option>
+                            {categoryList.map((cat) => (
+                              <option key={cat.category_id} value={cat.category_id}>
+                                {cat.name}
+                              </option>
+                            ))}
                           </select>
                           <ChevronSelectIcon />
                         </div>

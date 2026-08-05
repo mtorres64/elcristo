@@ -55,6 +55,7 @@ async def list_products(
     q: str | None = None,
     tenant_id: str | None = None,
     category_id: str | None = None,
+    status: str | None = None,
     min_price: int | None = None,
     max_price: int | None = None,
     featured: bool | None = None,
@@ -64,7 +65,9 @@ async def list_products(
 ):
     db = get_db()
 
-    f: dict = {"deleted_at": None, "status": "active"}
+    f: dict = {"deleted_at": None}
+    if status:
+        f["status"] = status
 
     tid = tenant_id or request.state.tenant_id
     if tid:
@@ -82,7 +85,11 @@ async def list_products(
         f["price"] = price_filter
 
     if q:
-        f["$text"] = {"$search": q}
+        f["$or"] = [
+            {"title": {"$regex": q, "$options": "i"}},
+            {"short_description": {"$regex": q, "$options": "i"}},
+            {"tags": {"$elemMatch": {"$regex": q, "$options": "i"}}},
+        ]
 
     if featured is not None:
         f["is_featured"] = featured
@@ -93,6 +100,7 @@ async def list_products(
         "price_desc": [("price", -1)],
         "rating": [("rating_avg", -1)],
         "featured": [("is_featured", -1), ("created_at", -1)],
+        "title_asc": [("title", 1)],
     }
     sort_spec = sort_map.get(sort, [("created_at", -1)])
 
