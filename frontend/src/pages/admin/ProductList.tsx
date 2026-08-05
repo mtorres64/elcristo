@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { AdminLayout } from "../../components/admin/AdminLayout";
 import { productService } from "../../services/product.service";
 import { useAuth } from "../../context/AuthContext";
+import { useCategories } from "../../hooks/useCategories";
 import { formatARS } from "../../utils/currency";
 import type { ProductSummary } from "../../types/product";
 import toast from "react-hot-toast";
@@ -126,13 +127,34 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+function StockBadge({ stock }: { stock: number }) {
+  if (stock === 0)
+    return <span className="text-xs font-semibold text-[#DC2626] bg-[#FEF2F2] px-2 py-0.5 rounded-full">0</span>;
+  if (stock <= 5)
+    return <span className="text-xs font-semibold text-[#926D20] bg-[#FFF8E7] px-2 py-0.5 rounded-full">{stock}</span>;
+  return <span className="text-xs font-semibold text-[#2D6A4F] bg-[#E6F4EA] px-2 py-0.5 rounded-full">{stock}</span>;
+}
+
+const CARE_ICONS: Record<string, JSX.Element> = {
+  light:       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>,
+  luz:         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>,
+  water:       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>,
+  riego:       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>,
+  environment: <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
+  ambiente:    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
+  temperature: <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></svg>,
+  temperatura: <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></svg>,
+};
+
 function ProductRow({
   product,
+  categoryName,
   selected,
   onToggle,
   onDelete,
 }: {
   product: ProductSummary;
+  categoryName: string | null;
   selected: boolean;
   onToggle: (id: string) => void;
   onDelete: (id: string) => void;
@@ -153,39 +175,90 @@ function ProductRow({
     }
   }
 
+  const visibleTags = product.tags.slice(0, 3);
+  const extraTags = product.tags.length - visibleTags.length;
+  const careKeys = Object.entries(product.care).filter(([, v]) => v).map(([k]) => k);
+
   return (
     <tr className={`transition-colors group ${selected ? "bg-[#F4F8F4]" : "hover:bg-[#F9F8F5]"}`}>
-      <td className="px-4 py-3 w-[48px]">
+      {/* Checkbox */}
+      <td className="px-4 py-3.5 w-[48px] align-top">
         <input
           type="checkbox"
           checked={selected}
           onChange={() => onToggle(product.product_id)}
-          className="w-4 h-4 rounded border-[#C8C4BE] accent-[#1A2B1C] cursor-pointer"
+          className="w-4 h-4 rounded border-[#C8C4BE] accent-[#1A2B1C] cursor-pointer mt-0.5"
         />
       </td>
-      <td className="px-4 py-3">
+
+      {/* Imagen */}
+      <td className="px-4 py-3.5 w-[58px] align-top">
         <ProductThumb src={product.image_url} title={product.title} />
       </td>
-      <td className="px-4 py-3">
-        <p className="text-sm font-medium text-[#1A1A1A] leading-snug line-clamp-1">{product.title}</p>
-        {product.rating_count > 0 && (
-          <p className="text-xs text-[#ABABAB] mt-0.5">★ {product.rating_avg?.toFixed(1)} ({product.rating_count})</p>
+
+      {/* Nombre + descripción + etiquetas + cuidados */}
+      <td className="px-4 py-3.5 max-w-[320px]">
+        <div className="flex items-center gap-1.5 mb-0.5">
+          <p className="text-sm font-medium text-[#1A1A1A] leading-snug line-clamp-1">{product.title}</p>
+          {product.is_featured && <span className="text-[#D4A017] text-sm shrink-0" title="Destacado">★</span>}
+        </div>
+        {product.short_description && (
+          <p className="text-[11px] text-[#8A8A8A] line-clamp-1 mb-1.5 leading-relaxed">
+            {product.short_description}
+          </p>
+        )}
+        {(visibleTags.length > 0 || careKeys.length > 0) && (
+          <div className="flex items-center gap-1 flex-wrap">
+            {visibleTags.map((tag) => (
+              <span key={tag} className="bg-[#F0EDE8] text-[#6B6B6B] text-[10px] px-1.5 py-0.5 rounded leading-none">
+                {tag}
+              </span>
+            ))}
+            {extraTags > 0 && (
+              <span className="text-[#ABABAB] text-[10px]">+{extraTags}</span>
+            )}
+            {careKeys.length > 0 && (
+              <div className="flex items-center gap-1 flex-wrap">
+                {careKeys.map((k) => CARE_ICONS[k] && (
+                  <span key={k} className="inline-flex items-center gap-0.5 bg-[#F0F5F0] text-[#3D6040] text-[10px] px-1.5 py-0.5 rounded leading-none">
+                    <span className="shrink-0">{CARE_ICONS[k]}</span>
+                    <span className="max-w-[90px] truncate">{product.care[k]}</span>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
         )}
       </td>
-      <td className="px-4 py-3">
+
+      {/* Categoría */}
+      <td className="px-4 py-3.5 w-[130px] align-top">
+        {categoryName
+          ? <span className="text-xs text-[#4A4A4A]">{categoryName}</span>
+          : <span className="text-xs text-[#ABABAB]">—</span>
+        }
+      </td>
+
+      {/* Stock */}
+      <td className="px-4 py-3.5 w-[80px] text-center align-top">
+        <StockBadge stock={product.stock} />
+      </td>
+
+      {/* Estado */}
+      <td className="px-4 py-3.5 w-[110px] align-top">
         <StatusBadge status={product.status} />
       </td>
-      <td className="px-4 py-3 text-right text-sm font-medium text-[#1A1A1A] tabular-nums">
-        {formatARS(product.price)}
-      </td>
-      <td className="px-4 py-3 text-right text-sm tabular-nums">
-        {product.compare_at_price ? (
-          <span className="text-[#2D6A4F]">{formatARS(product.compare_at_price)}</span>
-        ) : (
-          <span className="text-[#ABABAB]">—</span>
+
+      {/* Precio */}
+      <td className="px-4 py-3.5 w-[130px] text-right align-top">
+        <p className="text-sm font-medium text-[#1A1A1A] tabular-nums">{formatARS(product.price)}</p>
+        {product.compare_at_price && (
+          <p className="text-[11px] text-[#2D6A4F] tabular-nums mt-0.5">{formatARS(product.compare_at_price)}</p>
         )}
       </td>
-      <td className="px-4 py-3 text-right">
+
+      {/* Actions */}
+      <td className="px-4 py-3.5 w-[80px] text-right align-top">
         {confirming ? (
           <div className="flex items-center justify-end gap-1">
             <span className="text-xs text-[#6B6B6B] mr-1">¿Eliminar?</span>
@@ -209,14 +282,14 @@ function ProductRow({
             <Link
               to={`/seller/products/${product.product_id}/edit`}
               className="p-1.5 text-[#6B6B6B] hover:text-[#1A2B1C] transition-colors"
-              title="Editar producto"
+              title="Editar"
             >
               <PencilIcon />
             </Link>
             <button
               onClick={() => setConfirming(true)}
               className="p-1.5 text-[#6B6B6B] hover:text-[#DC2626] transition-colors"
-              title="Eliminar producto"
+              title="Eliminar"
             >
               <TrashIcon />
             </button>
@@ -231,16 +304,21 @@ function SkeletonRows() {
   return (
     <div className="animate-pulse divide-y divide-[#F0EDE8]">
       {Array.from({ length: 8 }).map((_, i) => (
-        <div key={i} className="flex items-center gap-4 px-4 py-3">
-          <div className="w-4 h-4 bg-[#EDE9E2] rounded shrink-0" />
-          <div className="w-10 h-10 bg-[#EDE9E2] shrink-0" />
-          <div className="flex-1 space-y-1.5">
+        <div key={i} className="flex items-start gap-4 px-4 py-3.5">
+          <div className="w-4 h-4 bg-[#EDE9E2] rounded shrink-0 mt-0.5" />
+          <div className="w-10 h-10 bg-[#EDE9E2] rounded-lg shrink-0" />
+          <div className="flex-1 space-y-1.5 pt-0.5">
             <div className="h-3 bg-[#EDE9E2] rounded w-2/5" />
-            <div className="h-2.5 bg-[#F0EDE8] rounded w-1/5" />
+            <div className="h-2.5 bg-[#F0EDE8] rounded w-3/5" />
+            <div className="flex gap-1 mt-1">
+              <div className="h-4 w-10 bg-[#F0EDE8] rounded" />
+              <div className="h-4 w-12 bg-[#F0EDE8] rounded" />
+            </div>
           </div>
-          <div className="h-5 w-16 bg-[#EDE9E2] rounded" />
-          <div className="h-3 w-20 bg-[#EDE9E2] rounded" />
-          <div className="h-3 w-20 bg-[#F0EDE8] rounded" />
+          <div className="h-3 w-20 bg-[#EDE9E2] rounded mt-0.5" />
+          <div className="h-5 w-8 bg-[#EDE9E2] rounded-full mt-0.5" />
+          <div className="h-5 w-16 bg-[#EDE9E2] rounded-full mt-0.5" />
+          <div className="h-3 w-20 bg-[#EDE9E2] rounded mt-0.5" />
           <div className="w-6" />
         </div>
       ))}
@@ -342,6 +420,11 @@ function Pagination({
 // ─── Page ─────────────────────────────────────────────────────────
 export function ProductList() {
   const { user } = useAuth();
+  const { categories } = useCategories(100);
+  const categoryMap = useMemo(
+    () => Object.fromEntries(categories.map((c) => [c.category_id, c.name])),
+    [categories]
+  );
 
   const [q, setQ] = useState("");
   const [debouncedQ, setDebouncedQ] = useState("");
@@ -642,16 +725,19 @@ export function ProductList() {
                     <th className="text-left px-4 py-3 text-xs font-semibold text-[#6B6B6B] uppercase tracking-wider">
                       Nombre
                     </th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-[#6B6B6B] uppercase tracking-wider w-[130px]">
+                      Categoría
+                    </th>
+                    <th className="text-center px-4 py-3 text-xs font-semibold text-[#6B6B6B] uppercase tracking-wider w-[80px]">
+                      Stock
+                    </th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-[#6B6B6B] uppercase tracking-wider w-[110px]">
                       Estado
                     </th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold text-[#6B6B6B] uppercase tracking-wider w-[140px]">
+                    <th className="text-right px-4 py-3 text-xs font-semibold text-[#6B6B6B] uppercase tracking-wider w-[130px]">
                       Precio
                     </th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold text-[#6B6B6B] uppercase tracking-wider w-[140px]">
-                      Promo
-                    </th>
-                    <th className="w-[60px] px-4 py-3" />
+                    <th className="w-[80px] px-4 py-3" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#F0EDE8]">
@@ -659,6 +745,7 @@ export function ProductList() {
                     <ProductRow
                       key={p.product_id}
                       product={p}
+                      categoryName={p.category_id ? (categoryMap[p.category_id] ?? null) : null}
                       selected={selected.has(p.product_id)}
                       onToggle={toggleOne}
                       onDelete={(id) => {

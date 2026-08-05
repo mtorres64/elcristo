@@ -58,9 +58,9 @@ export function Header() {
           >
             <SearchIcon />
           </button>
-          <button className="text-[#1A2B1C] hover:text-forest-accent transition-colors" aria-label="Mi cuenta">
+          <Link to="/login" className="text-[#1A2B1C] hover:text-forest-accent transition-colors" aria-label="Mi cuenta">
             <UserIcon />
-          </button>
+          </Link>
           <Link to="/cart" className="relative text-[#1A2B1C] hover:text-forest-accent transition-colors" aria-label="Carrito">
             <CartIcon />
             {itemCount > 0 && (

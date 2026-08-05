@@ -6,10 +6,15 @@ import { Home } from "./pages/Home";
 import { Categories } from "./pages/Categories";
 import { Products } from "./pages/Products";
 import { ProductDetail } from "./pages/ProductDetail";
-import { ProductNew } from "./pages/admin/ProductNew";
+import { Login } from "./pages/Login";
+import { Register } from "./pages/Register";
+import { ForgotPassword } from "./pages/ForgotPassword";
 import { ProductEdit } from "./pages/admin/ProductEdit";
 import { ProductList } from "./pages/admin/ProductList";
 import { CategoryList } from "./pages/admin/CategoryList";
+import { UserList } from "./pages/admin/UserList";
+import { UserNew } from "./pages/admin/UserNew";
+import { UserEdit } from "./pages/admin/UserEdit";
 import { CategoryNew } from "./pages/admin/CategoryNew";
 import { CategoryEdit } from "./pages/admin/CategoryEdit";
 
@@ -35,17 +40,21 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/categories" element={<Categories />} />
-            <Route path="/login" element={<PlaceholderPage title="Login" />} />
-            <Route path="/register" element={<PlaceholderPage title="Registrarse" />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/products" element={<Products />} />
             <Route path="/products/:productId" element={<ProductDetail />} />
             <Route path="/store/:slug" element={<PlaceholderPage title="Tienda pública" />} />
             <Route path="/cart" element={<PlaceholderPage title="Carrito" />} />
             <Route path="/seller" element={<PlaceholderPage title="Dashboard" />} />
             <Route path="/seller/products" element={<ProductList />} />
-            <Route path="/seller/products/new" element={<ProductNew />} />
+            <Route path="/seller/products/new" element={<ProductEdit />} />
             <Route path="/seller/products/:productId/edit" element={<ProductEdit />} />
             <Route path="/seller/categories" element={<CategoryList />} />
+            <Route path="/seller/users" element={<UserList />} />
+            <Route path="/seller/users/new" element={<UserNew />} />
+            <Route path="/seller/users/:userId/edit" element={<UserEdit />} />
             <Route path="/seller/categories/new" element={<CategoryNew />} />
             <Route path="/seller/categories/:id/edit" element={<CategoryEdit />} />
             <Route path="/diseno" element={<PlaceholderPage title="Diseño & Paisajismo" />} />

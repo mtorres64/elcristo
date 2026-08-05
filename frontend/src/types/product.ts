@@ -20,6 +20,10 @@ export interface ProductSummary {
   rating_avg: number | null;
   rating_count: number;
   status: string;
+  category_id: string | null;
+  stock: number;
+  tags: string[];
+  care: Record<string, string>;
 }
 
 export interface ProductDetail extends ProductSummary {

@@ -32,6 +32,28 @@ export const productService = {
     return res.data;
   },
 
+  async create(data: {
+    title: string;
+    short_description?: string | null;
+    description?: string | null;
+    price: number;
+    compare_at_price?: number | null;
+    currency?: string;
+    tax?: string;
+    category_id?: string | null;
+    stock?: number;
+    sku?: string | null;
+    is_featured?: boolean;
+    weight_grams?: number | null;
+    height_cm?: number | null;
+    tags?: string[];
+    care?: Record<string, string>;
+    attributes?: Record<string, string>;
+  }): Promise<ProductDetail> {
+    const res = await api.post("/products", data);
+    return res.data;
+  },
+
   async uploadImage(productId: string, file: File): Promise<string> {
     const form = new FormData();
     form.append("file", file);

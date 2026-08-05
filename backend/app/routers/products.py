@@ -25,6 +25,10 @@ def _to_summary(doc: dict) -> dict:
         "rating_avg": doc.get("rating_avg"),
         "rating_count": doc.get("rating_count", 0),
         "status": doc["status"],
+        "category_id": doc.get("category_id"),
+        "stock": doc.get("stock", 0),
+        "tags": doc.get("tags", []),
+        "care": doc.get("care", {}),
     }
 
 
@@ -135,8 +139,45 @@ async def get_product(product_id: str):
 
 @router.post("", response_model=ProductDetail, status_code=201)
 async def create_product(body: ProductCreate, request: Request):
-    # TODO: implementar en Fase 1
-    raise HTTPException(501, "No implementado aún")
+    from datetime import UTC, datetime
+
+    db = get_db()
+    tenant_id = getattr(request.state, "tenant_id", None) or "default"
+    now = datetime.now(UTC)
+
+    doc = {
+        "tenant_id": tenant_id,
+        "tenant_name": tenant_id,
+        "title": body.title,
+        "short_description": body.short_description,
+        "description": body.description,
+        "price": body.price,
+        "compare_at_price": body.compare_at_price,
+        "currency": body.currency,
+        "tax": body.tax,
+        "category_id": body.category_id,
+        "stock": body.stock,
+        "sku": body.sku,
+        "is_featured": body.is_featured,
+        "status": "draft",
+        "images": [],
+        "variants": [],
+        "tags": body.tags,
+        "care": body.care,
+        "attributes": body.attributes,
+        "weight_grams": body.weight_grams,
+        "height_cm": body.height_cm,
+        "rating_avg": None,
+        "rating_count": 0,
+        "sold_count": 0,
+        "deleted_at": None,
+        "created_at": now,
+        "updated_at": now,
+    }
+
+    result = await db.products.insert_one(doc)
+    doc["_id"] = result.inserted_id
+    return _to_detail(doc)
 
 
 @router.post("/{product_id}/images")

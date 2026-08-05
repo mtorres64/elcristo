@@ -1,16 +1,11 @@
 import { useState, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { AdminLayout } from "../../components/admin/AdminLayout";
+import { productService } from "../../services/product.service";
+import toast from "react-hot-toast";
 
 /* ─── Types ──────────────────────────────────────────────────── */
 type Tab = "general" | "variantes" | "imagenes" | "seo";
-
-const IMAGE_BG = [
-  "from-[#C8D8C0] to-[#A8BCA0]",
-  "from-[#D4DFD0] to-[#B8CAB2]",
-  "from-[#CCE0C0] to-[#9AB890]",
-  "from-[#D0D8C8] to-[#A8B8A0]",
-];
 
 const CARE_OPTIONS: Record<string, string[]> = {
   Luz: [
@@ -73,9 +68,12 @@ export function ProductNew() {
   const [plantType, setPlantType] = useState("");
   const [growth, setGrowth] = useState("Medio");
   const [coverIndex, setCoverIndex] = useState(0);
-  const [images, setImages] = useState<number[]>([]);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [saving, setSaving] = useState(false);
   const [tagInput, setTagInput] = useState("");
   const tagInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const navigate = useNavigate();
 
   function addTag(value: string) {
     const v = value.trim();
@@ -97,8 +95,74 @@ export function ProductNew() {
     setTags((prev) => prev.filter((x) => x !== t));
   }
   function removeImage(i: number) {
-    setImages((prev) => prev.filter((_, idx) => idx !== i));
+    setPendingFiles((prev) => prev.filter((_, idx) => idx !== i));
     if (coverIndex === i) setCoverIndex(0);
+    else if (coverIndex > i) setCoverIndex((c) => c - 1);
+  }
+
+  function handleFiles(files: FileList | File[]) {
+    const list = Array.from(files).filter((f) => f.type.startsWith("image/"));
+    if (!list.length) return;
+    setPendingFiles((prev) => [...prev, ...list]);
+  }
+
+  function handleDrop(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    handleFiles(e.dataTransfer.files);
+  }
+
+  async function handleSubmit(publish: boolean) {
+    if (!name.trim()) { toast.error("El nombre del producto es obligatorio"); return; }
+    if (!price || Number(price) <= 0) { toast.error("El precio debe ser mayor a 0"); return; }
+    setSaving(true);
+    try {
+      const product = await productService.create({
+        title: name.trim(),
+        short_description: shortDesc || null,
+        description: fullDesc || null,
+        price: Math.round(Number(price) * 100),
+        compare_at_price: promoPrice ? Math.round(Number(promoPrice) * 100) : null,
+        currency,
+        tax,
+        category_id: category || null,
+        stock,
+        sku: sku || null,
+        is_featured: featured,
+        weight_grams: weight ? Math.round(Number(weight) * 1000) : null,
+        height_cm: height ? Number(height) : null,
+        tags,
+        care: {
+          ...(careLight && { light: careLight }),
+          ...(careWater && { water: careWater }),
+          ...(careEnv && { environment: careEnv }),
+          ...(careTemp && { temperature: careTemp }),
+        },
+        attributes: {
+          ...(dimPot && { pot_diameter: dimPot }),
+          ...(dimHeight && { height_with_pot: dimHeight }),
+          ...(plantType && { plant_type: plantType }),
+          ...(growth && { growth }),
+        },
+      });
+      const productId = product.product_id;
+      if (pendingFiles.length > 0) {
+        await Promise.all(
+          pendingFiles.map(async (file) => {
+            try { await productService.uploadImage(productId, file); }
+            catch { toast.error(`No se pudo subir ${file.name}`); }
+          })
+        );
+      }
+      if (publish) {
+        await productService.updateById(productId, { status: "active" });
+      }
+      toast.success(publish ? "Producto publicado" : "Borrador guardado");
+      navigate(`/seller/products/${productId}/edit`);
+    } catch {
+      toast.error("No se pudo crear el producto");
+    } finally {
+      setSaving(false);
+    }
   }
 
   const TABS: { id: Tab; label: string }[] = [
@@ -133,25 +197,26 @@ export function ProductNew() {
 
           {/* Actions */}
           <div className="flex items-center gap-2 shrink-0">
-            <button className="px-4 py-2 border border-[#E8E2D8] text-sm text-[#4A4A4A] bg-white hover:bg-[#F9F8F5] transition-colors">
+            <Link
+              to="/seller/products"
+              className="px-4 py-2 border border-[#E8E2D8] text-sm text-[#4A4A4A] bg-white hover:bg-[#F9F8F5] transition-colors"
+            >
               Cancelar
-            </button>
-            <button className="px-4 py-2 border border-[#C8C0B4] text-sm text-[#1A2B1C] font-medium bg-white hover:bg-[#F5F5F3] transition-colors">
+            </Link>
+            <button
+              onClick={() => handleSubmit(false)}
+              disabled={saving}
+              className="px-4 py-2 border border-[#C8C0B4] text-sm text-[#1A2B1C] font-medium bg-white hover:bg-[#F5F5F3] transition-colors disabled:opacity-50"
+            >
               Guardar borrador
             </button>
-            <div className="flex">
-              <button className="bg-[#1A2B1C] text-white text-xs font-semibold uppercase tracking-widest px-5 py-2.5 hover:bg-[#253824] transition-colors">
-                Publicar producto
-              </button>
-              <button
-                className="bg-[#1A2B1C] text-white border-l border-[#2D4A2D] px-2.5 hover:bg-[#253824] transition-colors"
-                aria-label="Más opciones"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <path d="M6 9l6 6 6-6" />
-                </svg>
-              </button>
-            </div>
+            <button
+              onClick={() => handleSubmit(true)}
+              disabled={saving}
+              className="bg-[#1A2B1C] text-white text-xs font-semibold uppercase tracking-widest px-5 py-2.5 hover:bg-[#253824] transition-colors disabled:opacity-50"
+            >
+              {saving ? "Guardando…" : "Publicar producto"}
+            </button>
           </div>
         </div>
 
@@ -560,7 +625,20 @@ export function ProductNew() {
               <p className="text-sm font-semibold text-[#1A1A1A] mb-4">Imágenes del producto</p>
 
               {/* Drop zone */}
-              <div className="border-2 border-dashed border-[#D0C8C0] p-6 text-center mb-4 hover:border-[#1A2B1C] transition-colors cursor-pointer group">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={(e) => e.target.files && handleFiles(e.target.files)}
+              />
+              <div
+                className="border-2 border-dashed border-[#D0C8C0] p-6 text-center mb-4 hover:border-[#1A2B1C] transition-colors cursor-pointer group"
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={handleDrop}
+              >
                 <div className="flex justify-center mb-2 text-[#ABABAB] group-hover:text-[#5A7A5C] transition-colors">
                   <UploadIcon />
                 </div>
@@ -574,34 +652,38 @@ export function ProductNew() {
               </div>
 
               {/* Thumbnails */}
-              {images.length > 0 && (
+              {pendingFiles.length > 0 && (
                 <div className="grid grid-cols-4 gap-1.5 mb-2">
-                  {images.map((imgIdx, i) => (
-                    <div key={imgIdx} className="relative group">
-                      <div
-                        className={`aspect-square bg-gradient-to-br ${IMAGE_BG[imgIdx % IMAGE_BG.length]} flex items-center justify-center cursor-pointer`}
-                        onClick={() => setCoverIndex(i)}
-                      >
-                        <PlantMiniIcon />
+                  {pendingFiles.map((file, i) => {
+                    const src = URL.createObjectURL(file);
+                    return (
+                      <div key={i} className="relative group">
+                        <img
+                          src={src}
+                          alt={file.name}
+                          onLoad={() => URL.revokeObjectURL(src)}
+                          className="aspect-square w-full object-cover cursor-pointer"
+                          onClick={() => setCoverIndex(i)}
+                        />
+                        {i === coverIndex && (
+                          <span className="absolute bottom-0 left-0 right-0 bg-[#1A2B1C] text-white text-[8px] font-bold text-center py-0.5">
+                            Portada
+                          </span>
+                        )}
+                        <button
+                          onClick={() => removeImage(i)}
+                          className="absolute top-0.5 right-0.5 w-4 h-4 bg-white border border-[#E8E2D8] text-[#6B6B6B] hover:text-[#DC2626] text-[10px] leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                          aria-label="Quitar imagen"
+                        >
+                          ×
+                        </button>
                       </div>
-                      {i === coverIndex && (
-                        <span className="absolute bottom-0 left-0 right-0 bg-[#1A2B1C] text-white text-[8px] font-bold text-center py-0.5">
-                          Portada
-                        </span>
-                      )}
-                      <button
-                        onClick={() => removeImage(i)}
-                        className="absolute top-0.5 right-0.5 w-4 h-4 bg-white border border-[#E8E2D8] text-[#6B6B6B] hover:text-[#DC2626] text-[10px] leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                        aria-label="Quitar imagen"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
-              {images.length > 0 && (
-                <p className="text-[10px] text-[#ABABAB] text-center">Arrastrá para reordenar</p>
+              {pendingFiles.length > 0 && (
+                <p className="text-[10px] text-[#ABABAB] text-center">Tocá para marcar como portada</p>
               )}
             </div>
 
@@ -756,15 +838,6 @@ function ChevronSelectIcon() {
   );
 }
 
-function PlantMiniIcon() {
-  return (
-    <svg width="24" height="24" viewBox="0 0 64 64" fill="currentColor" className="text-white opacity-30">
-      <path d="M32 56 C28 44 22 32 32 12 C42 32 36 44 32 56Z" />
-      <path d="M32 56 C24 46 14 36 12 22 C22 32 30 44 32 56Z" opacity="0.7" />
-      <path d="M32 56 C40 46 50 36 52 22 C42 32 34 44 32 56Z" opacity="0.7" />
-    </svg>
-  );
-}
 function PlantPreviewIcon() {
   return (
     <svg width="80" height="80" viewBox="0 0 64 64" fill="currentColor" className="text-white opacity-30">

@@ -1,26 +1,18 @@
-import { useState, ReactNode } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { useState, useRef, useEffect, ReactNode } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "../../hooks/useAuth";
 
-interface NavChild { label: string; path: string }
 interface NavItem {
   icon: ReactNode;
   label: string;
   path: string;
   badge?: number;
-  children?: NavChild[];
 }
 
 const NAV: NavItem[] = [
   { icon: <DashboardIcon />, label: "Dashboard", path: "/seller" },
   { icon: <OrdersIcon />, label: "Pedidos", path: "/seller/orders", badge: 12 },
-  {
-    icon: <ProductsIcon />, label: "Productos", path: "/seller/products",
-    children: [
-      { label: "Todos los productos", path: "/seller/products" },
-      { label: "Categorías", path: "/seller/products/categories" },
-      { label: "Etiquetas", path: "/seller/products/tags" },
-    ],
-  },
+  { icon: <ProductsIcon />, label: "Productos", path: "/seller/products" },
   { icon: <CategoriesIcon />, label: "Categorías", path: "/seller/categories" },
   { icon: <ClientsIcon />, label: "Clientes", path: "/seller/clients" },
   { icon: <DiscountsIcon />, label: "Descuentos", path: "/seller/discounts" },
@@ -31,15 +23,46 @@ const NAV: NavItem[] = [
   { icon: <IntegrationsIcon />, label: "Integraciones", path: "/seller/integrations" },
 ];
 
+const ROLE_LABEL: Record<string, string> = {
+  platform_admin: "Administrador",
+  seller: "Vendedor",
+  buyer: "Comprador",
+};
+
 export function AdminLayout({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  function handleLogout() {
+    logout();
+    navigate("/login");
+  }
+
+  const initials = user?.name
+    ? user.name.split(" ").slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("")
+    : "?";
+  const displayName = user?.name ?? "Usuario";
+  const displayRole = ROLE_LABEL[user?.role ?? ""] ?? user?.role ?? "";
 
   return (
     <div className="min-h-screen flex bg-[#F5F5F3] font-sans">
       {/* Sidebar */}
       <aside
-        className={`${sidebarOpen ? "w-[200px]" : "w-0"} bg-[#111810] flex flex-col shrink-0 overflow-hidden transition-[width] duration-300`}
+        className={`${sidebarOpen ? "w-[240px]" : "w-0"} bg-[#111810] flex flex-col shrink-0 overflow-hidden transition-[width] duration-300`}
       >
         {/* Logo */}
         <div className="flex items-center gap-3 px-5 h-[60px] border-b border-[#1C2C1C] shrink-0">
@@ -80,23 +103,6 @@ export function AdminLayout({ children }: { children: ReactNode }) {
                     </span>
                   )}
                 </Link>
-                {item.children && isActive && (
-                  <div className="bg-[#0D1410]">
-                    {item.children.map((child) => (
-                      <Link
-                        key={child.label}
-                        to={child.path}
-                        className={`flex items-center pl-[52px] pr-5 py-2 text-xs transition-colors whitespace-nowrap ${
-                          location.pathname === child.path
-                            ? "text-white"
-                            : "text-[#5A7A5C] hover:text-[#A0C8A0]"
-                        }`}
-                      >
-                        {child.label}
-                      </Link>
-                    ))}
-                  </div>
-                )}
               </div>
             );
           })}
@@ -115,7 +121,10 @@ export function AdminLayout({ children }: { children: ReactNode }) {
               Centro de ayuda
             </a>
           </div>
-          <button className="flex items-center gap-2 text-[#5A7A5C] hover:text-white text-xs font-medium transition-colors">
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-2 text-[#5A7A5C] hover:text-white text-xs font-medium transition-colors"
+          >
             <LogoutIcon />
             Cerrar sesión
           </button>
@@ -134,21 +143,6 @@ export function AdminLayout({ children }: { children: ReactNode }) {
             <HamburgerIcon />
           </button>
 
-          {/* Search */}
-          <div className="flex-1 max-w-sm">
-            <div className="flex items-center gap-2 rounded-lg border border-[#E8E2D8] px-3 py-1.5 bg-[#F9F8F5]">
-              <SearchAdminIcon />
-              <input
-                type="text"
-                placeholder="Buscar en productos..."
-                className="flex-1 text-sm bg-transparent text-[#1A1A1A] placeholder-[#ABABAB] outline-none"
-              />
-              <span className="text-[10px] text-[#ABABAB] border border-[#E8E2D8] px-1.5 py-0.5 font-mono shrink-0">
-                Ctrl+K
-              </span>
-            </div>
-          </div>
-
           <div className="flex items-center gap-5 ml-auto">
             {/* Bell */}
             <button
@@ -161,26 +155,39 @@ export function AdminLayout({ children }: { children: ReactNode }) {
               </span>
             </button>
 
-            {/* User */}
-            <div className="flex items-center gap-2 cursor-pointer group">
-              <div className="w-8 h-8 rounded-full bg-[#1A2B1C] flex items-center justify-center text-white text-xs font-bold shrink-0">
-                A
-              </div>
-              <div className="hidden sm:block leading-tight">
-                <p className="text-xs font-semibold text-[#1A1A1A]">Admin</p>
-                <p className="text-[10px] text-[#8A8A8A]">Administrador</p>
-              </div>
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                className="text-[#8A8A8A]"
+            {/* User menu */}
+            <div className="relative" ref={menuRef}>
+              <button
+                onClick={() => setUserMenuOpen((o) => !o)}
+                className="flex items-center gap-2 hover:opacity-80 transition-opacity"
               >
-                <path d="M6 9l6 6 6-6" />
-              </svg>
+                <div className="w-8 h-8 rounded-full bg-[#1A2B1C] flex items-center justify-center text-white text-xs font-bold shrink-0">
+                  {initials}
+                </div>
+                <div className="hidden sm:block leading-tight text-left">
+                  <p className="text-xs font-semibold text-[#1A1A1A]">{displayName}</p>
+                  <p className="text-[10px] text-[#8A8A8A]">{displayRole}</p>
+                </div>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`text-[#8A8A8A] transition-transform ${userMenuOpen ? "rotate-180" : ""}`}>
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
+              </button>
+
+              {userMenuOpen && (
+                <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-[#E8E2D8] shadow-lg z-50 py-1">
+                  <div className="px-4 py-2.5 border-b border-[#F0EDE8]">
+                    <p className="text-xs font-semibold text-[#1A1A1A] truncate">{displayName}</p>
+                    <p className="text-[10px] text-[#8A8A8A] truncate">{user?.email}</p>
+                  </div>
+                  <button
+                    onClick={handleLogout}
+                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-[#DC2626] hover:bg-[#FEF2F2] transition-colors"
+                  >
+                    <LogoutIcon />
+                    Cerrar sesión
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </header>

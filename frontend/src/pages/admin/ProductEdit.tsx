@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { AdminLayout } from "../../components/admin/AdminLayout";
 import { productService } from "../../services/product.service";
 import { useCategories } from "../../hooks/useCategories";
@@ -46,8 +46,9 @@ const CARE_OPTIONS: Record<string, string[]> = {
 export function ProductEdit() {
   const { productId } = useParams<{ productId: string }>();
   const { categories: categoryList } = useCategories(100);
+  const navigate = useNavigate();
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [tab, setTab] = useState<Tab>("general");
   const [name, setName] = useState("");
@@ -76,6 +77,7 @@ export function ProductEdit() {
   const [coverIndex, setCoverIndex] = useState(0);
   const [images, setImages] = useState<string[]>([]);
   const [uploadingCount, setUploadingCount] = useState(0);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [tagInput, setTagInput] = useState("");
   const tagInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -83,7 +85,7 @@ export function ProductEdit() {
   const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
   useEffect(() => {
-    if (!productId) return;
+    if (!productId) { setLoading(false); return; }
     setLoading(true);
     productService
       .getById(productId)
@@ -92,8 +94,8 @@ export function ProductEdit() {
         setSku(p.sku ?? "");
         setCategory(p.category_id ?? "");
         setTags(p.tags ?? []);
-        setPrice(p.price != null ? String(p.price) : "");
-        setPromoPrice(p.compare_at_price != null ? String(p.compare_at_price) : "");
+        setPrice(p.price != null ? String(p.price / 100) : "");
+        setPromoPrice(p.compare_at_price != null ? String(p.compare_at_price / 100) : "");
         setCurrency(p.currency ?? "ARS");
         setTax(p.tax ?? "iva-21");
         setStock(p.stock ?? 0);
@@ -136,15 +138,22 @@ export function ProductEdit() {
     setTags((prev) => prev.filter((x) => x !== t));
   }
   function removeImage(i: number) {
-    setImages((prev) => prev.filter((_, idx) => idx !== i));
+    if (!productId) {
+      setPendingFiles((prev) => prev.filter((_, idx) => idx !== i));
+    } else {
+      setImages((prev) => prev.filter((_, idx) => idx !== i));
+    }
     if (coverIndex === i) setCoverIndex(0);
     else if (coverIndex > i) setCoverIndex((c) => c - 1);
   }
 
   async function handleFiles(files: FileList | File[]) {
-    if (!productId) return;
     const list = Array.from(files).filter((f) => f.type.startsWith("image/"));
     if (!list.length) return;
+    if (!productId) {
+      setPendingFiles((prev) => [...prev, ...list]);
+      return;
+    }
     setUploadingCount((n) => n + list.length);
     await Promise.all(
       list.map(async (file) => {
@@ -172,6 +181,61 @@ export function ProductEdit() {
     { id: "seo", label: "SEO y visibilidad" },
   ];
 
+  async function handleCreate(publish: boolean) {
+    if (!name.trim()) { toast.error("El nombre del producto es obligatorio"); return; }
+    if (!price || Number(price) <= 0) { toast.error("El precio debe ser mayor a 0"); return; }
+    setSaving(true);
+    try {
+      const product = await productService.create({
+        title: name.trim(),
+        short_description: shortDesc || null,
+        description: fullDesc || null,
+        price: Math.round(Number(price) * 100),
+        compare_at_price: promoPrice ? Math.round(Number(promoPrice) * 100) : null,
+        currency,
+        tax,
+        category_id: category || null,
+        stock,
+        sku: sku || null,
+        is_featured: featured,
+        weight_grams: weight ? Math.round(Number(weight) * 1000) : null,
+        height_cm: height ? Number(height) : null,
+        tags,
+        care: {
+          ...(careLight && { light: careLight }),
+          ...(careWater && { water: careWater }),
+          ...(careEnv && { environment: careEnv }),
+          ...(careTemp && { temperature: careTemp }),
+        },
+        attributes: {
+          ...(dimPot && { pot_diameter: dimPot }),
+          ...(dimHeight && { height_with_pot: dimHeight }),
+          ...(plantType && { plant_type: plantType }),
+          ...(growth && { growth }),
+        },
+      });
+      const newId = product.product_id;
+      if (pendingFiles.length > 0) {
+        const ordered = coverIndex === 0
+          ? pendingFiles
+          : [pendingFiles[coverIndex], ...pendingFiles.filter((_, i) => i !== coverIndex)];
+        await Promise.all(
+          ordered.map(async (file) => {
+            try { await productService.uploadImage(newId, file); }
+            catch { toast.error(`No se pudo subir ${file.name}`); }
+          })
+        );
+      }
+      if (publish) await productService.updateById(newId, { status: "active" });
+      toast.success(publish ? "Producto publicado" : "Borrador guardado");
+      navigate(`/seller/products/${newId}/edit`);
+    } catch {
+      toast.error("No se pudo crear el producto");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function handleSave(newStatus?: string) {
     if (!productId) return;
     setSaving(true);
@@ -180,8 +244,8 @@ export function ProductEdit() {
         title: name,
         short_description: shortDesc || null,
         description: fullDesc || null,
-        price: price ? Math.round(parseFloat(price)) : undefined,
-        compare_at_price: promoPrice ? Math.round(parseFloat(promoPrice)) : null,
+        price: price ? Math.round(parseFloat(price) * 100) : undefined,
+        compare_at_price: promoPrice ? Math.round(parseFloat(promoPrice) * 100) : null,
         currency,
         tax,
         category_id: category || null,
@@ -241,16 +305,20 @@ export function ProductEdit() {
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M9 18l6-6-6-6" />
           </svg>
-          <span className="text-[#1A1A1A] font-medium">Editar producto</span>
+          <span className="text-[#1A1A1A] font-medium">
+            {productId ? "Editar producto" : "Nuevo producto"}
+          </span>
         </nav>
 
         {/* Header */}
         <div className="flex items-start justify-between gap-4 mb-6">
           <div>
             <h1 className="font-serif text-2xl font-semibold text-[#1A1A1A] leading-tight">
-              {name || "Editar producto"}
+              {productId ? (name || "Editar producto") : "Nuevo producto"}
             </h1>
-            <p className="text-xs text-[#8A8A8A] mt-1">Modificá los datos del producto</p>
+            <p className="text-xs text-[#8A8A8A] mt-1">
+              {productId ? "Modificá los datos del producto" : "Creá un nuevo producto para tu tienda"}
+            </p>
           </div>
 
           {/* Actions */}
@@ -262,18 +330,18 @@ export function ProductEdit() {
               Cancelar
             </Link>
             <button
-              onClick={() => handleSave("draft")}
+              onClick={() => productId ? handleSave("draft") : handleCreate(false)}
               disabled={saving}
               className="px-4 py-2 border border-[#C8C0B4] rounded-lg text-sm text-[#1A2B1C] font-medium bg-white hover:bg-[#F5F5F3] transition-colors disabled:opacity-50"
             >
               Guardar borrador
             </button>
             <button
-              onClick={() => handleSave()}
+              onClick={() => productId ? handleSave() : handleCreate(true)}
               disabled={saving}
               className="bg-[#1A2B1C] text-white text-xs font-semibold uppercase tracking-widest px-5 py-2.5 rounded-lg hover:bg-[#253824] transition-colors disabled:opacity-50"
             >
-              {saving ? "Guardando…" : "Guardar cambios"}
+              {saving ? "Guardando…" : productId ? "Guardar cambios" : "Publicar producto"}
             </button>
           </div>
         </div>
@@ -713,37 +781,65 @@ export function ProductEdit() {
               </div>
 
               {/* Thumbnails */}
-              {images.length > 0 && (
+              {(productId ? images : pendingFiles).length > 0 && (
                 <div className="grid grid-cols-4 gap-1.5 mb-2">
-                  {images.map((url, i) => (
-                    <div key={url} className="relative group">
-                      <div
-                        className="aspect-square bg-[#F0EDE8] rounded-lg overflow-hidden cursor-pointer"
-                        onClick={() => setCoverIndex(i)}
-                      >
-                        <img
-                          src={url.startsWith("/uploads") ? `${API_BASE}${url}` : url}
-                          alt=""
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                      {i === coverIndex && (
-                        <span className="absolute bottom-0 left-0 right-0 bg-[#1A2B1C] text-white text-[8px] font-bold text-center py-0.5">
-                          Portada
-                        </span>
-                      )}
-                      <button
-                        onClick={() => removeImage(i)}
-                        className="absolute top-0.5 right-0.5 w-4 h-4 bg-white border border-[#E8E2D8] text-[#6B6B6B] hover:text-[#DC2626] text-[10px] leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                        aria-label="Quitar imagen"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
+                  {productId
+                    ? images.map((url, i) => (
+                        <div key={url} className="relative group">
+                          <div
+                            className="aspect-square bg-[#F0EDE8] rounded-lg overflow-hidden cursor-pointer"
+                            onClick={() => setCoverIndex(i)}
+                          >
+                            <img
+                              src={url.startsWith("/uploads") ? `${API_BASE}${url}` : url}
+                              alt=""
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          {i === coverIndex && (
+                            <span className="absolute bottom-0 left-0 right-0 bg-[#1A2B1C] text-white text-[8px] font-bold text-center py-0.5">
+                              Portada
+                            </span>
+                          )}
+                          <button
+                            onClick={() => removeImage(i)}
+                            className="absolute top-0.5 right-0.5 w-4 h-4 bg-white border border-[#E8E2D8] text-[#6B6B6B] hover:text-[#DC2626] text-[10px] leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                            aria-label="Quitar imagen"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))
+                    : pendingFiles.map((file, i) => {
+                        const src = URL.createObjectURL(file);
+                        return (
+                          <div key={i} className="relative group">
+                            <img
+                              src={src}
+                              alt={file.name}
+                              onLoad={() => URL.revokeObjectURL(src)}
+                              className="aspect-square w-full object-cover rounded-lg cursor-pointer"
+                              onClick={() => setCoverIndex(i)}
+                            />
+                            {i === coverIndex && (
+                              <span className="absolute bottom-0 left-0 right-0 bg-[#1A2B1C] text-white text-[8px] font-bold text-center py-0.5">
+                                Portada
+                              </span>
+                            )}
+                            <button
+                              onClick={() => removeImage(i)}
+                              className="absolute top-0.5 right-0.5 w-4 h-4 bg-white border border-[#E8E2D8] text-[#6B6B6B] hover:text-[#DC2626] text-[10px] leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                              aria-label="Quitar imagen"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        );
+                      })
+                  }
                 </div>
               )}
-              {images.length > 0 && (
+              {(productId ? images : pendingFiles).length > 0 && (
                 <p className="text-[10px] text-[#ABABAB] text-center">Clic en una imagen para elegir portada</p>
               )}
             </div>
@@ -752,25 +848,33 @@ export function ProductEdit() {
             <div className="bg-white border border-[#E8E2D8] rounded-lg p-5">
               <div className="flex items-center justify-between mb-4">
                 <p className="text-sm font-semibold text-[#1A1A1A]">Vista previa en tienda</p>
-                <Link
-                  to={`/products/${productId}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-xs text-[#3D6040] hover:text-[#1A2B1C] transition-colors"
-                >
-                  Ver página
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                    <polyline points="15 3 21 3 21 9" />
-                    <line x1="10" y1="14" x2="21" y2="3" />
-                  </svg>
-                </Link>
+                {productId && (
+                  <Link
+                    to={`/products/${productId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-xs text-[#3D6040] hover:text-[#1A2B1C] transition-colors"
+                  >
+                    Ver página
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                      <polyline points="15 3 21 3 21 9" />
+                      <line x1="10" y1="14" x2="21" y2="3" />
+                    </svg>
+                  </Link>
+                )}
               </div>
               <div className="border border-[#E8E2D8] rounded-lg overflow-hidden">
                 <div className="aspect-[4/3] bg-gradient-to-br from-[#C8D8C0] to-[#A8BCA0] flex items-center justify-center overflow-hidden">
-                  {images[coverIndex] ? (
+                  {productId && images[coverIndex] ? (
                     <img
                       src={images[coverIndex].startsWith("/uploads") ? `${API_BASE}${images[coverIndex]}` : images[coverIndex]}
+                      alt="Portada"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : !productId && pendingFiles[coverIndex] ? (
+                    <img
+                      src={URL.createObjectURL(pendingFiles[coverIndex])}
                       alt="Portada"
                       className="w-full h-full object-cover"
                     />
@@ -818,14 +922,16 @@ export function ProductEdit() {
             <div className="bg-white border border-[#E8E2D8] rounded-lg p-5">
               <p className="text-sm font-semibold text-[#1A1A1A] mb-4">Información adicional</p>
               <div className="flex flex-col gap-3 text-xs">
-                <div className="flex justify-between">
-                  <span className="text-[#8A8A8A]">ID del producto</span>
-                  <span className="text-[#ABABAB] font-mono">{productId}</span>
-                </div>
+                {productId && (
+                  <div className="flex justify-between">
+                    <span className="text-[#8A8A8A]">ID del producto</span>
+                    <span className="text-[#ABABAB] font-mono">{productId}</span>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span className="text-[#8A8A8A]">Estado actual</span>
                   <span className={`font-medium ${active ? "text-[#2D6A4F]" : "text-[#6B6B6B]"}`}>
-                    {active ? "Activo" : "Inactivo"}
+                    {productId ? (active ? "Activo" : "Inactivo") : "Borrador (nuevo)"}
                   </span>
                 </div>
               </div>

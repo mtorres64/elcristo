@@ -67,6 +67,10 @@ class ProductSummary(BaseModel):
     rating_avg: float | None = None
     rating_count: int
     status: str
+    category_id: str | None = None
+    stock: int = 0
+    tags: list[str] = []
+    care: dict[str, str] = {}
 
 
 class ProductDetail(ProductSummary):

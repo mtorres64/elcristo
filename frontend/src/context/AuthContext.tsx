@@ -1,5 +1,5 @@
-import { createContext, useContext, useState, ReactNode } from "react";
-import { api, setTokens, clearTokens } from "../services/api";
+import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { api, setTokens, clearTokens, getStoredRefreshToken } from "../services/api";
 
 interface User {
   user_id: string;
@@ -12,7 +12,7 @@ interface User {
 interface AuthContextValue {
   user: User | null;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<User>;
   logout: () => void;
 }
 
@@ -20,18 +20,31 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [restoring, setRestoring] = useState(!!getStoredRefreshToken());
 
-  async function login(email: string, password: string) {
+  useEffect(() => {
+    const token = localStorage.getItem("access_token");
+    if (!token) { setRestoring(false); return; }
+    api.get("/auth/me")
+      .then((res) => setUser(res.data))
+      .catch(() => clearTokens())
+      .finally(() => setRestoring(false));
+  }, []);
+
+  async function login(email: string, password: string): Promise<User> {
     const res = await api.post("/auth/login", { email, password });
     setTokens(res.data.access_token, res.data.refresh_token);
     const me = await api.get("/auth/me");
     setUser(me.data);
+    return me.data;
   }
 
   function logout() {
     clearTokens();
     setUser(null);
   }
+
+  if (restoring) return null;
 
   return (
     <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, logout }}>
