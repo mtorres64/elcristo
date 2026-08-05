@@ -1,8 +1,11 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { toast } from "react-hot-toast";
+import { useGoogleLogin } from "@react-oauth/google";
 import { useAuth } from "../hooks/useAuth";
+
+const GOOGLE_CONFIGURED = !!import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 interface FormData {
   email: string;
@@ -28,6 +31,34 @@ function FacebookIcon() {
   );
 }
 
+function GoogleLoginButton({
+  disabled,
+  onBefore,
+  onSuccess,
+  onError,
+}: {
+  disabled: boolean;
+  onBefore: () => void;
+  onSuccess: (accessToken: string) => void;
+  onError: () => void;
+}) {
+  const googleLogin = useGoogleLogin({
+    onSuccess: (res) => onSuccess(res.access_token),
+    onError,
+  });
+  return (
+    <button
+      type="button"
+      onClick={() => { onBefore(); googleLogin(); }}
+      disabled={disabled}
+      className="w-full flex items-center justify-center gap-3 border border-[#E8E2D8] bg-white py-3 px-4 text-sm text-[#1A1A1A] hover:bg-[#F8F7F5] transition-colors rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      <GoogleIcon />
+      Continuar con Google
+    </button>
+  );
+}
+
 function LeafDecoration() {
   return (
     <svg viewBox="0 0 400 500" fill="none" className="w-full h-full opacity-10">
@@ -43,8 +74,10 @@ function LeafDecoration() {
 }
 
 export function Login() {
-  const { login } = useAuth();
+  const { login, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = (location.state as { from?: string })?.from ?? "/";
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -54,16 +87,20 @@ export function Login() {
     formState: { errors },
   } = useForm<FormData>();
 
+  function redirectAfterLogin(role: string) {
+    if (role === "platform_admin" || role === "seller") {
+      navigate("/seller/products", { replace: true });
+    } else {
+      navigate(from, { replace: true });
+    }
+  }
+
   async function onSubmit(data: FormData) {
     setLoading(true);
     try {
       const user = await login(data.email, data.password);
       toast.success("¡Bienvenido de nuevo!");
-      if (user.role === "platform_admin" || user.role === "seller") {
-        navigate("/seller/products");
-      } else {
-        navigate("/");
-      }
+      redirectAfterLogin(user.role);
     } catch {
       toast.error("Email o contraseña incorrectos");
     } finally {
@@ -71,8 +108,16 @@ export function Login() {
     }
   }
 
-  function handleSocialLogin(provider: string) {
-    toast("Inicio de sesión con " + provider + " próximamente", { icon: "🚧" });
+  async function handleGoogleSuccess(accessToken: string) {
+    try {
+      const user = await loginWithGoogle(accessToken);
+      toast.success("¡Bienvenido!");
+      redirectAfterLogin(user.role);
+    } catch {
+      toast.error("No se pudo iniciar sesión con Google");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -103,7 +148,6 @@ export function Login() {
       {/* Panel derecho — formulario */}
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="w-full max-w-md">
-          {/* Mobile: volver */}
           <Link to="/" className="lg:hidden inline-flex items-center gap-1.5 text-xs uppercase tracking-widest text-[#6B6B6B] hover:text-forest-deep transition-colors mb-8">
             ← Volver
           </Link>
@@ -118,18 +162,28 @@ export function Login() {
 
           {/* Botones sociales */}
           <div className="space-y-3 mb-6">
+            {GOOGLE_CONFIGURED ? (
+              <GoogleLoginButton
+                disabled={loading}
+                onBefore={() => setLoading(true)}
+                onSuccess={handleGoogleSuccess}
+                onError={() => { toast.error("Error al conectar con Google"); setLoading(false); }}
+              />
+            ) : (
+              <button
+                type="button"
+                disabled
+                className="w-full flex items-center justify-center gap-3 border border-[#E8E2D8] bg-white py-3 px-4 text-sm text-[#1A1A1A] rounded-lg opacity-40 cursor-not-allowed"
+                title="Configurá VITE_GOOGLE_CLIENT_ID para habilitar"
+              >
+                <GoogleIcon />
+                Continuar con Google
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => handleSocialLogin("Google")}
-              className="w-full flex items-center justify-center gap-3 border border-[#E8E2D8] bg-white py-3 px-4 text-sm text-[#1A1A1A] hover:bg-[#F8F7F5] transition-colors rounded-none"
-            >
-              <GoogleIcon />
-              Continuar con Google
-            </button>
-            <button
-              type="button"
-              onClick={() => handleSocialLogin("Facebook")}
-              className="w-full flex items-center justify-center gap-3 border border-[#E8E2D8] bg-white py-3 px-4 text-sm text-[#1A1A1A] hover:bg-[#F8F7F5] transition-colors rounded-none"
+              onClick={() => toast("Inicio de sesión con Facebook próximamente", { icon: "🚧" })}
+              className="w-full flex items-center justify-center gap-3 border border-[#E8E2D8] bg-white py-3 px-4 text-sm text-[#1A1A1A] hover:bg-[#F8F7F5] transition-colors rounded-lg"
             >
               <FacebookIcon />
               Continuar con Facebook
@@ -152,7 +206,7 @@ export function Login() {
                 type="email"
                 autoComplete="email"
                 placeholder="tu@email.com"
-                className={`w-full border ${errors.email ? "border-red-400" : "border-[#E8E2D8]"} bg-white px-4 py-3 text-sm text-[#1A1A1A] placeholder-[#ABABAB] focus:outline-none focus:border-forest-deep transition-colors`}
+                className={`w-full border ${errors.email ? "border-red-400" : "border-[#E8E2D8]"} bg-white px-4 py-3 text-sm text-[#1A1A1A] placeholder-[#ABABAB] focus:outline-none focus:border-forest-deep transition-colors rounded-lg`}
                 {...register("email", {
                   required: "El email es obligatorio",
                   pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: "Email inválido" },
@@ -180,7 +234,7 @@ export function Login() {
                   type={showPassword ? "text" : "password"}
                   autoComplete="current-password"
                   placeholder="••••••••"
-                  className={`w-full border ${errors.password ? "border-red-400" : "border-[#E8E2D8]"} bg-white px-4 py-3 pr-11 text-sm text-[#1A1A1A] placeholder-[#ABABAB] focus:outline-none focus:border-forest-deep transition-colors`}
+                  className={`w-full border ${errors.password ? "border-red-400" : "border-[#E8E2D8]"} bg-white px-4 py-3 pr-11 text-sm text-[#1A1A1A] placeholder-[#ABABAB] focus:outline-none focus:border-forest-deep transition-colors rounded-lg`}
                   {...register("password", {
                     required: "La contraseña es obligatoria",
                     minLength: { value: 6, message: "Mínimo 6 caracteres" },
@@ -214,7 +268,7 @@ export function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="btn-primary w-full py-3.5 mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn-primary w-full py-3.5 mt-2 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg"
             >
               {loading ? "Ingresando..." : "Iniciar sesión"}
             </button>

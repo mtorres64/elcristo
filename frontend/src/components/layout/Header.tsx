@@ -1,14 +1,19 @@
 import { useState, useRef } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useCart } from "../../hooks/useCart";
+import { useAuth } from "../../hooks/useAuth";
 
 export function Header() {
   const { itemCount } = useCart();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
   function openSearch() {
     setSearchOpen(true);
@@ -27,6 +32,24 @@ export function Header() {
     closeSearch();
     navigate(`/products?q=${encodeURIComponent(q)}`);
   }
+
+  function handleLogout() {
+    logout();
+    setUserMenuOpen(false);
+    navigate("/");
+  }
+
+  // Cierra el menú de usuario al hacer click fuera
+  function handleUserMenuBlur(e: React.FocusEvent<HTMLDivElement>) {
+    if (!userMenuRef.current?.contains(e.relatedTarget as Node)) {
+      setUserMenuOpen(false);
+    }
+  }
+
+  const firstName = user?.name?.split(" ")[0] ?? "";
+  const initials = user?.name
+    ? user.name.split(" ").slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("")
+    : "";
 
   return (
     <header className="bg-white border-b border-[#E8E2D8] sticky top-0 z-50">
@@ -58,9 +81,73 @@ export function Header() {
           >
             <SearchIcon />
           </button>
-          <Link to="/login" className="text-[#1A2B1C] hover:text-forest-accent transition-colors" aria-label="Mi cuenta">
-            <UserIcon />
-          </Link>
+
+          {/* Usuario: logueado → nombre + menú | no logueado → icono login */}
+          {user ? (
+            <div
+              ref={userMenuRef}
+              className="relative"
+              onBlur={handleUserMenuBlur}
+            >
+              <button
+                onClick={() => setUserMenuOpen((o) => !o)}
+                className="flex items-center gap-2 text-[#1A2B1C] hover:text-forest-accent transition-colors"
+                aria-label="Mi cuenta"
+              >
+                {user.avatar_url ? (
+                  <img
+                    src={user.avatar_url}
+                    alt={user.name}
+                    className="w-7 h-7 rounded-full object-cover shrink-0"
+                  />
+                ) : (
+                  <div className="w-7 h-7 rounded-full bg-[#1A2B1C] flex items-center justify-center text-white text-[10px] font-bold shrink-0">
+                    {initials}
+                  </div>
+                )}
+                <span className="hidden sm:block text-[11px] font-semibold uppercase tracking-widest">
+                  {firstName}
+                </span>
+                <svg
+                  width="10" height="10" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" strokeWidth="2.5"
+                  className={`transition-transform ${userMenuOpen ? "rotate-180" : ""}`}
+                >
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
+              </button>
+
+              {userMenuOpen && (
+                <div className="absolute right-0 top-full mt-2 w-52 bg-white border border-[#E8E2D8] shadow-lg z-50 py-1">
+                  <div className="px-4 py-2.5 border-b border-[#F0EDE8]">
+                    <p className="text-xs font-semibold text-[#1A1A1A] truncate">{user.name}</p>
+                    <p className="text-[10px] text-[#8A8A8A] truncate">{user.email}</p>
+                  </div>
+                  <button
+                    onClick={handleLogout}
+                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-[#DC2626] hover:bg-[#FEF2F2] transition-colors"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                      <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
+                      <polyline points="16 17 21 12 16 7" />
+                      <line x1="21" y1="12" x2="9" y2="12" />
+                    </svg>
+                    Cerrar sesión
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <Link
+              to="/login"
+              state={{ from: location.pathname }}
+              className="text-[#1A2B1C] hover:text-forest-accent transition-colors"
+              aria-label="Mi cuenta"
+            >
+              <UserIcon />
+            </Link>
+          )}
+
           <Link to="/cart" className="relative text-[#1A2B1C] hover:text-forest-accent transition-colors" aria-label="Carrito">
             <CartIcon />
             {itemCount > 0 && (
@@ -137,6 +224,23 @@ export function Header() {
               {item}
             </button>
           ))}
+          {user ? (
+            <button
+              onClick={() => { handleLogout(); setMenuOpen(false); }}
+              className="text-sm text-left py-2 text-[#DC2626] tracking-wide"
+            >
+              Cerrar sesión
+            </button>
+          ) : (
+            <Link
+              to="/login"
+              state={{ from: location.pathname }}
+              onClick={() => setMenuOpen(false)}
+              className="text-sm text-left py-2 text-[#1A1A1A] tracking-wide"
+            >
+              Iniciar sesión
+            </Link>
+          )}
         </div>
       )}
     </header>
@@ -162,15 +266,10 @@ function NavLink({ to, children, hasArrow }: { to: string; children: React.React
 function LotusIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 48 48" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-      {/* Center petal */}
       <path d="M24 42 C22 33 20 23 24 8 C28 23 26 33 24 42Z" />
-      {/* Left mid petal */}
       <path d="M24 42 C19 34 11 24 9 12 C17 22 22 33 24 42Z" />
-      {/* Right mid petal */}
       <path d="M24 42 C29 34 37 24 39 12 C31 22 26 33 24 42Z" />
-      {/* Far left petal */}
       <path d="M22 40 C16 34 5 30 2 19 C10 26 17 34 22 40Z" opacity="0.65" />
-      {/* Far right petal */}
       <path d="M26 40 C32 34 43 30 46 19 C38 26 31 34 26 40Z" opacity="0.65" />
     </svg>
   );

@@ -17,6 +17,7 @@ import { UserNew } from "./pages/admin/UserNew";
 import { UserEdit } from "./pages/admin/UserEdit";
 import { CategoryNew } from "./pages/admin/CategoryNew";
 import { CategoryEdit } from "./pages/admin/CategoryEdit";
+import { ClientList } from "./pages/admin/ClientList";
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -52,6 +53,7 @@ export default function App() {
             <Route path="/seller/products/new" element={<ProductEdit />} />
             <Route path="/seller/products/:productId/edit" element={<ProductEdit />} />
             <Route path="/seller/categories" element={<CategoryList />} />
+            <Route path="/seller/clients" element={<ClientList />} />
             <Route path="/seller/users" element={<UserList />} />
             <Route path="/seller/users/new" element={<UserNew />} />
             <Route path="/seller/users/:userId/edit" element={<UserEdit />} />

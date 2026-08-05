@@ -6,6 +6,7 @@ interface User {
   email: string;
   name: string;
   role: string;
+  avatar_url: string | null;
   tenant_id: string | null;
 }
 
@@ -13,6 +14,7 @@ interface AuthContextValue {
   user: User | null;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<User>;
+  loginWithGoogle: (accessToken: string) => Promise<User>;
   logout: () => void;
 }
 
@@ -39,6 +41,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return me.data;
   }
 
+  async function loginWithGoogle(accessToken: string): Promise<User> {
+    const res = await api.post("/auth/google", { access_token: accessToken });
+    setTokens(res.data.access_token, res.data.refresh_token);
+    const me = await api.get("/auth/me");
+    setUser(me.data);
+    return me.data;
+  }
+
   function logout() {
     clearTokens();
     setUser(null);
@@ -47,7 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   if (restoring) return null;
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, logout }}>
+    <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, loginWithGoogle, logout }}>
       {children}
     </AuthContext.Provider>
   );

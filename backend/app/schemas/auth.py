@@ -53,3 +53,7 @@ class MeResponse(BaseModel):
     role: str
     avatar_url: str | None = None
     tenant_id: str | None = None
+
+
+class GoogleLoginRequest(BaseModel):
+    access_token: str

@@ -1,5 +1,6 @@
 from datetime import UTC, datetime, timedelta
 
+import httpx
 from bson import ObjectId
 from fastapi import APIRouter, HTTPException, Request
 from jose import JWTError, jwt
@@ -8,6 +9,7 @@ from app.config import settings
 from app.database import get_db
 from app.schemas.auth import (
     AccessTokenResponse,
+    GoogleLoginRequest,
     LoginRequest,
     MeResponse,
     RefreshRequest,
@@ -144,4 +146,70 @@ async def me(request: Request):
         "role": doc["role"],
         "avatar_url": doc.get("avatar_url"),
         "tenant_id": doc.get("tenant_id"),
+    }
+
+
+@router.post("/google", response_model=TokenResponse)
+async def google_login(body: GoogleLoginRequest):
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            "https://www.googleapis.com/oauth2/v3/userinfo",
+            headers={"Authorization": f"Bearer {body.access_token}"},
+        )
+
+    if resp.status_code != 200:
+        raise HTTPException(401, "Token de Google inválido")
+
+    info = resp.json()
+    email = info.get("email")
+    if not email:
+        raise HTTPException(401, "No se pudo obtener el email de Google")
+
+    name = info.get("name") or email.split("@")[0]
+    avatar_url = info.get("picture")
+    email_verified = bool(info.get("email_verified", False))
+
+    db = get_db()
+    now = datetime.now(UTC)
+    doc = await db.users.find_one({"email": email, "deleted_at": None})
+
+    if not doc:
+        result = await db.users.insert_one({
+            "email": email,
+            "hashed_password": None,
+            "name": name,
+            "role": "buyer",
+            "is_active": True,
+            "email_verified": email_verified,
+            "avatar_url": avatar_url,
+            "phone": None,
+            "created_at": now,
+            "updated_at": now,
+            "deleted_at": None,
+        })
+        user_id = str(result.inserted_id)
+        role = "buyer"
+        tenant_id = None
+    else:
+        if not doc.get("is_active", True):
+            raise HTTPException(403, "Tu cuenta está desactivada. Contactá al administrador.")
+        user_id = str(doc["_id"])
+        role = doc["role"]
+        tenant_id = doc.get("tenant_id")
+        update_fields: dict = {"updated_at": now}
+        if avatar_url and doc.get("avatar_url") != avatar_url:
+            update_fields["avatar_url"] = avatar_url
+        await db.users.update_one({"_id": doc["_id"]}, {"$set": update_fields})
+
+    token_payload = {
+        "sub": user_id,
+        "email": email,
+        "role": role,
+        "tenant_id": tenant_id,
+    }
+    return {
+        "access_token": create_access_token(token_payload),
+        "refresh_token": _create_refresh_token(user_id),
+        "token_type": "bearer",
+        "expires_in": settings.access_token_expire_minutes * 60,
     }
