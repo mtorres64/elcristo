@@ -1,4 +1,3 @@
-from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -19,19 +18,12 @@ class Settings(BaseSettings):
     platform_domain: str = "tienda.com"
     upload_dir: str = "./uploads"
 
-    # CORS — acepta JSON ["url1","url2"] o lista separada por comas url1,url2
-    cors_origins: list[str] = ["http://localhost:5173"]
+    # CORS — string separado por comas, se parsea en la property
+    cors_origins_raw: str = "http://localhost:5173"
 
-    @field_validator("cors_origins", mode="before")
-    @classmethod
-    def parse_cors_origins(cls, v: object) -> list[str]:
-        if isinstance(v, str):
-            v = v.strip()
-            if v.startswith("["):
-                import json
-                return json.loads(v)
-            return [origin.strip() for origin in v.split(",") if origin.strip()]
-        return v  # type: ignore[return-value]
+    @property
+    def cors_origins(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins_raw.split(",") if o.strip()]
 
     # MercadoPago (Fase 2)
     mercadopago_access_token: str = ""
