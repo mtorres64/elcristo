@@ -109,7 +109,24 @@ export function UserNew() {
 
   return (
     <AdminLayout>
-      <div className="px-8 py-6 min-h-full">
+      {/* Mobile action bar */}
+      <div className="sm:hidden sticky top-0 z-10 bg-white border-b border-[#E8E2D8] px-4 py-3 flex items-center gap-3">
+        <Link
+          to="/seller/users"
+          className="px-4 py-2 border border-[#E8E2D8] text-sm text-[#4A4A4A] bg-white hover:bg-[#F9F8F5] transition-colors rounded-lg"
+        >
+          Cancelar
+        </Link>
+        <button
+          onClick={handleSubmit}
+          disabled={saving}
+          className="flex-1 bg-[#1A2B1C] text-white text-xs font-semibold uppercase tracking-widest px-5 py-2.5 hover:bg-[#253824] transition-colors disabled:opacity-50"
+        >
+          {saving ? "Guardando…" : "Guardar usuario"}
+        </button>
+      </div>
+
+      <div className="px-4 sm:px-8 py-6 min-h-full">
         {/* Breadcrumb */}
         <nav className="flex items-center gap-2 text-xs text-[#8A8A8A] mb-4">
           <Link to="/seller/users" className="hover:text-[#1A2B1C] transition-colors">
@@ -129,7 +146,7 @@ export function UserNew() {
             </h1>
             <p className="text-xs text-[#8A8A8A] mt-1">Creá una cuenta de usuario manualmente</p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="hidden sm:flex items-center gap-2 shrink-0">
             <Link
               to="/seller/users"
               className="px-4 py-2 border border-[#E8E2D8] text-sm text-[#4A4A4A] bg-white hover:bg-[#F9F8F5] transition-colors rounded-lg"
@@ -147,7 +164,7 @@ export function UserNew() {
         </div>
 
         {/* 2-column layout */}
-        <div className="flex gap-6 items-start">
+        <div className="flex flex-col lg:flex-row gap-6 lg:items-start">
           {/* Left — datos principales */}
           <div className="flex-1 min-w-0">
             <div className="bg-white border border-[#E8E2D8] p-6 flex flex-col gap-6">
@@ -212,7 +229,7 @@ export function UserNew() {
 
               {/* Rol */}
               <FormField label="Rol" required>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {ROLE_OPTIONS.map(({ value, label, desc }) => (
                     <label
                       key={value}
@@ -249,7 +266,7 @@ export function UserNew() {
           </div>
 
           {/* Right — info */}
-          <div className="w-[280px] shrink-0">
+          <div className="w-full lg:w-[280px] shrink-0">
             <div className="bg-white border border-[#E8E2D8] p-5">
               <p className="text-sm font-semibold text-[#1A1A1A] mb-4">Información</p>
               <div className="flex flex-col gap-3 text-xs">

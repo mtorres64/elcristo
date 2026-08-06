@@ -30,7 +30,7 @@ export function HeroSection() {
           className="absolute inset-0 transition-opacity duration-1000 z-10"
           style={{ opacity: current === 0 ? 1 : 0, pointerEvents: current === 0 ? "auto" : "none" }}
         >
-          <div className="absolute inset-0 bg-cream" />
+          <div className="hidden lg:block absolute inset-0 bg-cream" />
 
           {/* Imagen derecha */}
           <div className="absolute top-0 right-0 bottom-0 w-full lg:w-[58%] bg-[#C8CFC4]">
@@ -38,8 +38,8 @@ export function HeroSection() {
           </div>
 
           {/* Texto + card */}
-          <div className="relative z-10 max-w-screen-xl mx-auto px-6">
-            <div className="lg:w-[42%] bg-cream flex items-center min-h-[630px] py-16 lg:py-24 lg:pr-12">
+          <div className="relative z-10 max-w-screen-xl mx-auto lg:px-6">
+            <div className="lg:w-[42%] px-6 lg:px-0 bg-cream/80 backdrop-blur-sm lg:bg-cream lg:backdrop-blur-none flex items-center min-h-[630px] py-16 lg:py-24 lg:pr-12">
               <div className="max-w-xl">
                 <p className="section-label mb-5 flex items-center gap-3">
                   <span className="block w-8 h-px bg-[#B5ADA2]" />

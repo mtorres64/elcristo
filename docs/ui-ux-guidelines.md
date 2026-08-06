@@ -147,6 +147,87 @@ button, a.btn-primary, a.btn-outline {
 | Separadores de tabla | `#F0EDE8` |
 | Fondo de cabecera de tabla | `#F9F8F5` |
 
+### Responsive del admin
+
+El panel de administración es **completamente responsive** desde mobile (375px) hasta desktop.
+
+**Sidebar:**
+- Mobile (`< md`): drawer off-canvas fijo (`fixed`), se desliza desde la izquierda con `transform`. Al abrirse aparece un overlay semitransparente (`bg-black/50`). Se cierra al navegar o tocar el overlay.
+- Desktop (`md+`): sidebar inline colapsable por ancho (`transition-[width]`), sin overlay.
+- Estado inicial: abierto en desktop (`window.innerWidth >= 768`), cerrado en mobile.
+
+**Padding de página:**
+```tsx
+// Mobile: px-4. Desktop: px-8.
+<div className="px-4 sm:px-8 py-6 min-h-full">…</div>
+```
+
+**Barra de acción mobile sticky (patrón universal en páginas admin):**
+
+Todas las páginas de formulario y listado con acciones primarias usan una barra sticky que aparece justo debajo del topbar en mobile y se oculta en desktop:
+```tsx
+{/* Solo visible en mobile */}
+<div className="sm:hidden sticky top-0 z-10 bg-white border-b border-[#E8E2D8] px-4 py-3 flex items-center gap-3">
+  <Link to="/seller/…" className="px-4 py-2 border border-[#E8E2D8] text-sm text-[#4A4A4A] bg-white hover:bg-[#F9F8F5] transition-colors rounded-lg">
+    Cancelar
+  </Link>
+  <button onClick={handleSubmit} disabled={saving}
+    className="flex-1 bg-[#1A2B1C] text-white text-xs font-semibold uppercase tracking-widest px-5 py-2.5 hover:bg-[#253824] transition-colors disabled:opacity-50">
+    {saving ? "Guardando…" : "Guardar cambios"}
+  </button>
+</div>
+
+{/* En páginas de listado: solo el botón de creación, ancho completo */}
+<div className="sm:hidden sticky top-0 z-10 bg-white border-b border-[#E8E2D8] px-4 py-3">
+  <Link to="/seller/…/new" className="btn-primary w-full text-center block">
+    + Nueva acción
+  </Link>
+</div>
+```
+
+**Ocultar botones del header en mobile:**
+
+⚠️ **No usar `hidden` directamente sobre un `<Link className="btn-primary">`** — `btn-primary` tiene estilos de display que pisarían `hidden`. Envolver en un `div`:
+```tsx
+{/* ✅ Correcto */}
+<div className="hidden sm:block shrink-0">
+  <Link to="…" className="btn-primary">+ Nueva acción</Link>
+</div>
+
+{/* ❌ No funciona */}
+<Link to="…" className="hidden sm:block btn-primary">…</Link>
+```
+
+**Layout de formularios 2 columnas:**
+```tsx
+{/* flex-col en mobile, flex-row en desktop. items-start SOLO en lg para que en mobile los paneles se estiren al 100% */}
+<div className="flex flex-col lg:flex-row gap-6 lg:items-start">
+  <div className="flex-1 min-w-0">…</div>                       {/* columna principal */}
+  <div className="w-full lg:w-[300px] shrink-0">…</div>         {/* columna lateral */}
+</div>
+```
+
+**Barra de filtros en listados:**
+```tsx
+{/* flex-col en mobile (cada filtro 100% ancho), flex-row en desktop */}
+<div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:flex-wrap">
+  <div className="relative w-full sm:flex-1 sm:min-w-[220px]">
+    {/* search input */}
+  </div>
+  <div className="relative w-full sm:w-auto">
+    <select className="… w-full sm:w-[160px]">…</select>
+  </div>
+</div>
+```
+
+**Tablas de listado (responsive):**
+```tsx
+{/* overflow-x-auto para scroll horizontal en mobile */}
+<div className="rounded-lg bg-white border border-[#E8E2D8] overflow-hidden overflow-x-auto">
+  <table className="w-full">…</table>
+</div>
+```
+
 ### Patrones de componentes admin
 
 **Radio de esquinas: `rounded-lg` (8px) en todos los controles y contenedores.**
@@ -155,7 +236,7 @@ button, a.btn-primary, a.btn-outline {
 ```tsx
 <div className="rounded-lg bg-white border border-[#E8E2D8] p-5">…</div>
 // Si contiene tabla usar overflow-hidden para clipear las esquinas:
-<div className="rounded-lg bg-white border border-[#E8E2D8] overflow-hidden">…</div>
+<div className="rounded-lg bg-white border border-[#E8E2D8] overflow-hidden overflow-x-auto">…</div>
 ```
 
 **Inputs y selects:**
@@ -168,10 +249,12 @@ button, a.btn-primary, a.btn-outline {
 
 **Botón primario de acción (link/button):**
 ```tsx
-// <Link> → usar btn-primary para recibir border-radius
-<Link to="/seller/products/new" className="btn-primary shrink-0">+ Nuevo producto</Link>
 // <button> → recibe border-radius automáticamente por el CSS global
 <button className="bg-[#1A2B1C] text-white text-xs font-semibold uppercase tracking-widest px-5 py-2.5 hover:bg-[#253824] transition-colors">
+// <Link> → usar btn-primary, envolver en div para control de visibilidad responsive
+<div className="hidden sm:block shrink-0">
+  <Link to="/seller/products/new" className="btn-primary">+ Nuevo producto</Link>
+</div>
 ```
 
 **Badges de estado:**
@@ -198,23 +281,21 @@ button, a.btn-primary, a.btn-outline {
     <h1 className="font-serif text-2xl font-semibold text-[#1A1A1A] leading-tight">Título</h1>
     <p className="text-xs text-[#8A8A8A] mt-1">Descripción / contador</p>
   </div>
-  <Link to="…/new" className="btn-primary shrink-0">+ Nueva acción</Link>
+  {/* Botón solo en desktop; mobile usa la sticky action bar */}
+  <div className="hidden sm:block shrink-0">
+    <Link to="…/new" className="btn-primary">+ Nueva acción</Link>
+  </div>
 </div>
 ```
 
 **Tabla de listado:**
 - `thead`: `bg-[#F9F8F5]`, texto `text-xs font-semibold text-[#6B6B6B] uppercase tracking-wider`
 - `tbody`: filas `divide-y divide-[#F0EDE8]`, hover `hover:bg-[#F9F8F5]`
-- Acciones de fila: visibles en hover con `opacity-0 group-hover:opacity-100`
+- Acciones de fila (editar, eliminar, toggle): **siempre visibles** (`flex items-center justify-end gap-1`), sin opacity condicional
 
 **Skeleton loader:**
 ```tsx
 <div className="animate-pulse divide-y divide-[#F0EDE8]">…</div>
-```
-
-**Padding de página:**
-```tsx
-<div className="px-8 py-6 min-h-full">…</div>
 ```
 
 ---
@@ -258,7 +339,8 @@ Las siguientes secciones están implementadas en `src/components/home/` y deben 
 ### TopBanner
 - Fondo `#111810`, texto `#D5D9D4`
 - 3 items con iconos: entrega, chat, teléfono
-- Separados por divisores verticales `bg-[#3A4A3C]`
+- Separados por divisores verticales `bg-[#3A4A3C]` (solo desktop)
+- **Responsive**: en mobile los textos son versiones cortas (`mobileText` prop), fuente `text-[10px]`, gap `gap-3`. En desktop se muestran los textos completos con `text-xs`.
 
 ### Header (sticky)
 - Fondo blanco, border-bottom `#E8E2D8`
@@ -268,10 +350,10 @@ Las siguientes secciones están implementadas en `src/components/home/` y deben 
 - Hamburger visible en mobile
 
 ### Hero
-- Layout: `42% texto | 58% imagen` en desktop, stacked en mobile
-- Fondo izquierdo: cream (hereda del body)
-- Imagen derecha: placeholder verde-grisáceo, con card flotante bottom-right
-- Card flotante: blanco, sombra, border-none, contenido de asesoramiento
+- Layout: `42% texto | 58% imagen` en desktop, full-width imagen en mobile
+- Fondo izquierdo: cream (solo desktop, `hidden lg:block`)
+- **Mobile**: imagen cubre todo el ancho, bloque de texto encima con `bg-cream/80 backdrop-blur-sm` (semitransparente). El bloque de texto va de borde a borde (`px-0 lg:px-6` en el contenedor outer, `px-6 lg:px-0` en el bloque).
+- Imagen derecha: placeholder verde-grisáceo, con card flotante bottom-right (solo desktop `hidden lg:block`)
 - Trust badges: strip blanco debajo del hero con 4 items + divisores
 
 ### Categorías

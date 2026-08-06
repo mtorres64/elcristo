@@ -147,7 +147,24 @@ export function CategoryNew() {
 
   return (
     <AdminLayout>
-      <div className="px-8 py-6 min-h-full">
+      {/* Mobile action bar */}
+      <div className="sm:hidden sticky top-0 z-10 bg-white border-b border-[#E8E2D8] px-4 py-3 flex items-center gap-3">
+        <Link
+          to="/seller/categories"
+          className="px-4 py-2 border border-[#E8E2D8] text-sm text-[#4A4A4A] bg-white hover:bg-[#F9F8F5] transition-colors rounded-lg"
+        >
+          Cancelar
+        </Link>
+        <button
+          onClick={handleSubmit}
+          disabled={saving}
+          className="flex-1 bg-[#1A2B1C] text-white text-xs font-semibold uppercase tracking-widest px-5 py-2.5 hover:bg-[#253824] transition-colors disabled:opacity-50"
+        >
+          {saving ? "Guardando…" : "Guardar categoría"}
+        </button>
+      </div>
+
+      <div className="px-4 sm:px-8 py-6 min-h-full">
         {/* Breadcrumb */}
         <nav className="flex items-center gap-2 text-xs text-[#8A8A8A] mb-4">
           <Link to="/seller/categories" className="hover:text-[#1A2B1C] transition-colors">
@@ -169,7 +186,7 @@ export function CategoryNew() {
               Organizá tus productos con categorías
             </p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="hidden sm:flex items-center gap-2 shrink-0">
             <Link
               to="/seller/categories"
               className="px-4 py-2 border border-[#E8E2D8] text-sm text-[#4A4A4A] bg-white hover:bg-[#F9F8F5] transition-colors rounded-lg"
@@ -187,7 +204,7 @@ export function CategoryNew() {
         </div>
 
         {/* 2-column layout */}
-        <div className="flex gap-6 items-start">
+        <div className="flex flex-col lg:flex-row gap-6 lg:items-start">
           {/* Left column */}
           <div className="flex-1 min-w-0">
             <div className="bg-white border border-[#E8E2D8] p-6 flex flex-col gap-6">
@@ -271,7 +288,7 @@ export function CategoryNew() {
           </div>
 
           {/* Right column */}
-          <div className="w-[300px] shrink-0 flex flex-col gap-4">
+          <div className="w-full lg:w-[300px] shrink-0 flex flex-col gap-4">
             {/* Image card */}
             <div className="bg-white border border-[#E8E2D8] p-5">
               <p className="text-sm font-semibold text-[#1A1A1A] mb-4">Imagen de la categoría</p>

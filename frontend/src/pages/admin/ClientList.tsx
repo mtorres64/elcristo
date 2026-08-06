@@ -238,7 +238,7 @@ function ClientRow({
         <span className="text-xs text-[#6B6B6B] whitespace-nowrap">{joinDate}</span>
       </td>
       <td className="px-4 py-3 text-right w-[80px]">
-        <div className="flex items-center justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="flex items-center justify-end">
           <button
             onClick={handleToggleActive}
             disabled={togglingActive}
@@ -358,7 +358,7 @@ export function ClientList() {
 
   return (
     <AdminLayout>
-      <div className="px-8 py-6 min-h-full">
+      <div className="px-4 sm:px-8 py-6 min-h-full">
         {/* Breadcrumb */}
         <nav className="flex items-center gap-2 text-xs text-[#8A8A8A] mb-4">
           <Link to="/seller" className="hover:text-[#1A2B1C] transition-colors">Dashboard</Link>
@@ -378,8 +378,8 @@ export function ClientList() {
 
         {/* Filter bar */}
         <div className="rounded-lg bg-white border border-[#E8E2D8] p-4 mb-4">
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="relative flex-1 min-w-[220px]">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:flex-wrap">
+            <div className="relative w-full sm:flex-1 sm:min-w-[220px]">
               <SearchIcon />
               <input
                 type="text"
@@ -389,16 +389,16 @@ export function ClientList() {
                 className={`${INPUT} w-full pl-9`}
               />
             </div>
-            <div className="relative">
-              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={`${SELECT} w-[160px]`}>
+            <div className="relative w-full sm:w-auto">
+              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={`${SELECT} w-full sm:w-[160px]`}>
                 <option value="">Todos los estados</option>
                 <option value="active">Activo</option>
                 <option value="inactive">Inactivo</option>
               </select>
               <ChevronDown />
             </div>
-            <div className="relative">
-              <select value={sort} onChange={(e) => setSort(e.target.value)} className={`${SELECT} w-[170px]`}>
+            <div className="relative w-full sm:w-auto">
+              <select value={sort} onChange={(e) => setSort(e.target.value)} className={`${SELECT} w-full sm:w-[170px]`}>
                 <option value="newest">Más recientes</option>
                 <option value="oldest">Más antiguos</option>
                 <option value="name_asc">Nombre A → Z</option>
@@ -414,7 +414,7 @@ export function ClientList() {
         </div>
 
         {/* Table */}
-        <div className="rounded-lg bg-white border border-[#E8E2D8] overflow-hidden">
+        <div className="rounded-lg bg-white border border-[#E8E2D8] overflow-hidden overflow-x-auto">
           {error ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3">
               <p className="text-sm text-[#6B6B6B]">{error}</p>

@@ -30,7 +30,7 @@ const ROLE_LABEL: Record<string, string> = {
 };
 
 export function AdminLayout({ children }: { children: ReactNode }) {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 768);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
@@ -47,6 +47,10 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
+  useEffect(() => {
+    if (window.innerWidth < 768) setSidebarOpen(false);
+  }, [location]);
+
   function handleLogout() {
     logout();
     navigate("/login");
@@ -60,14 +64,30 @@ export function AdminLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen flex bg-[#F5F5F3] font-sans">
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <div
+          className="md:hidden fixed inset-0 bg-black/50 z-40"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
       <aside
-        className={`${sidebarOpen ? "w-[240px]" : "w-0"} bg-[#111810] flex flex-col shrink-0 overflow-hidden transition-[width] duration-300`}
+        className={[
+          "bg-[#111810] flex flex-col shrink-0 overflow-hidden",
+          // Mobile: fixed overlay with transform
+          "fixed inset-y-0 left-0 z-50 w-full md:w-[240px] transition-transform duration-300",
+          sidebarOpen ? "translate-x-0" : "-translate-x-full",
+          // Desktop: inline with width animation
+          "md:relative md:inset-auto md:z-auto md:translate-x-0 md:transition-[width]",
+          sidebarOpen ? "md:w-[240px]" : "md:w-0",
+        ].join(" ")}
       >
         {/* Logo */}
         <div className="flex items-center gap-3 px-5 h-[60px] border-b border-[#1C2C1C] shrink-0">
           <LotusIcon className="w-8 h-8 text-white shrink-0" />
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="text-white text-[10px] font-bold tracking-widest leading-tight whitespace-nowrap">
               VERDE DISEÑO
             </p>
@@ -75,10 +95,17 @@ export function AdminLayout({ children }: { children: ReactNode }) {
               Administración
             </p>
           </div>
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="md:hidden text-[#7A9B7C] hover:text-white transition-colors shrink-0"
+            aria-label="Cerrar menú"
+          >
+            <CloseIcon />
+          </button>
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 py-3 overflow-y-auto">
+        <nav className="flex-1 py-1 md:py-3 overflow-y-auto">
           {NAV.map((item) => {
             const isActive =
               item.path === "/seller"
@@ -89,7 +116,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
               <div key={item.label}>
                 <Link
                   to={item.path}
-                  className={`flex items-center gap-3 px-5 py-2.5 text-sm transition-colors whitespace-nowrap ${
+                  className={`flex items-center gap-3 px-5 py-2 md:py-2.5 text-sm transition-colors whitespace-nowrap ${
                     isActive
                       ? "bg-[#1A2B1C] text-white"
                       : "text-[#8AAB8C] hover:bg-[#1A2B1C] hover:text-white"
@@ -306,6 +333,13 @@ function BellIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
       <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" />
+    </svg>
+  );
+}
+function CloseIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
     </svg>
   );
 }

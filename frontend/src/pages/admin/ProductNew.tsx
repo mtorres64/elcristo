@@ -174,7 +174,24 @@ export function ProductNew() {
 
   return (
     <AdminLayout>
-      <div className="px-8 py-6 min-h-full">
+      {/* Mobile action bar */}
+      <div className="sm:hidden sticky top-0 z-10 bg-white border-b border-[#E8E2D8] px-4 py-3 flex items-center gap-3">
+        <Link
+          to="/seller/products"
+          className="px-4 py-2 border border-[#E8E2D8] text-sm text-[#4A4A4A] bg-white hover:bg-[#F9F8F5] transition-colors rounded-lg"
+        >
+          Cancelar
+        </Link>
+        <button
+          onClick={() => handleSubmit(true)}
+          disabled={saving}
+          className="flex-1 bg-[#1A2B1C] text-white text-xs font-semibold uppercase tracking-widest px-5 py-2.5 hover:bg-[#253824] transition-colors disabled:opacity-50"
+        >
+          {saving ? "Guardando…" : "Publicar producto"}
+        </button>
+      </div>
+
+      <div className="px-4 sm:px-8 py-6 min-h-full">
         {/* Breadcrumb */}
         <nav className="flex items-center gap-2 text-xs text-[#8A8A8A] mb-4">
           <Link to="/seller/products" className="hover:text-[#3D6040] transition-colors">
@@ -196,7 +213,7 @@ export function ProductNew() {
           </div>
 
           {/* Actions */}
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="hidden sm:flex items-center gap-2 shrink-0">
             <Link
               to="/seller/products"
               className="px-4 py-2 border border-[#E8E2D8] text-sm text-[#4A4A4A] bg-white hover:bg-[#F9F8F5] transition-colors"
@@ -221,7 +238,7 @@ export function ProductNew() {
         </div>
 
         {/* 2-column layout */}
-        <div className="flex gap-6 items-start">
+        <div className="flex flex-col lg:flex-row gap-6 lg:items-start">
           {/* ── Left column ───────────────────────────────────── */}
           <div className="flex-1 min-w-0">
             {/* Card with tabs */}
@@ -248,7 +265,7 @@ export function ProductNew() {
                 {tab === "general" && (
                   <div className="flex flex-col gap-6">
                     {/* Row 1: Name + SKU */}
-                    <div className="grid grid-cols-[2fr_1fr] gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-[2fr_1fr] gap-4">
                       <FormField label="Nombre del producto" required>
                         <div className="relative">
                           <input
@@ -274,7 +291,7 @@ export function ProductNew() {
                     </div>
 
                     {/* Row 2: Category + Tags */}
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <FormField label="Categoría" required>
                         <div className="relative">
                           <select
@@ -324,7 +341,7 @@ export function ProductNew() {
                     </div>
 
                     {/* Row 3: Price + Promo + Currency + Tax + Stock */}
-                    <div className="grid grid-cols-5 gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                       <FormField label="Precio" required>
                         <PrefixInput prefix="$" value={price} onChange={setPrice} />
                       </FormField>
@@ -619,7 +636,7 @@ export function ProductNew() {
           </div>
 
           {/* ── Right column ──────────────────────────────────── */}
-          <div className="w-[300px] shrink-0 flex flex-col gap-4">
+          <div className="w-full lg:w-[300px] shrink-0 flex flex-col gap-4">
             {/* Images card */}
             <div className="bg-white border border-[#E8E2D8] p-5">
               <p className="text-sm font-semibold text-[#1A1A1A] mb-4">Imágenes del producto</p>

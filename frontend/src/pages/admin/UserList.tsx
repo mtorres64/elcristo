@@ -351,7 +351,7 @@ function UserRow({
             </button>
           </div>
         ) : (
-          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="flex items-center justify-end gap-1">
             {/* Editar */}
             <button
               onClick={() => navigate(`/seller/users/${user.user_id}/edit`)}
@@ -530,7 +530,14 @@ export function UserList() {
 
   return (
     <AdminLayout>
-      <div className="px-8 py-6 min-h-full">
+      {/* Mobile sticky action bar */}
+      <div className="sm:hidden sticky top-0 z-10 bg-white border-b border-[#E8E2D8] px-4 py-3">
+        <Link to="/seller/users/new" className="btn-primary w-full text-center block">
+          + Nuevo usuario
+        </Link>
+      </div>
+
+      <div className="px-4 sm:px-8 py-6 min-h-full">
         {/* Breadcrumb */}
         <nav className="flex items-center gap-2 text-xs text-[#8A8A8A] mb-4">
           <Link to="/seller" className="hover:text-[#1A2B1C] transition-colors">Dashboard</Link>
@@ -546,16 +553,18 @@ export function UserList() {
               {loading ? "Cargando..." : `${total} usuario${total !== 1 ? "s" : ""} registrado${total !== 1 ? "s" : ""}`}
             </p>
           </div>
-          <Link to="/seller/users/new" className="btn-primary shrink-0">
-            + Nuevo usuario
-          </Link>
+          <div className="hidden sm:block shrink-0">
+            <Link to="/seller/users/new" className="btn-primary">
+              + Nuevo usuario
+            </Link>
+          </div>
         </div>
 
         {/* Filter bar */}
         <div className="rounded-lg bg-white border border-[#E8E2D8] p-4 mb-4">
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:flex-wrap">
             {/* Search */}
-            <div className="relative flex-1 min-w-[220px]">
+            <div className="relative w-full sm:flex-1 sm:min-w-[220px]">
               <SearchIcon />
               <input
                 type="text"
@@ -567,8 +576,8 @@ export function UserList() {
             </div>
 
             {/* Role filter */}
-            <div className="relative">
-              <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className={`${SELECT} w-[160px]`}>
+            <div className="relative w-full sm:w-auto">
+              <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className={`${SELECT} w-full sm:w-[160px]`}>
                 <option value="">Todos los roles</option>
                 <option value="buyer">Comprador</option>
                 <option value="seller">Vendedor</option>
@@ -578,8 +587,8 @@ export function UserList() {
             </div>
 
             {/* Status filter */}
-            <div className="relative">
-              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={`${SELECT} w-[160px]`}>
+            <div className="relative w-full sm:w-auto">
+              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={`${SELECT} w-full sm:w-[160px]`}>
                 <option value="">Todos los estados</option>
                 <option value="active">Activo</option>
                 <option value="inactive">Inactivo</option>
@@ -588,8 +597,8 @@ export function UserList() {
             </div>
 
             {/* Sort */}
-            <div className="relative">
-              <select value={sort} onChange={(e) => setSort(e.target.value)} className={`${SELECT} w-[170px]`}>
+            <div className="relative w-full sm:w-auto">
+              <select value={sort} onChange={(e) => setSort(e.target.value)} className={`${SELECT} w-full sm:w-[170px]`}>
                 <option value="newest">Más recientes</option>
                 <option value="oldest">Más antiguos</option>
                 <option value="name_asc">Nombre A → Z</option>
@@ -654,6 +663,7 @@ export function UserList() {
                 </div>
               )}
 
+              <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-[#E8E2D8] bg-[#F9F8F5]">
@@ -692,6 +702,7 @@ export function UserList() {
                   ))}
                 </tbody>
               </table>
+              </div>
 
               {pages > 1 && <Pagination page={page} pages={pages} onPage={handlePageChange} />}
             </>

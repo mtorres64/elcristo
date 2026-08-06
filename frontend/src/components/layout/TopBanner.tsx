@@ -1,22 +1,25 @@
 export function TopBanner() {
   return (
     <div className="bg-[#111810] text-white py-2.5">
-      <div className="max-w-screen-xl mx-auto px-6 flex items-center justify-center gap-0 md:gap-12">
-        <Item icon={<TruckIcon />} text="Envíos a todo el país" />
+      <div className="max-w-screen-xl mx-auto px-4 flex items-center justify-center gap-3 md:gap-12">
+        <Item icon={<TruckIcon />} mobileText="Envíos" text="Envíos a todo el país" />
         <Divider />
-        <Item icon={<ChatIcon />} text="Asesoramiento en diseño y paisajismo" />
+        <Item icon={<ChatIcon />} mobileText="Diseño y paisajismo" text="Asesoramiento en diseño y paisajismo" />
         <Divider />
-        <Item icon={<PhoneIcon />} text="Atención personalizada" />
+        <Item icon={<PhoneIcon />} mobileText="Atención" text="Atención personalizada" />
       </div>
     </div>
   );
 }
 
-function Item({ icon, text }: { icon: React.ReactNode; text: string }) {
+function Item({ icon, text, mobileText }: { icon: React.ReactNode; text: string; mobileText?: string }) {
   return (
-    <div className="flex items-center gap-2 py-0.5">
+    <div className="flex items-center gap-1.5 py-0.5">
       <span className="text-[#9CAF9E] shrink-0">{icon}</span>
-      <span className="text-xs tracking-wide text-[#D5D9D4]">{text}</span>
+      <span className="text-[10px] md:text-xs tracking-wide text-[#D5D9D4]">
+        <span className="md:hidden">{mobileText ?? text}</span>
+        <span className="hidden md:inline">{text}</span>
+      </span>
     </div>
   );
 }

@@ -197,7 +197,7 @@ export function CategoryEdit() {
   if (loadingData) {
     return (
       <AdminLayout>
-        <div className="px-8 py-6 min-h-full">
+        <div className="px-4 sm:px-8 py-6 min-h-full">
           <div className="animate-pulse">
             <div className="h-3 bg-[#EDE9E2] rounded w-40 mb-4" />
             <div className="h-7 bg-[#EDE9E2] rounded w-56 mb-2" />
@@ -230,7 +230,24 @@ export function CategoryEdit() {
 
   return (
     <AdminLayout>
-      <div className="px-8 py-6 min-h-full">
+      {/* Mobile sticky action bar */}
+      <div className="sm:hidden sticky top-0 z-10 bg-white border-b border-[#E8E2D8] px-4 py-3 flex items-center justify-between gap-3">
+        <Link
+          to="/seller/categories"
+          className="px-4 py-2 border border-[#E8E2D8] text-sm text-[#4A4A4A] bg-white hover:bg-[#F9F8F5] transition-colors rounded-lg"
+        >
+          Cancelar
+        </Link>
+        <button
+          onClick={handleSubmit}
+          disabled={saving}
+          className="flex-1 bg-[#1A2B1C] text-white text-xs font-semibold uppercase tracking-widest px-5 py-2.5 hover:bg-[#253824] transition-colors disabled:opacity-50"
+        >
+          {saving ? "Guardando…" : "Guardar cambios"}
+        </button>
+      </div>
+
+      <div className="px-4 sm:px-8 py-6 min-h-full">
         {/* Breadcrumb */}
         <nav className="flex items-center gap-2 text-xs text-[#8A8A8A] mb-4">
           <Link to="/seller/categories" className="hover:text-[#1A2B1C] transition-colors">
@@ -252,7 +269,7 @@ export function CategoryEdit() {
               {productCount} producto{productCount !== 1 ? "s" : ""} en esta categoría
             </p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="hidden sm:flex items-center gap-2 shrink-0">
             <Link
               to="/seller/categories"
               className="px-4 py-2 border border-[#E8E2D8] text-sm text-[#4A4A4A] bg-white hover:bg-[#F9F8F5] transition-colors rounded-lg"
@@ -270,7 +287,7 @@ export function CategoryEdit() {
         </div>
 
         {/* 2-column layout */}
-        <div className="flex gap-6 items-start">
+        <div className="flex flex-col lg:flex-row gap-6 lg:items-start">
           {/* Left column */}
           <div className="flex-1 min-w-0">
             <div className="bg-white border border-[#E8E2D8] p-6 flex flex-col gap-6">
@@ -354,7 +371,7 @@ export function CategoryEdit() {
           </div>
 
           {/* Right column */}
-          <div className="w-[300px] shrink-0 flex flex-col gap-4">
+          <div className="w-full lg:w-[300px] shrink-0 flex flex-col gap-4">
             {/* Image card */}
             <div className="bg-white border border-[#E8E2D8] p-5">
               <p className="text-sm font-semibold text-[#1A1A1A] mb-4">Imagen de la categoría</p>

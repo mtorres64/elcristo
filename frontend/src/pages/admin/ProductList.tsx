@@ -278,7 +278,7 @@ function ProductRow({
             </button>
           </div>
         ) : (
-          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="flex items-center justify-end gap-1">
             <Link
               to={`/seller/products/${product.product_id}/edit`}
               className="p-1.5 text-[#6B6B6B] hover:text-[#1A2B1C] transition-colors"
@@ -562,7 +562,14 @@ export function ProductList() {
 
   return (
     <AdminLayout>
-      <div className="px-8 py-6 min-h-full">
+      {/* Mobile sticky action bar */}
+      <div className="sm:hidden sticky top-0 z-10 bg-white border-b border-[#E8E2D8] px-4 py-3">
+        <Link to="/seller/products/new" className="btn-primary w-full text-center block">
+          + Nuevo producto
+        </Link>
+      </div>
+
+      <div className="px-4 sm:px-8 py-6 min-h-full">
         {/* Breadcrumb */}
         <nav className="flex items-center gap-2 text-xs text-[#8A8A8A] mb-4">
           <Link to="/seller" className="hover:text-[#1A2B1C] transition-colors">
@@ -584,16 +591,18 @@ export function ProductList() {
                 : `${total} producto${total !== 1 ? "s" : ""} en tu tienda`}
             </p>
           </div>
-          <Link to="/seller/products/new" className="btn-primary shrink-0">
-            + Nuevo producto
-          </Link>
+          <div className="hidden sm:block shrink-0">
+            <Link to="/seller/products/new" className="btn-primary">
+              + Nuevo producto
+            </Link>
+          </div>
         </div>
 
         {/* Filter bar */}
         <div className="rounded-lg bg-white border border-[#E8E2D8] p-4 mb-4">
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:flex-wrap">
             {/* Search */}
-            <div className="relative flex-1 min-w-[220px]">
+            <div className="relative w-full sm:flex-1 sm:min-w-[220px]">
               <SearchIcon />
               <input
                 type="text"
@@ -605,11 +614,11 @@ export function ProductList() {
             </div>
 
             {/* Status */}
-            <div className="relative">
+            <div className="relative w-full sm:w-auto">
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
-                className={`${SELECT} w-[160px]`}
+                className={`${SELECT} w-full sm:w-[160px]`}
               >
                 <option value="">Todos los estados</option>
                 <option value="active">Activo</option>
@@ -620,11 +629,11 @@ export function ProductList() {
             </div>
 
             {/* Sort */}
-            <div className="relative">
+            <div className="relative w-full sm:w-auto">
               <select
                 value={sort}
                 onChange={(e) => setSort(e.target.value)}
-                className={`${SELECT} w-[200px]`}
+                className={`${SELECT} w-full sm:w-[200px]`}
               >
                 <option value="newest">Más recientes</option>
                 <option value="price_asc">Precio: menor a mayor</option>
@@ -647,7 +656,7 @@ export function ProductList() {
         </div>
 
         {/* Product table */}
-        <div className="rounded-lg bg-white border border-[#E8E2D8] overflow-hidden">
+        <div className="rounded-lg bg-white border border-[#E8E2D8] overflow-hidden overflow-x-auto">
           {error ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3">
               <p className="text-sm text-[#6B6B6B]">{error}</p>
