@@ -1,125 +1,111 @@
-import { Link } from "react-router-dom";
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { contentService } from "../../services/content.service";
+import type { HeroSlide } from "../../types/content";
+import { hexToRgba } from "../../utils/color";
 
-const SLIDES = [
-  { src: "/images/entrada.png", alt: "Entrada jardín" },
-  { src: "/images/hero2.png",   alt: "Plantas de interior" },
-  { src: "/images/hero3.png",   alt: "Diseño de jardines" },
-  { src: "/images/hero4.png",   alt: "Paisajismo" },
-  { src: "/images/hero5.png",   alt: "Vivero" },
-];
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+
+function imgSrc(url: string) {
+  return url.startsWith("/uploads") ? `${API_BASE}${url}` : url;
+}
+
+/** Estilo inline para el contenedor .hero-copy: fija el color de texto
+ * elegido por el vendedor vía la variable CSS que consume index.css. */
+function heroCopyStyle(slide: HeroSlide): React.CSSProperties {
+  return { "--hero-text": slide.text_color } as React.CSSProperties;
+}
 
 export function HeroSection() {
+  const [slides, setSlides] = useState<HeroSlide[]>([]);
+  const [loading, setLoading] = useState(true);
   const [current, setCurrent] = useState(0);
   const [paused, setPaused] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
-    if (paused) return;
+    contentService
+      .getHero()
+      .then((data) => setSlides(data.slides.filter((s) => s.active)))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    if (current >= slides.length) setCurrent(0);
+  }, [slides, current]);
+
+  useEffect(() => {
+    if (paused || slides.length <= 1) return;
     const timer = setInterval(() => {
-      setCurrent((c) => (c + 1) % SLIDES.length);
+      setCurrent((c) => (c + 1) % slides.length);
     }, 5000);
     return () => clearInterval(timer);
-  }, [paused]);
+  }, [paused, slides.length]);
+
+  function handleSlideClick(e: React.MouseEvent | React.KeyboardEvent, slide: HeroSlide) {
+    if (!slide.link_url) return;
+    if ((e.target as HTMLElement).closest("a,button")) return;
+    if (slide.link_url.startsWith("/")) navigate(slide.link_url);
+    else window.location.href = slide.link_url;
+  }
+
+  if (loading) {
+    return <section className="min-h-[630px] bg-cream" />;
+  }
+
+  if (slides.length === 0) {
+    return null;
+  }
 
   return (
     <section className="overflow-hidden">
-      <div className="relative min-h-[630px] overflow-hidden" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}>
-
-        {/* Slide 0 — layout completo con texto */}
-        <div
-          className="absolute inset-0 transition-opacity duration-1000 z-10"
-          style={{ opacity: current === 0 ? 1 : 0, pointerEvents: current === 0 ? "auto" : "none" }}
-        >
-          <div className="hidden lg:block absolute inset-0 bg-cream" />
-
-          {/* Imagen derecha */}
-          <div className="absolute top-0 right-0 bottom-0 w-full lg:w-[58%] bg-[#C8CFC4]">
-            <img src={SLIDES[0].src} alt={SLIDES[0].alt} className="absolute inset-0 w-full h-full object-cover" />
-          </div>
-
-          {/* Texto + card */}
-          <div className="relative z-10 max-w-screen-xl mx-auto lg:px-6">
-            <div className="lg:w-[42%] px-6 lg:px-0 bg-cream/80 backdrop-blur-sm lg:bg-cream lg:backdrop-blur-none flex items-center min-h-[630px] py-16 lg:py-24 lg:pr-12">
-              <div className="max-w-xl">
-                <p className="section-label mb-5 flex items-center gap-3">
-                  <span className="block w-8 h-px bg-[#B5ADA2]" />
-                  Diseño que Transforma
-                </p>
-                <h1 className="font-serif text-5xl sm:text-6xl xl:text-7xl leading-[1.05] text-[#1A1A1A] mb-6 font-normal">
-                  Espacios que{" "}
-                  <em className="italic font-normal">inspiran</em>{" "}
-                  bienestar.
-                </h1>
-                <p className="text-[#3A3A3A] text-sm leading-relaxed mb-10 max-w-sm">
-                  Plantas seleccionadas, diseño de calidad y asesoramiento personalizado para crear
-                  entornos únicos y llenos de vida.
-                </p>
-                <div className="flex flex-wrap gap-4">
-                  <Link to="/products" className="btn-primary">Comprar Plantas</Link>
-                  <Link to="/diseno" className="btn-outline">Diseño de Jardines</Link>
-                </div>
-              </div>
-            </div>
-
-            {/* Floating card */}
+      <div
+        className="relative min-h-[630px] overflow-hidden"
+        onMouseEnter={() => setPaused(true)}
+        onMouseLeave={() => setPaused(false)}
+      >
+        {slides.map((slide, i) => {
+          const clickable = !!slide.link_url;
+          const hasText = slide.html.trim().length > 0;
+          return (
             <div
-              className="hidden lg:block absolute bottom-8 right-6 backdrop-blur-sm shadow-lg rounded-[8px] p-9 max-w-[320px] z-20"
-              style={{ backgroundColor: "rgba(26,43,28,0.78)" }}
+              key={slide.id}
+              className={`absolute inset-0 transition-opacity duration-1000 z-10 ${clickable ? "cursor-pointer" : ""}`}
+              style={{ opacity: current === i ? 1 : 0, pointerEvents: current === i ? "auto" : "none" }}
+              onClick={(e) => handleSlideClick(e, slide)}
+              onKeyDown={(e) => { if (e.key === "Enter") handleSlideClick(e, slide); }}
+              role={clickable ? "link" : undefined}
+              tabIndex={clickable ? 0 : undefined}
             >
-              <div className="flex items-start gap-3 mb-4">
-                <span className="text-white/70 mt-0.5 shrink-0">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <circle cx="12" cy="12" r="10" />
-                    <path d="M12 8v4l3 3" />
-                  </svg>
-                </span>
-                <div>
-                  <p className="text-[13px] uppercase tracking-widest text-white/80 font-semibold">Asesoramiento</p>
-                  <p className="text-[13px] uppercase tracking-widest text-white/80 font-semibold">Personalizado</p>
-                </div>
-              </div>
-              <p className="text-[15px] text-white/80 leading-relaxed mb-5">
-                Diseñamos tu jardín ideal. Contanos tu proyecto.
-              </p>
-              <Link
-                to="/diseno"
-                className="text-[13px] uppercase tracking-widest font-bold text-white flex items-center gap-1 hover:gap-2 transition-all"
-              >
-                Agendar Consulta
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <path d="M5 12h14M12 5l7 7-7 7" />
-                </svg>
-              </Link>
+              {slide.layout === "split" ? (
+                <SplitSlide slide={slide} side={slide.text_position === "right" ? "right" : "left"} />
+              ) : hasText ? (
+                <OverlaySlide slide={slide} align={slide.text_position} />
+              ) : (
+                <FullBleedSlide slide={slide} />
+              )}
             </div>
+          );
+        })}
+
+        {/* Dots */}
+        {slides.length > 1 && (
+          <div className="absolute bottom-5 left-1/2 -translate-x-1/2 flex gap-2 z-30">
+            {slides.map((_, i) => (
+              <button
+                key={i}
+                onClick={() => setCurrent(i)}
+                className="w-2 h-2 rounded-full transition-all duration-300"
+                style={{
+                  backgroundColor: i === current ? "#1A2B1C" : "rgba(26,43,28,0.3)",
+                  transform: i === current ? "scale(1.25)" : "scale(1)",
+                }}
+                aria-label={`Slide ${i + 1}`}
+              />
+            ))}
           </div>
-        </div>
-
-        {/* Slides 1–4 — imagen full width */}
-        {SLIDES.slice(1).map((slide, i) => (
-          <img
-            key={slide.src}
-            src={slide.src}
-            alt={slide.alt}
-            className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 z-0"
-            style={{ opacity: current === i + 1 ? 1 : 0 }}
-          />
-        ))}
-
-        {/* Dots — centrados en toda la sección */}
-        <div className="absolute bottom-5 left-1/2 -translate-x-1/2 flex gap-2 z-30">
-          {SLIDES.map((_, i) => (
-            <button
-              key={i}
-              onClick={() => setCurrent(i)}
-              className="w-2 h-2 rounded-full transition-all duration-300"
-              style={{
-                backgroundColor: i === current ? "#1A2B1C" : "rgba(26,43,28,0.3)",
-                transform: i === current ? "scale(1.25)" : "scale(1)",
-              }}
-              aria-label={`Slide ${i + 1}`}
-            />
-          ))}
-        </div>
+        )}
       </div>
 
       {/* Trust badges strip */}
@@ -134,6 +120,82 @@ export function HeroSection() {
         </div>
       </div>
     </section>
+  );
+}
+
+/* ─── Slide layouts ──────────────────────────────────────────── */
+
+function SlideImage({ slide }: { slide: HeroSlide }) {
+  const desktopSrc = imgSrc(slide.image_desktop);
+  const mobileSrc = slide.image_mobile ? imgSrc(slide.image_mobile) : null;
+  return (
+    <>
+      <img
+        src={desktopSrc}
+        alt={slide.alt}
+        className={`absolute inset-0 w-full h-full object-cover ${mobileSrc ? "hidden md:block" : ""}`}
+      />
+      {mobileSrc && (
+        <img src={mobileSrc} alt={slide.alt} className="absolute inset-0 w-full h-full object-cover md:hidden" />
+      )}
+    </>
+  );
+}
+
+function FullBleedSlide({ slide }: { slide: HeroSlide }) {
+  return (
+    <div className="absolute inset-0">
+      <SlideImage slide={slide} />
+    </div>
+  );
+}
+
+function SplitSlide({ slide, side }: { slide: HeroSlide; side: "left" | "right" }) {
+  const isLeft = side === "left";
+  const panelBg = hexToRgba(slide.bg_color, slide.bg_opacity);
+  return (
+    <div className="absolute inset-0">
+      <div className="hidden lg:block absolute inset-0" style={{ backgroundColor: panelBg }} />
+
+      {/* Imagen */}
+      <div
+        className={`absolute top-0 bottom-0 w-full lg:w-[58%] bg-[#C8CFC4] ${
+          isLeft ? "right-0" : "left-0"
+        }`}
+      >
+        <SlideImage slide={slide} />
+      </div>
+
+      {/* Texto */}
+      <div className="relative z-10 max-w-screen-xl mx-auto lg:px-6 h-full">
+        <div
+          className={`lg:w-[42%] px-6 lg:px-0 backdrop-blur-sm lg:backdrop-blur-none flex items-center min-h-[630px] py-16 lg:py-24 ${
+            isLeft ? "lg:pr-12" : "lg:pl-12 lg:ml-auto"
+          }`}
+          style={{ backgroundColor: panelBg }}
+        >
+          <div className="hero-copy" style={heroCopyStyle(slide)} dangerouslySetInnerHTML={{ __html: slide.html }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OverlaySlide({ slide, align }: { slide: HeroSlide; align: "left" | "center" | "right" }) {
+  const justify = align === "left" ? "justify-start" : align === "right" ? "justify-end" : "justify-center";
+  const panelBg = hexToRgba(slide.bg_color, slide.bg_opacity);
+  return (
+    <div className="absolute inset-0">
+      <SlideImage slide={slide} />
+      <div className="absolute inset-0 bg-black/35" />
+      <div className={`relative z-10 h-full flex items-center ${justify} max-w-screen-xl mx-auto px-6`}>
+        <div
+          className={`hero-copy rounded-lg p-8 backdrop-blur-sm ${align === "center" ? "text-center" : ""}`}
+          style={{ backgroundColor: panelBg, ...heroCopyStyle(slide) }}
+          dangerouslySetInnerHTML={{ __html: slide.html }}
+        />
+      </div>
+    </div>
   );
 }
 

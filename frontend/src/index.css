@@ -39,3 +39,48 @@
     @apply inline-flex items-center justify-center border border-forest-deep text-forest-deep px-8 py-3 text-xs uppercase tracking-widest font-semibold hover:bg-forest-deep hover:text-white transition-colors duration-200;
   }
 }
+
+/* ─── Contenido HTML libre (hero admin) ────────────────────────
+ * Fuera de @layer a propósito: este HTML vive en la base de datos y lo
+ * escribe el vendedor desde el panel, nunca aparece en el código fuente,
+ * así que Tailwind no puede detectar sus clases al purgar el CSS no usado.
+ * Por eso acá se estiliza por etiqueta semántica (h1, p, em, a) colgada de
+ * un contenedor estable (.hero-copy), en vez de depender de clases de
+ * utilidad sueltas dentro del HTML. */
+/* --hero-text lo fija el componente que renderiza el slide (inline style),
+ * según el color que haya elegido el vendedor en Configuración. */
+.hero-copy {
+  --hero-text: #1a1a1a;
+  max-width: 36rem;
+}
+.hero-copy .eyebrow {
+  @apply text-xs uppercase tracking-widest font-medium mb-5 flex items-center gap-3;
+  color: var(--hero-text);
+  opacity: 0.7;
+}
+.hero-copy .eyebrow::before {
+  content: "";
+  @apply block w-8 h-px;
+  background: currentColor;
+}
+.hero-copy h1,
+.hero-copy h2 {
+  @apply font-serif text-5xl sm:text-6xl xl:text-7xl leading-[1.05] mb-6 font-normal;
+  color: var(--hero-text);
+}
+.hero-copy p {
+  @apply text-sm leading-relaxed mb-6;
+  color: var(--hero-text);
+  opacity: 0.85;
+}
+.hero-copy em {
+  @apply italic font-normal;
+}
+.hero-copy a:not(.btn-primary):not(.btn-outline) {
+  @apply underline underline-offset-2 hover:no-underline;
+  color: var(--hero-text);
+}
+.hero-copy .btn-primary,
+.hero-copy .btn-outline {
+  @apply mr-4 mb-3;
+}

@@ -18,6 +18,8 @@ import { UserEdit } from "./pages/admin/UserEdit";
 import { CategoryNew } from "./pages/admin/CategoryNew";
 import { CategoryEdit } from "./pages/admin/CategoryEdit";
 import { ClientList } from "./pages/admin/ClientList";
+import { Dashboard } from "./pages/admin/Dashboard";
+import { Settings } from "./pages/admin/Settings";
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -48,7 +50,7 @@ export default function App() {
             <Route path="/products/:productId" element={<ProductDetail />} />
             <Route path="/store/:slug" element={<PlaceholderPage title="Tienda pública" />} />
             <Route path="/cart" element={<PlaceholderPage title="Carrito" />} />
-            <Route path="/seller" element={<PlaceholderPage title="Dashboard" />} />
+            <Route path="/seller" element={<Dashboard />} />
             <Route path="/seller/products" element={<ProductList />} />
             <Route path="/seller/products/new" element={<ProductEdit />} />
             <Route path="/seller/products/:productId/edit" element={<ProductEdit />} />
@@ -59,6 +61,7 @@ export default function App() {
             <Route path="/seller/users/:userId/edit" element={<UserEdit />} />
             <Route path="/seller/categories/new" element={<CategoryNew />} />
             <Route path="/seller/categories/:id/edit" element={<CategoryEdit />} />
+            <Route path="/seller/settings" element={<Settings />} />
             <Route path="/diseno" element={<PlaceholderPage title="Diseño & Paisajismo" />} />
             <Route path="/inspiracion" element={<PlaceholderPage title="Inspiración" />} />
             <Route path="/nosotros" element={<PlaceholderPage title="Sobre Nosotros" />} />

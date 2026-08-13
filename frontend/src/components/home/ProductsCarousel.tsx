@@ -81,11 +81,11 @@ export function ProductsCarousel() {
 
         {/* Carousel wrapper */}
         <div className="relative">
-          {/* Prev button */}
+          {/* Prev button — centrado en la imagen (220px), no en toda la tarjeta */}
           <button
             onClick={prev}
             disabled={offset === 0}
-            className="absolute -left-5 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-white border border-[#DDD6CC] shadow-sm flex items-center justify-center text-[#1A2B1C] hover:border-[#1A2B1C] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            className="absolute -left-5 top-[110px] -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-white border border-[#DDD6CC] shadow-sm flex items-center justify-center text-[#1A2B1C] hover:border-[#1A2B1C] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
             aria-label="Anterior"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6" /></svg>
@@ -103,11 +103,11 @@ export function ProductsCarousel() {
             </div>
           </div>
 
-          {/* Next button */}
+          {/* Next button — centrado en la imagen (220px), no en toda la tarjeta */}
           <button
             onClick={next}
             disabled={offset >= maxOffset}
-            className="absolute -right-5 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-white border border-[#DDD6CC] shadow-sm flex items-center justify-center text-[#1A2B1C] hover:border-[#1A2B1C] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            className="absolute -right-5 top-[110px] -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-white border border-[#DDD6CC] shadow-sm flex items-center justify-center text-[#1A2B1C] hover:border-[#1A2B1C] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
             aria-label="Siguiente"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>

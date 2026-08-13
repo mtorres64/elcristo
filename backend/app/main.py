@@ -9,7 +9,7 @@ from app.config import settings
 from app.database import connect_db, disconnect_db
 from app.middleware.auth import AuthMiddleware
 from app.middleware.tenant import TenantMiddleware
-from app.routers import auth, categories, cart, orders, products, search, tenants, users
+from app.routers import auth, categories, cart, content, orders, products, search, tenants, users
 
 
 @asynccontextmanager
@@ -46,6 +46,7 @@ app.include_router(cart.router, prefix="/cart", tags=["cart"])
 app.include_router(orders.router, prefix="/orders", tags=["orders"])
 app.include_router(search.router, prefix="/search", tags=["search"])
 app.include_router(users.router, prefix="/users", tags=["users"])
+app.include_router(content.router, prefix="/content", tags=["content"])
 
 _uploads_dir = Path("./uploads")
 _uploads_dir.mkdir(exist_ok=True)
