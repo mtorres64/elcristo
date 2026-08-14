@@ -63,7 +63,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   const displayRole = ROLE_LABEL[user?.role ?? ""] ?? user?.role ?? "";
 
   return (
-    <div className="min-h-screen flex bg-[#F5F5F3] font-sans">
+    <div className="h-screen flex bg-[#F5F5F3] font-sans overflow-hidden">
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
@@ -86,7 +86,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
       >
         {/* Logo */}
         <div className="flex items-center gap-3 px-5 h-[60px] border-b border-[#1C2C1C] shrink-0">
-          <LotusIcon className="w-8 h-8 text-white shrink-0" />
+          <img src="/images/logo_blanco.png" alt="Verde Diseño" className="h-[1.8rem] w-auto shrink-0" />
           <div className="min-w-0 flex-1">
             <p className="text-white text-[10px] font-bold tracking-widest leading-tight whitespace-nowrap">
               VERDE DISEÑO
@@ -227,18 +227,6 @@ export function AdminLayout({ children }: { children: ReactNode }) {
 }
 
 /* ─── Icons ─────────────────────────────────────────────────── */
-
-function LotusIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 48 48" fill="currentColor">
-      <path d="M24 42 C22 33 20 23 24 8 C28 23 26 33 24 42Z" />
-      <path d="M24 42 C19 34 11 24 9 12 C17 22 22 33 24 42Z" />
-      <path d="M24 42 C29 34 37 24 39 12 C31 22 26 33 24 42Z" />
-      <path d="M22 40 C16 34 5 30 2 19 C10 26 17 34 22 40Z" opacity="0.65" />
-      <path d="M26 40 C32 34 43 30 46 19 C38 26 31 34 26 40Z" opacity="0.65" />
-    </svg>
-  );
-}
 
 function icon(d: string) {
   return (

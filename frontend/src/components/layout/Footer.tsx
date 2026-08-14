@@ -8,16 +8,10 @@ export function Footer() {
         {/* Brand col */}
         <div className="lg:col-span-1 flex flex-col gap-5">
           <div className="flex items-center gap-2.5">
-            <svg className="w-8 h-8 text-white" viewBox="0 0 48 48" fill="currentColor">
-              <path d="M24 42 C22 33 20 23 24 8 C28 23 26 33 24 42Z" />
-              <path d="M24 42 C19 34 11 24 9 12 C17 22 22 33 24 42Z" />
-              <path d="M24 42 C29 34 37 24 39 12 C31 22 26 33 24 42Z" />
-              <path d="M22 40 C16 34 5 30 2 19 C10 26 17 34 22 40Z" opacity="0.65" />
-              <path d="M26 40 C32 34 43 30 46 19 C38 26 31 34 26 40Z" opacity="0.65" />
-            </svg>
+            <img src="/images/logo_blanco.png" alt="Vivero El Cristo" style={{ width: "2.5rem" }} />
             <div className="leading-none">
-              <div className="text-[9px] tracking-widest uppercase text-[#6B7A6C] font-medium">Verde</div>
-              <div className="text-sm tracking-widest uppercase text-white font-bold">Diseño</div>
+              <div className="text-[9px] tracking-widest uppercase text-[#6B7A6C] font-medium">Vivero</div>
+              <div className="text-sm tracking-widest uppercase text-white font-bold">El Cristo</div>
             </div>
           </div>
           <p className="text-[11px] leading-relaxed text-[#6B7A6C]">
@@ -72,11 +66,11 @@ export function Footer() {
           <ul className="flex flex-col gap-4">
             <li className="flex items-start gap-2.5">
               <span className="text-[#5A7A5C] mt-0.5 shrink-0"><WhatsAppIcon /></span>
-              <span className="text-xs text-[#7A8A7B]">Escribinos por WhatsApp<br /><span className="text-[#A8B5A9]">+54 11 2345 6789</span></span>
+              <span className="text-xs text-[#7A8A7B]">Escribinos por WhatsApp<br /><span className="text-[#A8B5A9]">+54 381 2345 6789</span></span>
             </li>
             <li className="flex items-start gap-2.5">
               <span className="text-[#5A7A5C] mt-0.5 shrink-0"><MailIcon /></span>
-              <span className="text-xs text-[#7A8A7B]">hola@verdediseno.com.ar</span>
+              <span className="text-xs text-[#7A8A7B]">hola@viveroelcristo.com.ar</span>
             </li>
             <li className="text-xs text-[#7A8A7B] mt-1">Lun a Vie de 9 a 18 h</li>
           </ul>
@@ -86,7 +80,7 @@ export function Footer() {
       {/* Bottom bar */}
       <div className="border-t border-[#1E2E1F] py-5">
         <div className="max-w-screen-xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <p className="text-[10px] text-[#4A5A4B]">© 2024 Verde Diseño. Todos los derechos reservados.</p>
+          <p className="text-[10px] text-[#4A5A4B]">© 2024 Vivero El Cristo. Todos los derechos reservados.</p>
           <div className="flex items-center gap-4">
             {["Privacidad", "Cookies", "Legales"].map((item) => (
               <Link key={item} to="#" className="text-[10px] text-[#4A5A4B] hover:text-[#7A8A7B] transition-colors">{item}</Link>

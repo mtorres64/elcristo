@@ -39,6 +39,10 @@ export function InspirationSection() {
               <div
                 className={`absolute inset-0 bg-gradient-to-br ${img.bg} transition-transform duration-500 group-hover:scale-105`}
               />
+              {/* Placeholder hasta que haya foto real */}
+              <div className="absolute inset-0 flex items-center justify-center">
+                <img src="/images/trans.png" alt="" className="w-16 h-auto opacity-40" />
+              </div>
               {/* Overlay on hover */}
               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/15 transition-colors duration-300" />
               {/* Placeholder text */}

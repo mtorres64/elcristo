@@ -182,14 +182,7 @@ function ProductCard({ product, colorIndex }: { product: ProductSummary; colorIn
 }
 
 function PlantPlaceholder() {
-  return (
-    <svg className="w-20 h-20 text-white opacity-30" viewBox="0 0 64 64" fill="currentColor">
-      <path d="M32 56 C28 44 22 32 32 12 C42 32 36 44 32 56Z" />
-      <path d="M32 56 C24 46 14 36 12 22 C22 32 30 44 32 56Z" opacity="0.7" />
-      <path d="M32 56 C40 46 50 36 52 22 C42 32 34 44 32 56Z" opacity="0.7" />
-      <rect x="30" y="50" width="4" height="10" rx="2" />
-    </svg>
-  );
+  return <img src="/images/trans.png" alt="" className="w-20 h-auto opacity-60" />;
 }
 
 function formatPrice(centavos: number, currency = "ARS"): string {

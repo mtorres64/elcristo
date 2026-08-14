@@ -142,17 +142,11 @@ export function ProductGallery({ discount, images }: { discount: number; images:
 
 function PlantPlaceholder({ size }: { size: number }) {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 64 64"
-      fill="currentColor"
-      className="text-white opacity-30"
-    >
-      <path d="M32 56 C28 44 22 32 32 12 C42 32 36 44 32 56Z" />
-      <path d="M32 56 C24 46 14 36 12 22 C22 32 30 44 32 56Z" opacity="0.7" />
-      <path d="M32 56 C40 46 50 36 52 22 C42 32 34 44 32 56Z" opacity="0.7" />
-      <rect x="30" y="50" width="4" height="10" rx="2" />
-    </svg>
+    <img
+      src="/images/trans.png"
+      alt=""
+      style={{ width: size }}
+      className="h-auto opacity-60"
+    />
   );
 }

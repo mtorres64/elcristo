@@ -56,7 +56,7 @@ export function Header() {
       <div className="max-w-screen-xl mx-auto px-6 flex items-center justify-between h-16">
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2.5 shrink-0">
-          <LotusIcon className="w-9 h-9 text-[#1A2B1C]" />
+          <img src="/images/logo_verde_line.png" alt="Vivero El Cristo" className="h-[2.025rem] w-auto shrink-0" />
           <div className="flex flex-col leading-none">
             <span className="text-[10px] tracking-widest uppercase text-[#6B6B6B] font-medium">Vivero</span>
             <span className="text-sm tracking-widest uppercase text-[#1A2B1C] font-bold">El Cristo</span>
@@ -260,18 +260,6 @@ function NavLink({ to, children, hasArrow }: { to: string; children: React.React
         </svg>
       )}
     </Link>
-  );
-}
-
-function LotusIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 48 48" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-      <path d="M24 42 C22 33 20 23 24 8 C28 23 26 33 24 42Z" />
-      <path d="M24 42 C19 34 11 24 9 12 C17 22 22 33 24 42Z" />
-      <path d="M24 42 C29 34 37 24 39 12 C31 22 26 33 24 42Z" />
-      <path d="M22 40 C16 34 5 30 2 19 C10 26 17 34 22 40Z" opacity="0.65" />
-      <path d="M26 40 C32 34 43 30 46 19 C38 26 31 34 26 40Z" opacity="0.65" />
-    </svg>
   );
 }
 
