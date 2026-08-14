@@ -89,7 +89,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
           <img src="/images/logo_blanco.png" alt="Verde Diseño" className="h-[1.8rem] w-auto shrink-0" />
           <div className="min-w-0 flex-1">
             <p className="text-white text-[10px] font-bold tracking-widest leading-tight whitespace-nowrap">
-              VERDE DISEÑO
+              VIVERO EL CRISTO
             </p>
             <p className="text-[#7A9B7C] text-[9px] uppercase tracking-widest whitespace-nowrap">
               Administración
