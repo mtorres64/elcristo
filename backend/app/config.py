@@ -28,11 +28,11 @@ class Settings(BaseSettings):
     # MercadoPago (Fase 2)
     mercadopago_access_token: str = ""
 
-    # S3 (Fase 2)
-    s3_bucket: str = ""
-    s3_endpoint: str = ""
-    s3_key: str = ""
-    s3_secret: str = ""
+    # Cloudinary — almacenamiento de imágenes en producción
+    # (con ENVIRONMENT=development se ignora y se usa disco local)
+    cloudinary_cloud_name: str = ""
+    cloudinary_api_key: str = ""
+    cloudinary_api_secret: str = ""
 
     # SMTP (Fase 2)
     smtp_host: str = "smtp.mailtrap.io"
