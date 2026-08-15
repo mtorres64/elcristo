@@ -223,6 +223,9 @@ async def upload_product_image(
 @router.patch("/{product_id}", response_model=ProductDetail)
 async def update_product(product_id: str, body: ProductUpdate, request: Request):
     from datetime import UTC, datetime
+
+    from app.utils.upload import delete_image
+
     db = get_db()
     try:
         oid = ObjectId(product_id)
@@ -234,15 +237,24 @@ async def update_product(product_id: str, body: ProductUpdate, request: Request)
     if tid:
         f["tenant_id"] = tid
 
+    old_doc = await db.products.find_one(f)
+    if not old_doc:
+        raise HTTPException(404, "Producto no encontrado")
+
     updates = body.model_dump(exclude_none=True)
     if not updates:
         raise HTTPException(400, "No hay campos para actualizar")
 
     updates["updated_at"] = datetime.now(UTC)
 
-    result = await db.products.update_one(f, {"$set": updates})
-    if result.matched_count == 0:
-        raise HTTPException(404, "Producto no encontrado")
+    await db.products.update_one(f, {"$set": updates})
+
+    # Las imágenes que estaban antes y ya no quedan en la lista nueva se
+    # borran del storage (no queda huérfanas ocupando espacio).
+    if "images" in updates:
+        removed = set(old_doc.get("images", [])) - set(updates["images"])
+        for url in removed:
+            await delete_image(url)
 
     doc = await db.products.find_one({"_id": oid, "deleted_at": None})
     return _to_detail(doc)

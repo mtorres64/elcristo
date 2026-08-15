@@ -61,8 +61,20 @@ async def get_hero(request: Request):
     return {"slides": doc.get("slides", [])}
 
 
+def _slide_image_urls(slides: list[dict]) -> set[str]:
+    urls = set()
+    for s in slides:
+        if s.get("image_desktop"):
+            urls.add(s["image_desktop"])
+        if s.get("image_mobile"):
+            urls.add(s["image_mobile"])
+    return urls
+
+
 @router.put("/hero", response_model=HeroSettings)
 async def update_hero(body: HeroSettingsUpdate, request: Request):
+    from app.utils.upload import delete_image
+
     tid = _tenant_id(request)
     slides = []
     for slide in body.slides:
@@ -71,12 +83,21 @@ async def update_hero(body: HeroSettingsUpdate, request: Request):
         slides.append(data)
 
     db = get_db()
+    old_doc = await db.site_content.find_one({"tenant_id": tid, "type": "hero"})
+    old_urls = _slide_image_urls(old_doc.get("slides", [])) if old_doc else set()
+
     await db.site_content.update_one(
         {"tenant_id": tid, "type": "hero"},
         {"$set": {"slides": slides, "updated_at": datetime.now(UTC)},
          "$setOnInsert": {"tenant_id": tid, "type": "hero", "created_at": datetime.now(UTC)}},
         upsert=True,
     )
+
+    # Imágenes (desktop o mobile) que ya no están en ningún slide -> se borran
+    # del storage. Nunca toca /images/* estáticas (delete_image las ignora).
+    for url in old_urls - _slide_image_urls(slides):
+        await delete_image(url)
+
     return {"slides": slides}
 
 

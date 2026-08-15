@@ -149,7 +149,7 @@ async def update_category(category_id: str, body: CategoryUpdate):
 
 @router.post("/{category_id}/image")
 async def upload_category_image(category_id: str, file: UploadFile = File(...)):
-    from app.utils.upload import save_image
+    from app.utils.upload import delete_image, save_image
 
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(400, "Solo se permiten archivos de imagen")
@@ -168,11 +168,15 @@ async def upload_category_image(category_id: str, file: UploadFile = File(...)):
     if not doc:
         raise HTTPException(404, "Categoría no encontrada")
 
+    old_url = doc.get("image_url")
+
     url = await save_image(content, file.filename or "image")
     await db.categories.update_one(
         {"_id": oid},
         {"$set": {"image_url": url, "updated_at": datetime.now(UTC)}},
     )
+    if old_url and old_url != url:
+        await delete_image(old_url)
     return {"url": url}
 
 
