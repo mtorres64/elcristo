@@ -8,6 +8,11 @@ from app.schemas.content import HeroSettings, HeroSettingsUpdate
 
 router = APIRouter()
 
+# El hero ocupa todo el ancho de pantalla: se sube tal cual, sin el límite
+# de tamaño que sí aplica a fotos de producto/categoría (DEFAULT_MAX_IMAGE_DIMENSION
+# en upload.py).
+HERO_MAX_IMAGE_DIMENSION: int | None = None
+
 # Default usado cuando el tenant todavía no guardó su propia configuración
 # del carrusel — replica el hero original hardcodeado para que la home no
 # quede vacía antes de que un vendedor entre a Configuración por primera vez.
@@ -112,5 +117,5 @@ async def upload_hero_image(file: UploadFile = File(...)):
     if len(content) > 5 * 1024 * 1024:
         raise HTTPException(400, "La imagen no puede superar 5MB")
 
-    url = await save_image(content, file.filename or "image")
+    url = await save_image(content, file.filename or "image", max_dimension=HERO_MAX_IMAGE_DIMENSION)
     return {"url": url}

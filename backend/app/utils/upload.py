@@ -13,16 +13,21 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-# Límite por defecto (productos, categorías, etc). El carrusel del hero pide
-# uno más grande explícitamente (ver HERO_MAX_IMAGE_DIMENSION en content.py).
+# Límite por defecto (productos, categorías, etc). El carrusel del hero no
+# redimensiona (ver HERO_MAX_IMAGE_DIMENSION = None en content.py) porque
+# ocupa todo el ancho de pantalla y necesita la resolución original.
 DEFAULT_MAX_IMAGE_DIMENSION = 800
 
 
-def _resize_image(file_content: bytes, max_dimension: int) -> bytes:
+def _resize_image(file_content: bytes, max_dimension: int | None) -> bytes:
     """Redimensiona a un máximo de max_dimension x max_dimension (ancho y
-    alto, se mantiene la proporción). Si el archivo no es una imagen que
+    alto, se mantiene la proporción). max_dimension=None desactiva el
+    redimensionado (se sube tal cual). Si el archivo no es una imagen que
     Pillow pueda abrir (ej. SVG), lo deja pasar sin tocar en vez de romper
     la subida."""
+    if max_dimension is None:
+        return file_content
+
     from PIL import Image, ImageOps, UnidentifiedImageError
 
     try:
@@ -56,7 +61,7 @@ def save_image_locally(file_content: bytes, filename: str) -> str:
 
 
 async def save_image(
-    file_content: bytes, filename: str, max_dimension: int = DEFAULT_MAX_IMAGE_DIMENSION
+    file_content: bytes, filename: str, max_dimension: int | None = DEFAULT_MAX_IMAGE_DIMENSION
 ) -> str:
     """Punto de entrada único para guardar imágenes."""
     file_content = await asyncio.to_thread(_resize_image, file_content, max_dimension)

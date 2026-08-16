@@ -84,3 +84,14 @@
 .hero-copy .btn-outline {
   @apply mr-4 mb-3;
 }
+
+/* Placeholder del editor visual del hero (panel admin, HtmlEditor.tsx).
+ * Nunca aparece en el sitio público — ahí el HTML se renderiza tal cual. */
+.hero-copy p.is-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: var(--hero-text);
+  opacity: 0.5;
+}

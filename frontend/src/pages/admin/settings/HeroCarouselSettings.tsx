@@ -7,6 +7,7 @@ import type { HeroLayout, HeroSlide, HeroTextPosition } from "../../../types/con
 import type { Category } from "../../../types/category";
 import type { ProductSummary } from "../../../types/product";
 import { hexToRgba } from "../../../utils/color";
+import { HtmlEditor } from "./HtmlEditor";
 
 // Páginas fijas del sitio (coinciden con las rutas públicas de App.tsx)
 const SITE_PAGES: { label: string; value: string }[] = [
@@ -366,70 +367,42 @@ function SlideCard({
           </FormField>
         </div>
 
-        {/* Columna derecha: contenido HTML + preview */}
+        {/* Columna derecha: contenido del slide (editor visual, sin HTML a mano) */}
         <div className="flex flex-col gap-2">
-          <FormField label="Contenido HTML">
-            <textarea
-              value={slide.html}
-              onChange={(e) => onChange({ html: e.target.value })}
-              rows={7}
-              className={`${INPUT} font-mono text-xs resize-none`}
-              placeholder="<h1>Título</h1><p>Descripción del slide…</p>"
-            />
+          <FormField label="Contenido del slide">
+            <div
+              className="relative border border-[#E8E2D8] rounded-lg overflow-hidden bg-cover bg-center"
+              style={
+                slide.image_desktop
+                  ? { backgroundImage: `url(${imgSrc(slide.image_desktop)})` }
+                  : undefined
+              }
+            >
+              {/* Sin imagen todavía: fondo a cuadros para no confundirlo con negro/blanco real */}
+              {!slide.image_desktop && (
+                <div className="absolute inset-0 bg-[repeating-conic-gradient(#EFEFEF_0%_25%,transparent_0%_50%)] bg-[length:16px_16px]" />
+              )}
+              {/* Igual que en el sitio: la imagen completa lleva un velo oscuro debajo del panel */}
+              {slide.layout === "full" && <div className="absolute inset-0 bg-black/35" />}
+              {/* El color/opacidad elegidos, con el mismo desenfoque (backdrop-blur) que usa el panel en el sitio */}
+              <div
+                className="relative backdrop-blur-sm"
+                style={{
+                  backgroundColor: hexToRgba(slide.bg_color, slide.bg_opacity),
+                  "--hero-text": slide.text_color,
+                } as React.CSSProperties}
+              >
+                <HtmlEditor
+                  value={slide.html}
+                  onChange={(html) => onChange({ html })}
+                  align={slide.layout === "full" ? slide.text_position : "left"}
+                />
+              </div>
+            </div>
           </FormField>
           <p className="text-[10px] text-[#ABABAB] leading-relaxed">
-            Se muestra sobre la imagen. Etiquetas soportadas:{" "}
-            <code className="bg-[#F0EDE8] px-1 rounded">p.eyebrow</code>,{" "}
-            <code className="bg-[#F0EDE8] px-1 rounded">h1</code>,{" "}
-            <code className="bg-[#F0EDE8] px-1 rounded">em</code>,{" "}
-            <code className="bg-[#F0EDE8] px-1 rounded">p</code> y links con{" "}
-            <code className="bg-[#F0EDE8] px-1 rounded">class="btn-primary"</code> o{" "}
-            <code className="bg-[#F0EDE8] px-1 rounded">class="btn-outline"</code>. Dejalo
-            vacío para un slide sin texto.
+            Así se ve tal cual sobre la imagen del slide. Dejalo vacío para un slide sin texto.
           </p>
-
-          {slide.html.trim() && (() => {
-            const align =
-              slide.layout === "full" && slide.text_position === "center"
-                ? "text-center mx-auto"
-                : slide.layout === "full" && slide.text_position === "right"
-                ? "ml-auto"
-                : "";
-            return (
-              <div
-                className="relative border border-[#E8E2D8] rounded-lg overflow-hidden mt-1 bg-cover bg-center"
-                style={
-                  slide.image_desktop
-                    ? { backgroundImage: `url(${imgSrc(slide.image_desktop)})` }
-                    : undefined
-                }
-              >
-                {/* Sin imagen todavía: fondo a cuadros para no confundirlo con negro/blanco real */}
-                {!slide.image_desktop && (
-                  <div className="absolute inset-0 bg-[repeating-conic-gradient(#EFEFEF_0%_25%,transparent_0%_50%)] bg-[length:16px_16px]" />
-                )}
-                {/* Igual que en el sitio: la imagen completa lleva un velo oscuro debajo del panel */}
-                {slide.layout === "full" && <div className="absolute inset-0 bg-black/35" />}
-                {/* El color/opacidad elegidos, con el mismo desenfoque (backdrop-blur) que usa el panel en el sitio */}
-                <div
-                  className="relative p-6 backdrop-blur-sm"
-                  style={{ backgroundColor: hexToRgba(slide.bg_color, slide.bg_opacity) }}
-                >
-                  <p
-                    className="text-[10px] uppercase tracking-widest mb-3"
-                    style={{ color: slide.text_color, opacity: 0.6 }}
-                  >
-                    Vista previa
-                  </p>
-                  <div
-                    className={`hero-copy ${align}`}
-                    style={{ "--hero-text": slide.text_color } as React.CSSProperties}
-                    dangerouslySetInnerHTML={{ __html: slide.html }}
-                  />
-                </div>
-              </div>
-            );
-          })()}
         </div>
       </div>
     </div>

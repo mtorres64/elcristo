@@ -302,7 +302,7 @@ export function ProductEdit() {
           to="/seller/products"
           className="px-4 py-2 border border-[#E8E2D8] text-sm text-[#4A4A4A] bg-white hover:bg-[#F9F8F5] transition-colors rounded-lg"
         >
-          Cancelar
+          Cerrar
         </Link>
         <button
           onClick={() => productId ? handleSave() : handleCreate(true)}
@@ -344,7 +344,7 @@ export function ProductEdit() {
               to="/seller/products"
               className="px-4 py-2 border border-[#E8E2D8] rounded-lg text-sm text-[#4A4A4A] bg-white hover:bg-[#F9F8F5] transition-colors"
             >
-              Cancelar
+              Cerrar
             </Link>
             <button
               onClick={() => productId ? handleSave("draft") : handleCreate(false)}
