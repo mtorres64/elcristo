@@ -13,25 +13,26 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-# Ninguna imagen se aloja más grande que esto (se mantiene la proporción,
-# nunca se agranda una imagen más chica).
-MAX_IMAGE_DIMENSION = 800
+# Límite por defecto (productos, categorías, etc). El carrusel del hero pide
+# uno más grande explícitamente (ver HERO_MAX_IMAGE_DIMENSION en content.py).
+DEFAULT_MAX_IMAGE_DIMENSION = 800
 
 
-def _resize_image(file_content: bytes) -> bytes:
-    """Redimensiona a un máximo de MAX_IMAGE_DIMENSION x MAX_IMAGE_DIMENSION.
-    Si el archivo no es una imagen que Pillow pueda abrir (ej. SVG), lo deja
-    pasar sin tocar en vez de romper la subida."""
+def _resize_image(file_content: bytes, max_dimension: int) -> bytes:
+    """Redimensiona a un máximo de max_dimension x max_dimension (ancho y
+    alto, se mantiene la proporción). Si el archivo no es una imagen que
+    Pillow pueda abrir (ej. SVG), lo deja pasar sin tocar en vez de romper
+    la subida."""
     from PIL import Image, ImageOps, UnidentifiedImageError
 
     try:
         with Image.open(BytesIO(file_content)) as img:
-            if img.width <= MAX_IMAGE_DIMENSION and img.height <= MAX_IMAGE_DIMENSION:
+            if img.width <= max_dimension and img.height <= max_dimension:
                 return file_content  # ya entra, no hace falta reprocesar
 
             original_format = img.format or "JPEG"
             img = ImageOps.exif_transpose(img)  # corrige rotación de fotos de celular
-            img.thumbnail((MAX_IMAGE_DIMENSION, MAX_IMAGE_DIMENSION), Image.LANCZOS)
+            img.thumbnail((max_dimension, max_dimension), Image.LANCZOS)
 
             # JPEG no soporta transparencia
             if original_format.upper() in ("JPEG", "JPG") and img.mode in ("RGBA", "P", "LA"):
@@ -54,9 +55,11 @@ def save_image_locally(file_content: bytes, filename: str) -> str:
     return f"/uploads/{unique_name}"
 
 
-async def save_image(file_content: bytes, filename: str) -> str:
+async def save_image(
+    file_content: bytes, filename: str, max_dimension: int = DEFAULT_MAX_IMAGE_DIMENSION
+) -> str:
     """Punto de entrada único para guardar imágenes."""
-    file_content = await asyncio.to_thread(_resize_image, file_content)
+    file_content = await asyncio.to_thread(_resize_image, file_content, max_dimension)
     if settings.cloudinary_cloud_name and not settings.is_development:
         return await _save_to_cloudinary(file_content, filename)
     return save_image_locally(file_content, filename)
