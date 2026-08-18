@@ -20,6 +20,10 @@ import { CategoryEdit } from "./pages/admin/CategoryEdit";
 import { ClientList } from "./pages/admin/ClientList";
 import { Dashboard } from "./pages/admin/Dashboard";
 import { Settings } from "./pages/admin/Settings";
+import { Cart } from "./pages/Cart";
+import { OrderConfirmation } from "./pages/OrderConfirmation";
+import { OrderList } from "./pages/admin/OrderList";
+import { OrderDetail } from "./pages/admin/OrderDetail";
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -49,8 +53,11 @@ export default function App() {
             <Route path="/products" element={<Products />} />
             <Route path="/products/:productId" element={<ProductDetail />} />
             <Route path="/store/:slug" element={<PlaceholderPage title="Tienda pública" />} />
-            <Route path="/cart" element={<PlaceholderPage title="Carrito" />} />
+            <Route path="/cart" element={<Cart />} />
+            <Route path="/pedido/:orderId" element={<OrderConfirmation />} />
             <Route path="/seller" element={<Dashboard />} />
+            <Route path="/seller/orders" element={<OrderList />} />
+            <Route path="/seller/orders/:orderId" element={<OrderDetail />} />
             <Route path="/seller/products" element={<ProductList />} />
             <Route path="/seller/products/new" element={<ProductEdit />} />
             <Route path="/seller/products/:productId/edit" element={<ProductEdit />} />

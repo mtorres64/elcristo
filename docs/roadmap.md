@@ -69,30 +69,33 @@ Un buyer puede browsear y ver el detalle. Sin pagos aún.
 
 | Feature | Estado |
 |---|---|
-| Cart: add/remove/update items, merge guest→auth al login | Planificado |
-| Checkout: crear orden desde carrito, validar stock | Planificado |
+| Cart: add/remove/update items, merge guest→auth al login | Planificado (carrito client-side vía `CartContext` implementado; server-side sync pendiente) |
+| Direcciones guardadas del comprador (CRUD `/addresses`) | Completado |
+| Métodos de pago guardados del comprador (CRUD `/payment-methods`, mock sin gateway real) | Completado |
+| Checkout: crear orden desde carrito, validar stock | Completado |
 | MercadoPago Checkout Pro: crear preference | Planificado |
 | Webhook MercadoPago: actualizar estado de pago | Planificado |
-| State machine de orden (pending_payment → paid → preparing → ...) | Planificado |
-| Stock: descuento al confirmar pago, restauración al cancelar | Planificado |
+| State machine de orden (pending_payment → paid → preparing → ...) | Completado (versión liviana, sin gateway real todavía) |
+| Stock: descuento al confirmar pago, restauración al cancelar | Completado |
 | Email: confirmación de orden al comprador | Planificado |
 | Email: nueva orden al seller | Planificado |
-| `PATCH /orders/{id}/status` (seller actualiza estado) | Planificado |
+| `PATCH /orders/{id}/status` (seller actualiza estado) | Completado |
 
 ### Frontend
 
 | Feature | Estado |
 |---|---|
-| CartContext + CartDrawer (slide-over) | Planificado |
-| Agregar al carrito desde ProductDetail y ProductCard | Planificado |
-| Checkout: formulario dirección de envío | Planificado |
-| Resumen de orden en checkout | Planificado |
+| CartContext + CartDrawer (slide-over) | En progreso (CartContext con persistencia en localStorage; sin drawer, el carrito vive en `/cart`) |
+| Agregar al carrito desde ProductDetail y ProductCard | Completado |
+| Checkout: formulario dirección de envío | Completado (con alta de dirección nueva + geolocalización) |
+| Checkout: selección de método de pago (tarjeta guardada o nueva) | Completado |
+| Resumen de orden en checkout | Completado |
 | Redirect a MercadoPago + manejo de retorno (success/failure/pending) | Planificado |
-| Página confirmación de orden | Planificado |
+| Página confirmación de orden | Completado |
 | Buyer: historial de órdenes (`/mis-compras`) | Planificado |
 | Buyer: detalle de orden | Planificado |
-| Seller dashboard: listado de órdenes con filtro de estado | Planificado |
-| Seller: detalle de orden + botón actualizar estado + tracking | Planificado |
+| Seller dashboard: listado de órdenes con filtro de estado | Completado |
+| Seller: detalle de orden + botón actualizar estado + tracking | Completado |
 
 ---
 

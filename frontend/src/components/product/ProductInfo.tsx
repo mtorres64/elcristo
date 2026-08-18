@@ -1,6 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useCart } from "../../hooks/useCart";
+import { productService } from "../../services/product.service";
 import type { ProductDetail } from "../../types/product";
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
 const SIZES = [
   { id: "pequeña" as const, label: "Pequeña", range: "60-80 cm" },
@@ -8,12 +12,7 @@ const SIZES = [
   { id: "grande" as const, label: "Grande", range: "120-160 cm" },
 ];
 
-const POTS = [
-  { id: null as null, label: "Sin maceta", extra: 0 },
-  { id: "cemento", label: "Maceta Cemento Gris", extra: 850000 },
-  { id: "terracota", label: "Maceta Terracota Clásica", extra: 620000 },
-  { id: "ceramica", label: "Maceta Cerámica Blanca", extra: 980000 },
-];
+const NO_POT = { id: null as string | null, label: "Sin maceta", extra: 0, image: null as string | null };
 
 const INSTALLMENTS = 6;
 
@@ -25,15 +24,64 @@ export function ProductInfo({ product }: { product: ProductDetail }) {
   const [qty, setQty] = useState(1);
   const { addItem } = useCart();
 
+  const offeredSizes = SIZES.filter((s) => {
+    const v = product.variants?.find((vv) => vv.key === "size" && vv.value === s.id);
+    return v ? v.active : s.id === "mediana" ? product.status === "active" : true;
+  });
+
+  useEffect(() => {
+    if (offeredSizes.length && !offeredSizes.some((s) => s.id === size)) {
+      setSize(offeredSizes[0].id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product.product_id]);
+
+  const sizeVariant = product.variants?.find((v) => v.key === "size" && v.value === size);
+  const sizePrice = sizeVariant?.price_override ?? product.price;
+  const sizeComparePrice = sizeVariant
+    ? sizeVariant.compare_at_price_override
+    : product.compare_at_price;
+  const sizeStock = sizeVariant ? sizeVariant.stock : product.stock;
+
+  // Las macetas sugeridas dependen del tamaño elegido: cada tamaño tiene su
+  // propia lista (guardada en el variant); "mediana" usa la del producto base.
+  const potIds = sizeVariant ? sizeVariant.recommended_pot_ids : product.recommended_pot_ids ?? [];
+  const { data: potResults } = useQuery({
+    queryKey: ["product-pots", size, potIds.join(",")],
+    queryFn: () => productService.list({ ids: potIds.join(","), page_size: Math.min(100, potIds.length) }),
+    enabled: potIds.length > 0,
+  });
+
+  const POTS = [
+    NO_POT,
+    ...(potResults?.items ?? []).map((p) => ({
+      id: p.product_id,
+      label: p.title,
+      extra: p.price,
+      image: p.image_url,
+    })),
+  ];
+
+  // Si cambia el tamaño y la maceta elegida ya no está disponible para ese
+  // tamaño, volvemos a "Sin maceta".
+  useEffect(() => {
+    if (pot !== null && !POTS.some((p) => p.id === pot)) {
+      setPot(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [size, potIds.join(",")]);
+
   const potExtra = POTS.find((p) => p.id === pot)?.extra ?? 0;
-  const totalPrice = product.price + potExtra;
+  const totalPrice = sizePrice + potExtra;
   const installmentAmount = Math.floor(totalPrice / INSTALLMENTS);
   const discount =
-    product.compare_at_price && product.compare_at_price > product.price
-      ? Math.round((1 - product.price / product.compare_at_price) * 100)
+    sizeComparePrice && sizeComparePrice > sizePrice
+      ? Math.round((1 - sizePrice / sizeComparePrice) * 100)
       : 0;
+  const outOfStock = sizeStock <= 0;
 
   function handleAddToCart() {
+    if (outOfStock) return;
     const sizeLabel = SIZES.find((s) => s.id === size)?.label ?? size;
     for (let i = 0; i < qty; i++) {
       addItem({
@@ -64,10 +112,10 @@ export function ProductInfo({ product }: { product: ProductDetail }) {
           <span className="text-3xl font-bold text-[#1A1A1A]">
             {formatARS(totalPrice)}
           </span>
-          {product.compare_at_price && product.compare_at_price > product.price && (
+          {sizeComparePrice && sizeComparePrice > sizePrice && (
             <>
               <span className="text-base text-[#8A8A8A] line-through">
-                {formatARS(product.compare_at_price)}
+                {formatARS(sizeComparePrice)}
               </span>
               {discount > 0 && (
                 <span className="bg-[#E8F0E8] text-[#3D6040] text-[11px] font-bold px-2 py-0.5 tracking-wide">
@@ -95,20 +143,32 @@ export function ProductInfo({ product }: { product: ProductDetail }) {
           Tamaño de la planta
         </p>
         <div className="flex gap-2">
-          {SIZES.map((s) => (
-            <button
-              key={s.id}
-              onClick={() => setSize(s.id)}
-              className={`flex-1 py-3 px-2 border text-center transition-colors ${
-                size === s.id
-                  ? "border-[#1A2B1C] bg-white"
-                  : "border-[#E8E2D8] hover:border-[#C8C0B4]"
-              }`}
-            >
-              <p className="text-xs font-semibold text-[#1A1A1A]">{s.label}</p>
-              <p className="text-[10px] text-[#8A8A8A] mt-0.5">{s.range}</p>
-            </button>
-          ))}
+          {offeredSizes.map((s) => {
+            const v = product.variants?.find((vv) => vv.key === "size" && vv.value === s.id);
+            const sStock = v ? v.stock : product.stock;
+            const sPrice = v?.price_override ?? product.price;
+            const sOut = sStock <= 0;
+            return (
+              <button
+                key={s.id}
+                onClick={() => !sOut && setSize(s.id)}
+                disabled={sOut}
+                className={`flex-1 py-3 px-2 border text-center transition-colors ${
+                  sOut
+                    ? "border-[#E8E2D8] opacity-40 cursor-not-allowed"
+                    : size === s.id
+                    ? "border-[#1A2B1C] bg-white"
+                    : "border-[#E8E2D8] hover:border-[#C8C0B4]"
+                }`}
+              >
+                <p className="text-xs font-semibold text-[#1A1A1A]">{s.label}</p>
+                <p className="text-[10px] text-[#8A8A8A] mt-0.5">{s.range}</p>
+                <p className="text-[10px] text-[#3D6040] mt-0.5">
+                  {sOut ? "Sin stock" : formatARS(sPrice)}
+                </p>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -129,8 +189,16 @@ export function ProductInfo({ product }: { product: ProductDetail }) {
                   : "border-[#E8E2D8] hover:border-[#C8C0B4]"
               }`}
             >
-              <div className="w-10 h-10 mx-auto mb-2 flex items-center justify-center">
-                <PotIcon type={p.id} />
+              <div className="w-10 h-10 mx-auto mb-2 rounded-md overflow-hidden bg-[#F0EDE8] flex items-center justify-center">
+                {p.image ? (
+                  <img
+                    src={p.image.startsWith("/uploads") ? `${API_BASE}${p.image}` : p.image}
+                    alt=""
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <PotIcon type={p.id} />
+                )}
               </div>
               <p className="text-[10px] font-medium text-[#1A1A1A] leading-tight">
                 {p.label}
@@ -178,12 +246,15 @@ export function ProductInfo({ product }: { product: ProductDetail }) {
       <div className="flex flex-col gap-3">
         <button
           onClick={handleAddToCart}
-          className="btn-primary w-full flex items-center justify-center gap-2 py-4"
+          disabled={outOfStock}
+          className="btn-primary w-full flex items-center justify-center gap-2 py-4 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <CartIcon />
-          Agregar al carrito
+          {outOfStock ? "Sin stock" : "Agregar al carrito"}
         </button>
-        <button className="btn-outline w-full py-4">Comprar ahora</button>
+        <button className="btn-outline w-full py-4" disabled={outOfStock}>
+          Comprar ahora
+        </button>
       </div>
 
       {/* Shipping */}

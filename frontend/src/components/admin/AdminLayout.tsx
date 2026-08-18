@@ -1,17 +1,17 @@
 import { useState, useRef, useEffect, ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
+import { orderService } from "../../services/order.service";
 
 interface NavItem {
   icon: ReactNode;
   label: string;
   path: string;
-  badge?: number;
 }
 
 const NAV: NavItem[] = [
   { icon: <DashboardIcon />, label: "Dashboard", path: "/seller" },
-  { icon: <OrdersIcon />, label: "Pedidos", path: "/seller/orders", badge: 12 },
+  { icon: <OrdersIcon />, label: "Pedidos", path: "/seller/orders" },
   { icon: <ProductsIcon />, label: "Productos", path: "/seller/products" },
   { icon: <CategoriesIcon />, label: "Categorías", path: "/seller/categories" },
   { icon: <ClientsIcon />, label: "Clientes", path: "/seller/clients" },
@@ -36,6 +36,14 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const menuRef = useRef<HTMLDivElement>(null);
+  const [pendingOrders, setPendingOrders] = useState(0);
+
+  useEffect(() => {
+    orderService
+      .list({ tenant_id: user?.tenant_id ?? undefined, status: "pending_payment", page_size: 1 })
+      .then((data) => setPendingOrders(data.total))
+      .catch(() => {});
+  }, [user?.tenant_id]);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -111,6 +119,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
               item.path === "/seller"
                 ? location.pathname === "/seller"
                 : location.pathname.startsWith(item.path);
+            const badge = item.path === "/seller/orders" ? pendingOrders : 0;
 
             return (
               <div key={item.label}>
@@ -124,9 +133,9 @@ export function AdminLayout({ children }: { children: ReactNode }) {
                 >
                   <span className="shrink-0">{item.icon}</span>
                   <span className="flex-1 font-medium">{item.label}</span>
-                  {item.badge && (
+                  {badge > 0 && (
                     <span className="bg-[#5A7A5C] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
-                      {item.badge}
+                      {badge}
                     </span>
                   )}
                 </Link>

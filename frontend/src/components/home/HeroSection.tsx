@@ -10,12 +10,6 @@ function imgSrc(url: string) {
   return url.startsWith("/uploads") ? `${API_BASE}${url}` : url;
 }
 
-/** Estilo inline para el contenedor .hero-copy: fija el color de texto
- * elegido por el vendedor vía la variable CSS que consume index.css. */
-function heroCopyStyle(slide: HeroSlide): React.CSSProperties {
-  return { "--hero-text": slide.text_color } as React.CSSProperties;
-}
-
 export function HeroSection() {
   const [slides, setSlides] = useState<HeroSlide[]>([]);
   const [loading, setLoading] = useState(true);
@@ -174,7 +168,7 @@ function SplitSlide({ slide, side }: { slide: HeroSlide; side: "left" | "right" 
           }`}
           style={{ backgroundColor: panelBg }}
         >
-          <div className="hero-copy" style={heroCopyStyle(slide)} dangerouslySetInnerHTML={{ __html: slide.html }} />
+          <div className="hero-copy" dangerouslySetInnerHTML={{ __html: slide.html }} />
         </div>
       </div>
     </div>
@@ -191,7 +185,7 @@ function OverlaySlide({ slide, align }: { slide: HeroSlide; align: "left" | "cen
       <div className={`relative z-10 h-full flex items-center ${justify} max-w-screen-xl mx-auto px-6`}>
         <div
           className={`hero-copy rounded-lg p-8 backdrop-blur-sm ${align === "center" ? "text-center" : ""}`}
-          style={{ backgroundColor: panelBg, ...heroCopyStyle(slide) }}
+          style={{ backgroundColor: panelBg }}
           dangerouslySetInnerHTML={{ __html: slide.html }}
         />
       </div>

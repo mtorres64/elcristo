@@ -49,6 +49,7 @@ def _to_detail(doc: dict) -> dict:
         "height_cm": doc.get("height_cm"),
         "care": doc.get("care", {}),
         "attributes": doc.get("attributes", {}),
+        "recommended_pot_ids": doc.get("recommended_pot_ids", []),
     })
     return result
 
@@ -63,6 +64,7 @@ async def list_products(
     min_price: int | None = None,
     max_price: int | None = None,
     featured: bool | None = None,
+    ids: str | None = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     sort: str = "newest",
@@ -79,6 +81,18 @@ async def list_products(
 
     if category_id:
         f["category_id"] = category_id
+
+    if ids:
+        oids = []
+        for raw in ids.split(","):
+            raw = raw.strip()
+            if not raw:
+                continue
+            try:
+                oids.append(ObjectId(raw))
+            except Exception:
+                continue
+        f["_id"] = {"$in": oids}
 
     if min_price is not None or max_price is not None:
         price_filter: dict = {}
@@ -161,7 +175,8 @@ async def create_product(body: ProductCreate, request: Request):
         "is_featured": body.is_featured,
         "status": "draft",
         "images": [],
-        "variants": [],
+        "variants": [v.model_dump() for v in body.variants],
+        "recommended_pot_ids": body.recommended_pot_ids,
         "tags": body.tags,
         "care": body.care,
         "attributes": body.attributes,

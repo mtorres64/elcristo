@@ -244,7 +244,7 @@ function SlideCard({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-6">
         {/* Columna izquierda: imágenes + link + alt */}
         <div className="flex flex-col gap-4">
           <div className="grid grid-cols-2 gap-3">
@@ -328,32 +328,18 @@ function SlideCard({
             </div>
           </FormField>
 
-          <div className="grid grid-cols-2 gap-4">
-            <FormField label="Color de texto">
-              <div className="flex items-center gap-2 border border-[#E8E2D8] rounded-lg px-2 py-1.5">
-                <input
-                  type="color"
-                  value={slide.text_color}
-                  onChange={(e) => onChange({ text_color: e.target.value })}
-                  className="w-7 h-7 rounded border border-[#E8E2D8] cursor-pointer shrink-0"
-                  aria-label="Color de texto"
-                />
-                <span className="text-xs text-[#6B6B6B] font-mono">{slide.text_color}</span>
-              </div>
-            </FormField>
-            <FormField label="Color de fondo">
-              <div className="flex items-center gap-2 border border-[#E8E2D8] rounded-lg px-2 py-1.5">
-                <input
-                  type="color"
-                  value={slide.bg_color}
-                  onChange={(e) => onChange({ bg_color: e.target.value })}
-                  className="w-7 h-7 rounded border border-[#E8E2D8] cursor-pointer shrink-0"
-                  aria-label="Color de fondo"
-                />
-                <span className="text-xs text-[#6B6B6B] font-mono">{slide.bg_color}</span>
-              </div>
-            </FormField>
-          </div>
+          <FormField label="Color de fondo">
+            <div className="flex items-center gap-2 border border-[#E8E2D8] rounded-lg px-2 py-1.5">
+              <input
+                type="color"
+                value={slide.bg_color}
+                onChange={(e) => onChange({ bg_color: e.target.value })}
+                className="w-7 h-7 rounded border border-[#E8E2D8] cursor-pointer shrink-0"
+                aria-label="Color de fondo"
+              />
+              <span className="text-xs text-[#6B6B6B] font-mono">{slide.bg_color}</span>
+            </div>
+          </FormField>
 
           <FormField label={`Opacidad del fondo (${slide.bg_opacity}%)`}>
             <input
@@ -387,10 +373,7 @@ function SlideCard({
               {/* El color/opacidad elegidos, con el mismo desenfoque (backdrop-blur) que usa el panel en el sitio */}
               <div
                 className="relative backdrop-blur-sm"
-                style={{
-                  backgroundColor: hexToRgba(slide.bg_color, slide.bg_opacity),
-                  "--hero-text": slide.text_color,
-                } as React.CSSProperties}
+                style={{ backgroundColor: hexToRgba(slide.bg_color, slide.bg_opacity) }}
               >
                 <HtmlEditor
                   value={slide.html}
@@ -598,7 +581,7 @@ function ImageDropzone({
         onChange={(e) => e.target.files && handle(e.target.files)}
       />
       <div
-        className="relative aspect-video border-2 border-dashed border-[#D0C8C0] rounded-lg overflow-hidden cursor-pointer hover:border-[#1A2B1C] transition-colors group bg-[#F9F8F5]"
+        className="relative w-full aspect-video border-2 border-dashed border-[#D0C8C0] rounded-lg overflow-hidden cursor-pointer hover:border-[#1A2B1C] transition-colors group bg-[#F9F8F5]"
         onClick={() => inputRef.current?.click()}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => { e.preventDefault(); handle(e.dataTransfer.files); }}

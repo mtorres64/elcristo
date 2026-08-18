@@ -4,7 +4,7 @@ import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Paragraph from "@tiptap/extension-paragraph";
 import Placeholder from "@tiptap/extension-placeholder";
-import { FontFamily, FontSize, TextStyle } from "@tiptap/extension-text-style";
+import { Color, FontFamily, FontSize, TextStyle } from "@tiptap/extension-text-style";
 
 /** Igual que el párrafo normal, pero acepta un atributo "class" propio —
  * lo usamos para marcar un párrafo como "eyebrow" (la etiqueta chica arriba
@@ -22,6 +22,33 @@ const EyebrowParagraph = Paragraph.extend({
   },
 });
 
+/** El link normal de Tiptap, con un atributo "color" propio — solo tiene
+ * efecto cuando el link es un botón (clase btn-primary/btn-outline): pinta
+ * fondo+borde o borde+texto, según el estilo, pisando por estilo inline el
+ * verde de marca que usan esas clases en el resto del sitio. Se guarda como
+ * "data-btn-color" para poder leerlo de vuelta tal cual al reabrir el panel. */
+const StyledLink = Link.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      color: {
+        default: null,
+        parseHTML: (element: HTMLElement) => element.getAttribute("data-btn-color"),
+        renderHTML: (attributes: { color?: string | null; class?: string | null }) => {
+          if (!attributes.color) return {};
+          const isOutline = attributes.class === "btn-outline";
+          return {
+            "data-btn-color": attributes.color,
+            style: isOutline
+              ? `border-color: ${attributes.color}; color: ${attributes.color}`
+              : `background-color: ${attributes.color}; border-color: ${attributes.color}`,
+          };
+        },
+      },
+    };
+  },
+});
+
 type BlockType = "paragraph" | "eyebrow" | "heading";
 type LinkStyle = "normal" | "btn-primary" | "btn-outline";
 
@@ -30,6 +57,8 @@ const LINK_STYLES: { id: LinkStyle; label: string }[] = [
   { id: "btn-primary", label: "Botón sólido" },
   { id: "btn-outline", label: "Botón outline" },
 ];
+
+const DEFAULT_BTN_COLOR = "#1A2B1C"; // forest-deep, el verde de marca por defecto
 
 // Tamaños y fuentes acotados a lo que el sitio ya sabe mostrar bien — no es
 // un selector libre para no terminar con una mezcla inconsistente de letras.
@@ -62,18 +91,42 @@ export function HtmlEditor({
   value,
   onChange,
   align = "left",
+  defaultColor = "#1A1A1A",
 }: {
   value: string;
   onChange: (html: string) => void;
   /** Alineación del bloque de texto dentro del panel (coincide con la
    * posición elegida para el slide). */
   align?: "left" | "center" | "right";
+  /** Color de texto general del slide — se usa como valor inicial del
+   * selector de color de la selección cuando todavía no tiene uno propio. */
+  defaultColor?: string;
 }) {
   const [linkPanelOpen, setLinkPanelOpen] = useState(false);
   const [linkText, setLinkText] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
   const [linkStyle, setLinkStyle] = useState<LinkStyle>("normal");
+  const [linkColor, setLinkColor] = useState(DEFAULT_BTN_COLOR);
+  // Igual que con el color: el panel roba el foco (los inputs tienen
+  // autofocus), así que la selección que había cuando se abrió el panel se
+  // pierde. La congelamos acá para poder restaurarla al aplicar/quitar el
+  // link — si no, "Aplicar" termina operando sobre el lugar equivocado (o
+  // sobre nada), y por eso no se podía sacar el estilo de botón.
+  const [linkTarget, setLinkTarget] = useState<{
+    from: number;
+    to: number;
+    needsNewText: boolean;
+    editingExistingLink: boolean;
+  } | null>(null);
   const linkPanelRef = useRef<HTMLDivElement>(null);
+  const linkTextInputRef = useRef<HTMLInputElement>(null);
+  const linkUrlInputRef = useRef<HTMLInputElement>(null);
+  // El <input type="color"> nativo le roba el foco (y con él, la selección)
+  // al editor apenas se lo toca — para cuando el usuario elige un color en
+  // el picker, ProseMirror ya perdió qué texto estaba seleccionado. La
+  // guardamos acá al hacer mousedown (antes de que se pierda) para poder
+  // restaurarla al aplicar el color.
+  const savedSelectionRef = useRef<{ from: number; to: number } | null>(null);
 
   const editor = useEditor({
     extensions: [
@@ -93,10 +146,11 @@ export function HtmlEditor({
         link: false,
       }),
       EyebrowParagraph,
-      Link.configure({ openOnClick: false, autolink: false }),
+      StyledLink.configure({ openOnClick: false, autolink: false }),
       TextStyle,
       FontFamily,
       FontSize,
+      Color,
       Placeholder.configure({
         placeholder: "Escribí acá el texto del slide (dejalo vacío para un slide sin texto)…",
         emptyNodeClass: "is-empty",
@@ -165,42 +219,62 @@ export function HtmlEditor({
 
   // Sin texto seleccionado (ni parado sobre un link existente): el panel
   // deja escribir el texto del botón/link desde cero, en vez de exigir que
-  // selecciones algo primero.
-  const hasSelection = !editor.state.selection.empty;
-  const editingExistingLink = editor.isActive("link");
-  const needsNewText = !hasSelection && !editingExistingLink;
+  // selecciones algo primero. Se leen de la instantánea (linkTarget), no del
+  // editor en vivo — una vez que el panel roba el foco, el editor ya no
+  // refleja lo que había seleccionado cuando se abrió.
+  const needsNewText = linkTarget?.needsNewText ?? false;
+  const editingExistingLink = linkTarget?.editingExistingLink ?? false;
 
   function openLinkPanel() {
     if (!editor) return;
+    const { from, to } = editor.state.selection;
+    const hasSelection = from !== to;
+    const editingLink = editor.isActive("link");
     const attrs = editor.getAttributes("link");
     setLinkText("");
     setLinkUrl(attrs.href ?? "");
     setLinkStyle(
       attrs.class === "btn-primary" ? "btn-primary" : attrs.class === "btn-outline" ? "btn-outline" : "normal"
     );
+    setLinkColor(attrs.color ?? DEFAULT_BTN_COLOR);
+    setLinkTarget({ from, to, needsNewText: !hasSelection && !editingLink, editingExistingLink: editingLink });
     setLinkPanelOpen(true);
   }
 
+  // Foco manual (en vez de autoFocus) con preventScroll: enfocar un input
+  // dentro de este panel absolutamente posicionado hacía que el navegador
+  // scrolleara el ancestro más cercano para "traerlo a la vista", corriendo
+  // toda la página hacia el costado.
+  useEffect(() => {
+    if (!linkPanelOpen) return;
+    const el = needsNewText ? linkTextInputRef.current : linkUrlInputRef.current;
+    el?.focus({ preventScroll: true });
+  }, [linkPanelOpen, needsNewText]);
+
   function applyLink() {
     if (!editor || !linkUrl.trim()) return;
-    const linkAttrs = { href: linkUrl.trim(), class: linkStyle === "normal" ? null : linkStyle };
+    const linkAttrs = {
+      href: linkUrl.trim(),
+      class: linkStyle === "normal" ? null : linkStyle,
+      color: linkStyle === "normal" ? null : linkColor,
+    };
+    const chain = editor.chain().focus();
+    if (linkTarget) chain.setTextSelection({ from: linkTarget.from, to: linkTarget.to });
 
     if (needsNewText) {
       if (!linkText.trim()) return;
-      editor
-        .chain()
-        .focus()
-        .insertContent({ type: "text", text: linkText.trim(), marks: [{ type: "link", attrs: linkAttrs }] })
-        .run();
+      chain.insertContent({ type: "text", text: linkText.trim(), marks: [{ type: "link", attrs: linkAttrs }] }).run();
     } else {
-      editor.chain().focus().extendMarkRange("link").setLink(linkAttrs).run();
+      chain.extendMarkRange("link").setLink(linkAttrs).run();
     }
     setLinkPanelOpen(false);
   }
 
   function removeLink() {
     if (!editor) return;
-    editor.chain().focus().extendMarkRange("link").unsetLink().run();
+    const chain = editor.chain().focus();
+    if (linkTarget) chain.setTextSelection({ from: linkTarget.from, to: linkTarget.to });
+    chain.extendMarkRange("link").unsetLink().run();
     setLinkPanelOpen(false);
   }
 
@@ -250,12 +324,43 @@ export function HtmlEditor({
           <em>I</em>
         </ToolbarBtn>
 
+        <div className="flex items-center gap-0.5 mr-1">
+          <input
+            type="color"
+            value={editor.getAttributes("textStyle").color ?? defaultColor}
+            onMouseDown={() => {
+              savedSelectionRef.current = { from: editor.state.selection.from, to: editor.state.selection.to };
+            }}
+            onChange={(e) => {
+              const chain = editor.chain().focus();
+              const sel = savedSelectionRef.current;
+              if (sel) chain.setTextSelection(sel);
+              chain.setColor(e.target.value).run();
+            }}
+            title="Color de texto (de la selección)"
+            aria-label="Color de texto de la selección"
+            className="w-6 h-6 rounded border border-black/15 cursor-pointer bg-white/95"
+          />
+          {editor.getAttributes("textStyle").color && (
+            <button
+              type="button"
+              title="Quitar color propio (usar el color general del slide)"
+              aria-label="Quitar color propio de la selección"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => editor.chain().focus().unsetColor().run()}
+              className="w-4 h-4 flex items-center justify-center text-[10px] text-[#8A8A8A] hover:text-[#DC2626] leading-none"
+            >
+              ×
+            </button>
+          )}
+        </div>
+
         <div className="relative" ref={linkPanelRef}>
           <ToolbarBtn active={editor.isActive("link")} title="Crear un link o botón" onClick={openLinkPanel}>
             <LinkIcon />
           </ToolbarBtn>
           {linkPanelOpen && (
-            <div className="absolute z-20 top-full left-0 mt-1 w-64 bg-white border border-[#E8E2D8] rounded-lg shadow-lg p-3">
+            <div className="absolute z-20 top-full right-0 mt-1 w-64 bg-white border border-[#E8E2D8] rounded-lg shadow-lg p-3">
               <p className="text-[10px] text-[#8A8A8A] mb-2 leading-relaxed">
                 {needsNewText
                   ? "Escribí el texto del botón, el destino, y elegí el estilo."
@@ -263,7 +368,7 @@ export function HtmlEditor({
               </p>
               {needsNewText && (
                 <input
-                  autoFocus
+                  ref={linkTextInputRef}
                   value={linkText}
                   onChange={(e) => setLinkText(e.target.value)}
                   placeholder="Texto del botón (ej. Ver más)"
@@ -271,7 +376,7 @@ export function HtmlEditor({
                 />
               )}
               <input
-                autoFocus={!needsNewText}
+                ref={linkUrlInputRef}
                 value={linkUrl}
                 onChange={(e) => setLinkUrl(e.target.value)}
                 placeholder="/products o https://..."
@@ -293,6 +398,19 @@ export function HtmlEditor({
                   </button>
                 ))}
               </div>
+              {linkStyle !== "normal" && (
+                <div className="flex items-center gap-2 mb-2">
+                  <input
+                    type="color"
+                    value={linkColor}
+                    onChange={(e) => setLinkColor(e.target.value)}
+                    title="Color del botón"
+                    aria-label="Color del botón"
+                    className="w-7 h-7 rounded border border-[#E8E2D8] cursor-pointer shrink-0"
+                  />
+                  <span className="text-[10px] text-[#8A8A8A]">Color del botón</span>
+                </div>
+              )}
               <div className="flex items-center justify-between gap-2">
                 {editingExistingLink ? (
                   <button type="button" onClick={removeLink} className="text-[10px] text-[#DC2626] font-medium">

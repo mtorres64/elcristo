@@ -8,7 +8,12 @@ class VariantSchema(BaseModel):
     value: str
     stock: int = 0
     price_override: int | None = None
+    compare_at_price_override: int | None = None
+    weight_grams_override: int | None = None
+    height_cm_override: int | None = None
     sku_override: str | None = None
+    active: bool = True
+    recommended_pot_ids: list[str] = []
 
 
 class ProductCreate(BaseModel):
@@ -29,6 +34,8 @@ class ProductCreate(BaseModel):
     tags: list[str] = []
     care: dict[str, str] = {}
     attributes: dict[str, str] = {}
+    variants: list[VariantSchema] = []
+    recommended_pot_ids: list[str] = []
 
 
 class ProductUpdate(BaseModel):
@@ -51,6 +58,8 @@ class ProductUpdate(BaseModel):
     care: dict[str, str] | None = None
     attributes: dict[str, str] | None = None
     images: list[str] | None = None
+    variants: list[VariantSchema] | None = None
+    recommended_pot_ids: list[str] | None = None
 
 
 class ProductSummary(BaseModel):
@@ -88,3 +97,4 @@ class ProductDetail(ProductSummary):
     height_cm: int | None = None
     care: dict[str, str] = {}
     attributes: dict[str, str] = {}
+    recommended_pot_ids: list[str] = []

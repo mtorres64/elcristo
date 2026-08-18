@@ -1,5 +1,5 @@
 import { api } from "./api";
-import type { ProductDetail, ProductSummary } from "../types/product";
+import type { ProductDetail, ProductSummary, ProductVariant } from "../types/product";
 
 interface PaginatedProducts {
   items: ProductSummary[];
@@ -15,6 +15,7 @@ interface ListProductsParams {
   category_id?: string;
   min_price?: number;
   max_price?: number;
+  ids?: string;
   page?: number;
   page_size?: number;
   sort?: string;
@@ -49,6 +50,8 @@ export const productService = {
     tags?: string[];
     care?: Record<string, string>;
     attributes?: Record<string, string>;
+    variants?: Partial<ProductVariant>[];
+    recommended_pot_ids?: string[];
   }): Promise<ProductDetail> {
     const res = await api.post("/products", data);
     return res.data;
@@ -84,6 +87,8 @@ export const productService = {
       images?: string[];
       care?: Record<string, string>;
       attributes?: Record<string, string>;
+      variants?: Partial<ProductVariant>[];
+      recommended_pot_ids?: string[];
     }
   ): Promise<ProductDetail> {
     const res = await api.patch(`/products/${productId}`, data);

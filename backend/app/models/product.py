@@ -9,7 +9,12 @@ class ProductVariant(BaseModel):
     value: str
     stock: int = 0
     price_override: int | None = None
+    compare_at_price_override: int | None = None
+    weight_grams_override: int | None = None
+    height_cm_override: int | None = None
     sku_override: str | None = None
+    active: bool = True
+    recommended_pot_ids: list[str] = []          # IDs de productos "maceta" sugeridos para este tamaño
 
 
 class ProductDocument(BaseModel):
@@ -30,6 +35,7 @@ class ProductDocument(BaseModel):
     is_featured: bool = False
     publish_at: datetime | None = None
     variants: list[ProductVariant] = []
+    recommended_pot_ids: list[str] = []          # IDs de productos "maceta" sugeridos
     tags: list[str] = []
     weight_grams: int | None = None
     height_cm: int | None = None                   # Altura del producto en cm

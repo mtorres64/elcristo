@@ -3,7 +3,12 @@ export interface ProductVariant {
   value: string;
   stock: number;
   price_override: number | null;
+  compare_at_price_override: number | null;
+  weight_grams_override: number | null;
+  height_cm_override: number | null;
   sku_override: string | null;
+  active: boolean;
+  recommended_pot_ids: string[];
 }
 
 export interface ProductSummary {
@@ -41,4 +46,5 @@ export interface ProductDetail extends ProductSummary {
   height_cm: number | null;
   care: Record<string, string>;
   attributes: Record<string, string>;
+  recommended_pot_ids: string[];
 }

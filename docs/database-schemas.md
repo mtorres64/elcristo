@@ -100,6 +100,67 @@ El documento de la tienda (un seller puede tener una tienda).
 
 ---
 
+### `addresses`
+
+Direcciones guardadas de un comprador, reutilizables en el checkout (ver
+captura de referencia en el diseño: alta de dirección con "usar mi ubicación").
+
+| Campo | Tipo | Requerido | Notas |
+|---|---|---|---|
+| `_id` | ObjectId | sí | auto |
+| `user_id` | ObjectId | sí | ref a users._id |
+| `full_name` | string | sí | nombre y apellido del contacto |
+| `phone_country_code` | string | sí | default `"+54"` |
+| `phone` | string | sí | |
+| `street` | string | sí | |
+| `no_number` | bool | sí | "la calle no tiene número", default false |
+| `province` | string | sí | una de las 24 provincias argentinas |
+| `locality` | string | sí | localidad/barrio, texto libre |
+| `zip` | string | no | vacío si `zip_unknown` |
+| `zip_unknown` | bool | sí | "no sé mi CP", default false |
+| `department` | string | no | departamento/piso/torre, opcional |
+| `is_default` | bool | sí | una sola dirección default por usuario |
+| `created_at` | datetime | sí | UTC |
+| `updated_at` | datetime | sí | UTC |
+| `deleted_at` | datetime | no | null = activa |
+
+Índices:
+```
+{ user_id: 1, deleted_at: 1 }
+```
+
+---
+
+### `payment_methods`
+
+Tarjetas guardadas de un comprador, sólo si acepta guardarlas al pagar. **Nunca
+se persiste el número completo (PAN) ni el CVV** — hoy no hay pasarela de pago
+real conectada, así que esto es un placeholder de los datos no sensibles hasta
+integrar un procesador (Mercado Pago) que tokenice la tarjeta del lado del
+proveedor.
+
+| Campo | Tipo | Requerido | Notas |
+|---|---|---|---|
+| `_id` | ObjectId | sí | auto |
+| `user_id` | ObjectId | sí | ref a users._id |
+| `type` | string | sí | `"card"` (único tipo por ahora) |
+| `brand` | string | sí | `"visa"` \| `"mastercard"` \| `"amex"` \| `"other"`, derivado del número |
+| `holder_name` | string | sí | |
+| `last4` | string | sí | últimos 4 dígitos |
+| `exp_month` | int | sí | 1-12 |
+| `exp_year` | int | sí | 4 dígitos |
+| `is_default` | bool | sí | una sola tarjeta default por usuario |
+| `created_at` | datetime | sí | UTC |
+| `updated_at` | datetime | sí | UTC |
+| `deleted_at` | datetime | no | null = activa |
+
+Índices:
+```
+{ user_id: 1, deleted_at: 1 }
+```
+
+---
+
 ### `carts`
 
 Carrito por usuario (los items embed el tenant_id por producto).
@@ -192,7 +253,7 @@ Carrito por usuario (los items embed el tenant_id por producto).
 | `status` | string | sí | ver estados abajo |
 | `items` | OrderItem[] | sí | array embebido |
 | `subtotal` | int | sí | centavos (suma de items) |
-| `shipping_cost` | int | sí | centavos |
+| `shipping_cost` | int | sí | centavos — fijo en `0` por ahora (TODO: cálculo real de envío) |
 | `discount` | int | sí | centavos, default 0 |
 | `total` | int | sí | centavos = subtotal + shipping - discount |
 | `shipping_address` | Address | sí | embebido |
@@ -220,28 +281,39 @@ Con ramas: `"cancelled"`, `"refunded"`, `"disputed"`
 
 **Payment (embebido):**
 
+> Hasta integrar Mercado Pago, `provider` queda en `"mock"`: el comprador carga
+> una tarjeta (guardada o no en `payment_methods`) pero no se procesa ningún
+> cobro real y la orden se crea en `"pending_payment"`. El seller la pasa a
+> `"paid"` manualmente desde el panel de administración.
+
 | Campo | Tipo | Notas |
 |---|---|---|
-| `provider` | string | `"mercadopago"` |
-| `payment_id` | string | ID del pago en MercadoPago |
-| `preference_id` | string | ID de la preferencia de checkout |
+| `provider` | string | `"mock"` (hoy) \| `"mercadopago"` (a futuro) |
+| `payment_method_id` | string | no — ref a payment_methods._id si se usó/guardó una tarjeta guardada |
+| `brand` | string | snapshot, ej. `"visa"` |
+| `last4` | string | snapshot |
+| `payment_id` | string | ID del pago en el proveedor real (null con `"mock"`) |
+| `preference_id` | string | ID de la preferencia de checkout (null con `"mock"`) |
 | `status` | string | `"pending"` \| `"approved"` \| `"rejected"` \| `"refunded"` |
 | `paid_at` | datetime | UTC |
-| `payment_method` | string | ej. `"credit_card"`, `"debit_card"` |
 
 **Address (embebido):**
+
+Snapshot al momento de la compra. Mismos campos que `addresses` (sin
+`is_default`, que no aplica a un snapshot) — ver esa colección arriba.
 
 | Campo | Tipo |
 |---|---|
 | `full_name` | string |
-| `street` | string |
-| `number` | string |
-| `floor_apt` | string |
-| `city` | string |
-| `province` | string |
-| `zip` | string |
-| `country` | string |
+| `phone_country_code` | string |
 | `phone` | string |
+| `street` | string |
+| `no_number` | bool |
+| `province` | string |
+| `locality` | string |
+| `zip` | string \| null |
+| `zip_unknown` | bool |
+| `department` | string \| null |
 
 Índices:
 ```

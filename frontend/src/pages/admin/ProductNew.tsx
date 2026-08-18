@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AdminLayout } from "../../components/admin/AdminLayout";
+import { PotPicker } from "../../components/admin/PotPicker";
 import { productService } from "../../services/product.service";
 import toast from "react-hot-toast";
 
@@ -49,9 +50,23 @@ export function ProductNew() {
   const [tags, setTags] = useState<string[]>([]);
   const [price, setPrice] = useState("");
   const [promoPrice, setPromoPrice] = useState("");
-  const [currency, setCurrency] = useState("ARS");
-  const [tax, setTax] = useState("iva-21");
   const [stock, setStock] = useState(0);
+  const [priceChica, setPriceChica] = useState("");
+  const [promoChica, setPromoChica] = useState("");
+  const [stockChica, setStockChica] = useState(0);
+  const [weightChica, setWeightChica] = useState("");
+  const [heightChica, setHeightChica] = useState("");
+  const [activeChica, setActiveChica] = useState(true);
+  const [potsChica, setPotsChica] = useState<string[]>([]);
+  const [priceGrande, setPriceGrande] = useState("");
+  const [promoGrande, setPromoGrande] = useState("");
+  const [stockGrande, setStockGrande] = useState(0);
+  const [weightGrande, setWeightGrande] = useState("");
+  const [heightGrande, setHeightGrande] = useState("");
+  const [activeGrande, setActiveGrande] = useState(true);
+  const [potsGrande, setPotsGrande] = useState<string[]>([]);
+  const currency = "ARS";
+  const tax = "iva-21";
   const [active, setActive] = useState(false);
   const [featured, setFeatured] = useState(false);
   const [publishDate] = useState("");
@@ -67,6 +82,7 @@ export function ProductNew() {
   const [dimHeight, setDimHeight] = useState("");
   const [plantType, setPlantType] = useState("");
   const [growth, setGrowth] = useState("Medio");
+  const [recommendedPotIds, setRecommendedPotIds] = useState<string[]>([]);
   const [coverIndex, setCoverIndex] = useState(0);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
@@ -111,6 +127,33 @@ export function ProductNew() {
     handleFiles(e.dataTransfer.files);
   }
 
+  function buildSizeVariants() {
+    return [
+      {
+        key: "size",
+        value: "pequeña",
+        stock: stockChica,
+        price_override: priceChica ? Math.round(Number(priceChica) * 100) : null,
+        compare_at_price_override: promoChica ? Math.round(Number(promoChica) * 100) : null,
+        weight_grams_override: weightChica ? Math.round(Number(weightChica) * 1000) : null,
+        height_cm_override: heightChica ? Number(heightChica) : null,
+        active: activeChica,
+        recommended_pot_ids: potsChica,
+      },
+      {
+        key: "size",
+        value: "grande",
+        stock: stockGrande,
+        price_override: priceGrande ? Math.round(Number(priceGrande) * 100) : null,
+        compare_at_price_override: promoGrande ? Math.round(Number(promoGrande) * 100) : null,
+        weight_grams_override: weightGrande ? Math.round(Number(weightGrande) * 1000) : null,
+        height_cm_override: heightGrande ? Number(heightGrande) : null,
+        active: activeGrande,
+        recommended_pot_ids: potsGrande,
+      },
+    ];
+  }
+
   async function handleSubmit(publish: boolean) {
     if (!name.trim()) { toast.error("El nombre del producto es obligatorio"); return; }
     if (!price || Number(price) <= 0) { toast.error("El precio debe ser mayor a 0"); return; }
@@ -143,6 +186,8 @@ export function ProductNew() {
           ...(plantType && { plant_type: plantType }),
           ...(growth && { growth }),
         },
+        variants: buildSizeVariants(),
+        recommended_pot_ids: recommendedPotIds,
       });
       const productId = product.product_id;
       if (pendingFiles.length > 0) {
@@ -340,85 +385,69 @@ export function ProductNew() {
                       </FormField>
                     </div>
 
-                    {/* Row 3: Price + Promo + Currency + Tax + Stock */}
-                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                      <FormField label="Precio" required>
-                        <PrefixInput prefix="$" value={price} onChange={setPrice} />
-                      </FormField>
-                      <FormField label="Precio promocional">
-                        <div className="relative">
-                          <PrefixInput prefix="$" value={promoPrice} onChange={setPromoPrice} />
-                          <button
-                            className="absolute right-2 top-1/2 -translate-y-1/2 text-[#ABABAB] hover:text-[#DC2626] transition-colors"
-                            aria-label="Quitar precio promocional"
-                          >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-                            </svg>
-                          </button>
-                        </div>
-                      </FormField>
-                      <FormField label="Moneda">
-                        <div className="relative">
-                          <select value={currency} onChange={(e) => setCurrency(e.target.value)} className={SELECT}>
-                            <option value="ARS">ARS</option>
-                            <option value="USD">USD</option>
-                          </select>
-                          <ChevronSelectIcon />
-                        </div>
-                      </FormField>
-                      <FormField label="Impuesto">
-                        <div className="relative">
-                          <select value={tax} onChange={(e) => setTax(e.target.value)} className={SELECT}>
-                            <option value="iva-21">21% - IVA</option>
-                            <option value="iva-10">10,5% - IVA</option>
-                            <option value="exento">Exento</option>
-                          </select>
-                          <ChevronSelectIcon />
-                        </div>
-                      </FormField>
-                      <FormField label="Stock" required>
-                        <div className="flex border border-[#E8E2D8]">
-                          <input
-                            type="number"
-                            value={stock}
-                            onChange={(e) => setStock(Number(e.target.value))}
-                            min={0}
-                            className="flex-1 min-w-0 px-3 py-2 text-sm text-[#1A1A1A] bg-white outline-none"
-                          />
-                          <div className="flex flex-col border-l border-[#E8E2D8]">
-                            <button
-                              onClick={() => setStock((s) => s + 1)}
-                              className="flex-1 px-2 hover:bg-[#F5F5F3] transition-colors flex items-center"
-                              aria-label="Incrementar"
-                            >
-                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                                <path d="M18 15l-6-6-6 6" />
-                              </svg>
-                            </button>
-                            <button
-                              onClick={() => setStock((s) => Math.max(0, s - 1))}
-                              className="flex-1 px-2 hover:bg-[#F5F5F3] transition-colors border-t border-[#E8E2D8] flex items-center"
-                              aria-label="Decrementar"
-                            >
-                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                                <path d="M6 9l6 6 6-6" />
-                              </svg>
-                            </button>
-                          </div>
-                        </div>
-                      </FormField>
+                    {/* Row 3: Price + Promo + Stock, por tamaño de planta */}
+                    <div>
+                      <p className="text-sm font-semibold text-[#1A1A1A] mb-3">
+                        Precio y stock por tamaño
+                      </p>
+                      <div className="flex flex-col gap-3">
+                        <SizePricingRow
+                          label="Planta chica (pequeña)"
+                          price={priceChica}
+                          setPrice={setPriceChica}
+                          promo={promoChica}
+                          setPromo={setPromoChica}
+                          stock={stockChica}
+                          setStock={setStockChica}
+                          weight={weightChica}
+                          setWeight={setWeightChica}
+                          height={heightChica}
+                          setHeight={setHeightChica}
+                          active={activeChica}
+                          setActive={setActiveChica}
+                          pots={potsChica}
+                          setPots={setPotsChica}
+                        />
+                        <SizePricingRow
+                          label="Planta mediana"
+                          price={price}
+                          setPrice={setPrice}
+                          promo={promoPrice}
+                          setPromo={setPromoPrice}
+                          stock={stock}
+                          setStock={setStock}
+                          weight={weight}
+                          setWeight={setWeight}
+                          height={height}
+                          setHeight={setHeight}
+                          active={active}
+                          setActive={setActive}
+                          pots={recommendedPotIds}
+                          setPots={setRecommendedPotIds}
+                          required
+                        />
+                        <SizePricingRow
+                          label="Planta grande"
+                          price={priceGrande}
+                          setPrice={setPriceGrande}
+                          promo={promoGrande}
+                          setPromo={setPromoGrande}
+                          stock={stockGrande}
+                          setStock={setStockGrande}
+                          weight={weightGrande}
+                          setWeight={setWeightGrande}
+                          height={heightGrande}
+                          setHeight={setHeightGrande}
+                          active={activeGrande}
+                          setActive={setActiveGrande}
+                          pots={potsGrande}
+                          setPots={setPotsGrande}
+                        />
+                      </div>
                     </div>
 
-                    {/* Row 4: Estado + Destacado + Date + Weight + Height */}
+                    {/* Row 4: Destacado + Date */}
                     <div className="flex items-end gap-5 flex-wrap">
-                      <div>
-                        <p className={LABEL}>Estado</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Toggle checked={active} onChange={setActive} />
-                          <span className="text-sm text-[#4A4A4A]">{active ? "Activo" : "Inactivo"}</span>
-                        </div>
-                      </div>
                       <div>
                         <p className={LABEL}>Destacado</p>
                         <div className="flex items-center gap-2 mt-1">
@@ -435,16 +464,6 @@ export function ProductNew() {
                           </svg>
                           <span className="text-sm text-[#4A4A4A]">{publishDate}</span>
                         </div>
-                      </div>
-                      <div className="w-24">
-                        <FormField label="Peso (kg)">
-                          <input value={weight} onChange={(e) => setWeight(e.target.value)} className={INPUT} />
-                        </FormField>
-                      </div>
-                      <div className="w-24">
-                        <FormField label="Altura (cm)">
-                          <input value={height} onChange={(e) => setHeight(e.target.value)} className={INPUT} />
-                        </FormField>
                       </div>
                     </div>
 
@@ -467,83 +486,18 @@ export function ProductNew() {
 
                     {/* Descripción completa */}
                     <FormField label="Descripción completa">
-                      <div className="border border-[#E8E2D8]">
-                        {/* Toolbar */}
-                        <div className="flex items-center gap-0.5 px-3 py-2 border-b border-[#E8E2D8] flex-wrap">
-                          <select className="text-xs border border-[#E8E2D8] px-2 py-1 text-[#4A4A4A] outline-none mr-2 bg-white">
-                            <option>Párrafo</option>
-                            <option>Título 1</option>
-                            <option>Título 2</option>
-                          </select>
-                          {[
-                            { label: "B", title: "Negrita", style: "font-bold" },
-                            { label: "I", title: "Cursiva", style: "italic" },
-                            { label: "U", title: "Subrayado", style: "underline" },
-                          ].map((b) => (
-                            <ToolbarBtn key={b.label} title={b.title}>
-                              <span className={b.style}>{b.label}</span>
-                            </ToolbarBtn>
-                          ))}
-                          <div className="w-px h-4 bg-[#E8E2D8] mx-1" />
-                          <ToolbarBtn title="Lista con viñetas">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <line x1="9" y1="6" x2="20" y2="6" /><line x1="9" y1="12" x2="20" y2="12" /><line x1="9" y1="18" x2="20" y2="18" />
-                              <circle cx="4" cy="6" r="1.5" fill="currentColor" stroke="none" />
-                              <circle cx="4" cy="12" r="1.5" fill="currentColor" stroke="none" />
-                              <circle cx="4" cy="18" r="1.5" fill="currentColor" stroke="none" />
-                            </svg>
-                          </ToolbarBtn>
-                          <ToolbarBtn title="Lista numerada">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <line x1="10" y1="6" x2="21" y2="6" /><line x1="10" y1="12" x2="21" y2="12" /><line x1="10" y1="18" x2="21" y2="18" />
-                              <path d="M4 6h1v4" /><path d="M4 10h2" />
-                              <path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1" />
-                            </svg>
-                          </ToolbarBtn>
-                          <div className="w-px h-4 bg-[#E8E2D8] mx-1" />
-                          {["left", "center", "right"].map((a) => (
-                            <ToolbarBtn key={a} title={`Alinear ${a}`}>
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                {a === "left" && <><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="15" y2="12" /><line x1="3" y1="18" x2="18" y2="18" /></>}
-                                {a === "center" && <><line x1="3" y1="6" x2="21" y2="6" /><line x1="6" y1="12" x2="18" y2="12" /><line x1="4" y1="18" x2="20" y2="18" /></>}
-                                {a === "right" && <><line x1="3" y1="6" x2="21" y2="6" /><line x1="9" y1="12" x2="21" y2="12" /><line x1="6" y1="18" x2="21" y2="18" /></>}
-                              </svg>
-                            </ToolbarBtn>
-                          ))}
-                          <div className="w-px h-4 bg-[#E8E2D8] mx-1" />
-                          <ToolbarBtn title="Link">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-                              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-                            </svg>
-                          </ToolbarBtn>
-                          <ToolbarBtn title="Código">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" />
-                            </svg>
-                          </ToolbarBtn>
-                          <ToolbarBtn title="Imagen">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <rect x="3" y="3" width="18" height="18" rx="2" />
-                              <circle cx="8.5" cy="8.5" r="1.5" />
-                              <polyline points="21 15 16 10 5 21" />
-                            </svg>
-                          </ToolbarBtn>
-                        </div>
-                        {/* Editor area */}
-                        <div className="relative">
-                          <textarea
-                            value={fullDesc}
-                            onChange={(e) => setFullDesc(e.target.value)}
-                            rows={7}
-                            maxLength={3000}
-                            className="w-full px-4 py-3 text-sm text-[#1A1A1A] bg-white outline-none resize-none leading-relaxed"
-                            placeholder="Descripción detallada del producto..."
-                          />
-                          <span className="absolute right-3 bottom-2.5 text-[10px] text-[#ABABAB]">
-                            {fullDesc.length}/3000
-                          </span>
-                        </div>
+                      <div className="relative">
+                        <textarea
+                          value={fullDesc}
+                          onChange={(e) => setFullDesc(e.target.value)}
+                          rows={7}
+                          maxLength={3000}
+                          className={`${INPUT} resize-none`}
+                          placeholder="Descripción detallada del producto..."
+                        />
+                        <span className="absolute right-3 bottom-2.5 text-[10px] text-[#ABABAB]">
+                          {fullDesc.length}/3000
+                        </span>
                       </div>
                     </FormField>
 
@@ -800,6 +754,113 @@ function FormField({
   );
 }
 
+function SizePricingRow({
+  label,
+  price,
+  setPrice,
+  promo,
+  setPromo,
+  stock,
+  setStock,
+  weight,
+  setWeight,
+  height,
+  setHeight,
+  active,
+  setActive,
+  pots,
+  setPots,
+  required,
+}: {
+  label: string;
+  price: string;
+  setPrice: (v: string) => void;
+  promo: string;
+  setPromo: (v: string) => void;
+  stock: number;
+  setStock: React.Dispatch<React.SetStateAction<number>>;
+  weight: string;
+  setWeight: (v: string) => void;
+  height: string;
+  setHeight: (v: string) => void;
+  active: boolean;
+  setActive: (v: boolean) => void;
+  pots: string[];
+  setPots: (v: string[]) => void;
+  required?: boolean;
+}) {
+  return (
+    <div className="border border-[#E8E2D8] p-3">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs font-semibold text-[#4A4A4A]">{label}</p>
+        <div className="flex items-center gap-2">
+          <Toggle checked={active} onChange={setActive} />
+          <span className="text-xs text-[#4A4A4A]">{active ? "Activo" : "Inactivo"}</span>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <FormField label="Precio" required={required}>
+          <PrefixInput prefix="$" value={price} onChange={setPrice} />
+        </FormField>
+        <FormField label="Precio promocional">
+          <div className="relative">
+            <PrefixInput prefix="$" value={promo} onChange={setPromo} />
+            <button
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-[#ABABAB] hover:text-[#DC2626] transition-colors"
+              aria-label="Quitar precio promocional"
+              onClick={() => setPromo("")}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+        </FormField>
+        <FormField label="Stock" required={required}>
+          <div className="flex border border-[#E8E2D8]">
+            <input
+              type="number"
+              value={stock}
+              onChange={(e) => setStock(Number(e.target.value))}
+              min={0}
+              className="flex-1 min-w-0 px-3 py-2 text-sm text-[#1A1A1A] bg-white outline-none"
+            />
+            <div className="flex flex-col border-l border-[#E8E2D8]">
+              <button
+                onClick={() => setStock((s) => s + 1)}
+                className="flex-1 px-2 hover:bg-[#F5F5F3] transition-colors flex items-center"
+                aria-label="Incrementar"
+              >
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M18 15l-6-6-6 6" />
+                </svg>
+              </button>
+              <button
+                onClick={() => setStock((s) => Math.max(0, s - 1))}
+                className="flex-1 px-2 hover:bg-[#F5F5F3] transition-colors border-t border-[#E8E2D8] flex items-center"
+                aria-label="Decrementar"
+              >
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </FormField>
+        <FormField label="Peso (kg)">
+          <input value={weight} onChange={(e) => setWeight(e.target.value)} className={INPUT} />
+        </FormField>
+        <FormField label="Altura (cm)">
+          <input value={height} onChange={(e) => setHeight(e.target.value)} className={INPUT} />
+        </FormField>
+      </div>
+      <div className="mt-4 pt-4 border-t border-[#E8E2D8]">
+        <PotPicker selectedIds={pots} onChange={setPots} />
+      </div>
+    </div>
+  );
+}
+
 function PrefixInput({ prefix, value, onChange }: { prefix: string; value: string; onChange: (v: string) => void }) {
   return (
     <div className="flex border border-[#E8E2D8] focus-within:border-[#1A2B1C] transition-colors">
@@ -830,17 +891,6 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
           checked ? "left-[18px]" : "left-0.5"
         }`}
       />
-    </button>
-  );
-}
-
-function ToolbarBtn({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <button
-      title={title}
-      className="w-7 h-7 flex items-center justify-center text-[#4A4A4A] hover:bg-[#F5F5F3] transition-colors text-xs"
-    >
-      {children}
     </button>
   );
 }

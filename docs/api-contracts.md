@@ -398,30 +398,163 @@ Quitar item del carrito.
 
 ---
 
-## Órdenes
+## Direcciones
 
-### POST /orders
-Crear orden desde el carrito actual (checkout).
+Direcciones guardadas del comprador, para elegir en el checkout sin recargarlas
+cada vez (ver `addresses` en `database-schemas.md`).
 
-**Auth:** JWT (role: buyer)
+### GET /addresses
+Listar direcciones del usuario autenticado (default primero, luego más recientes).
+
+**Auth:** JWT
+
+**Response 200:** `AddressResponse[]`
+
+---
+
+### POST /addresses
+Crear una dirección.
+
+**Auth:** JWT
 
 **Body:**
 ```json
 {
-  "shipping_address": {
-    "full_name": "string",
-    "street": "string",
-    "number": "string",
-    "floor_apt": "string | null",
-    "city": "string",
-    "province": "string",
-    "zip": "string",
-    "country": "string",
-    "phone": "string"
-  },
+  "full_name": "string",
+  "phone_country_code": "string (default +54)",
+  "phone": "string",
+  "street": "string",
+  "no_number": "bool (default false)",
+  "province": "string",
+  "locality": "string",
+  "zip": "string | null",
+  "zip_unknown": "bool (default false)",
+  "department": "string | null",
+  "is_default": "bool (default false)"
+}
+```
+
+**Response 201:** `AddressResponse` — si `is_default: true` o es la primera
+dirección del usuario, desmarca las demás.
+
+---
+
+### PATCH /addresses/{address_id}
+Actualizar una dirección propia. Body: mismos campos, todos opcionales.
+
+**Auth:** JWT
+
+**Response 200:** `AddressResponse`
+
+**Errores:** `404` no existe o no es del usuario
+
+---
+
+### PATCH /addresses/{address_id}/default
+Marcar como predeterminada (desmarca las demás).
+
+**Auth:** JWT
+
+**Response 200:** `AddressResponse`
+
+---
+
+### DELETE /addresses/{address_id}
+Soft delete.
+
+**Auth:** JWT
+
+**Response 204:** sin body
+
+---
+
+## Métodos de pago
+
+Tarjetas guardadas del comprador. **Nunca se recibe ni persiste el número
+completo ni el CVV** — sólo se usan para derivar `brand`/`last4` en el momento
+de la request y se descartan. Hoy no hay cobro real (ver nota de `payment` en
+`database-schemas.md`).
+
+### GET /payment-methods
+Listar tarjetas guardadas del usuario autenticado.
+
+**Auth:** JWT
+
+**Response 200:** `PaymentMethodResponse[]`
+
+---
+
+### POST /payment-methods
+Guardar una tarjeta (sólo se llama cuando el comprador acepta guardarla).
+
+**Auth:** JWT
+
+**Body:**
+```json
+{
+  "card_number": "string (sólo se usa para derivar brand/last4, no se guarda)",
+  "holder_name": "string",
+  "exp_month": "int (1-12)",
+  "exp_year": "int",
+  "is_default": "bool (default false)"
+}
+```
+
+**Response 201:** `PaymentMethodResponse` (`brand`, `last4`, `holder_name`, `exp_month`, `exp_year`, `is_default`)
+
+**Errores:** `400` número de tarjeta inválido (Luhn)
+
+---
+
+### PATCH /payment-methods/{payment_method_id}/default
+Marcar como predeterminada (desmarca las demás).
+
+**Auth:** JWT
+
+**Response 200:** `PaymentMethodResponse`
+
+---
+
+### DELETE /payment-methods/{payment_method_id}
+Soft delete.
+
+**Auth:** JWT
+
+**Response 204:** sin body
+
+---
+
+## Órdenes
+
+### POST /orders
+Crear orden desde el checkout. El carrito es client-side (no hay `carts`
+server-side implementado todavía), así que los items viajan en el body como
+snapshot tomado del `CartContext` del frontend.
+
+**Auth:** JWT
+
+**Body:**
+```json
+{
+  "items": [
+    {
+      "product_id": "string",
+      "title": "string",
+      "price": "int (centavos, snapshot)",
+      "quantity": "int",
+      "image_url": "string | null"
+    }
+  ],
+  "address_id": "string | null (una de /addresses del usuario)",
+  "shipping_address": "{ ...igual a POST /addresses } | null (alternativa inline, se guarda como nueva dirección)",
+  "payment_method_id": "string | null (una de /payment-methods del usuario)",
+  "payment_card": "{ card_number, holder_name, exp_month, exp_year } | null (alternativa inline, no se persiste el PAN)",
+  "save_card": "bool (default false) — si viene payment_card y es true, se guarda en payment_methods",
   "notes": "string | null"
 }
 ```
+Debe venir `address_id` **o** `shipping_address`, y `payment_method_id` **o**
+`payment_card`.
 
 **Response 201:**
 ```json
@@ -429,23 +562,29 @@ Crear orden desde el carrito actual (checkout).
   "order_id": "string",
   "order_number": "string",
   "status": "pending_payment",
-  "total": "int",
-  "payment_url": "string (URL de MercadoPago Checkout)"
+  "total": "int"
 }
 ```
+Sin `payment_url`: como no hay pasarela real conectada todavía, la orden queda
+`pending_payment` y el seller la marca `paid` manualmente desde el panel (ver
+`PATCH /orders/{id}/status`). Cuando se integre Mercado Pago este endpoint
+vuelve a devolver `payment_url`.
 
-**Errores:** `400` carrito vacío | `400` stock insuficiente
+**Errores:** `400` carrito vacío | `400` stock insuficiente | `400` productos de tiendas distintas en el mismo pedido | `400` falta dirección o método de pago
 
 ---
 
 ### GET /orders
-Historial de órdenes (buyer ve las suyas; seller ve las de su tienda).
+Historial de órdenes. Sin `X-Tenant-ID` (o con role `buyer`) devuelve las
+órdenes propias (`buyer_id`); con `X-Tenant-ID` y role `seller`/`platform_admin`
+devuelve las de esa tienda.
 
 **Auth:** JWT
 
 **Query params:**
 - `status`: filtrar por estado
-- `page`, `page_size`
+- `q`: nº de orden o nombre/email del comprador (sólo vista seller)
+- `page`, `page_size`, `sort` (`newest` | `oldest`)
 
 **Response 200:** paginado con items del shape de orden
 
@@ -472,6 +611,9 @@ Actualizar estado de la orden (seller).
   "tracking_number": "string | null"
 }
 ```
+
+Al pasar a `"paid"` por primera vez descuenta stock de cada item; si desde
+`"paid"` (o posterior) se pasa a `"cancelled"`/`"refunded"` lo restaura.
 
 **Response 200:** orden actualizada
 
