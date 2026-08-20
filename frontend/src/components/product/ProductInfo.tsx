@@ -83,14 +83,24 @@ export function ProductInfo({ product }: { product: ProductDetail }) {
   function handleAddToCart() {
     if (outOfStock) return;
     const sizeLabel = SIZES.find((s) => s.id === size)?.label ?? size;
+    const potInfo = pot ? POTS.find((p) => p.id === pot) : null;
     for (let i = 0; i < qty; i++) {
       addItem({
-        product_id: `${product.product_id}__${size}__${pot ?? "sin-maceta"}`,
+        product_id: `${product.product_id}__${size}`,
         tenant_id: product.tenant_id,
         title: `${product.title} ${sizeLabel}`,
-        price_snapshot: totalPrice,
+        price_snapshot: sizePrice,
         image_url: product.image_url,
       });
+      if (potInfo && potInfo.id) {
+        addItem({
+          product_id: potInfo.id,
+          tenant_id: product.tenant_id,
+          title: potInfo.label,
+          price_snapshot: potInfo.extra,
+          image_url: potInfo.image,
+        });
+      }
     }
   }
 
