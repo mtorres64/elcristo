@@ -96,7 +96,6 @@ export function ProductEdit() {
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [tagInput, setTagInput] = useState("");
   const tagInputRef = useRef<HTMLInputElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
@@ -432,14 +431,16 @@ export function ProductEdit() {
           {/* ── Left column ───────────────────────────────────── */}
           <div className="flex-1 min-w-0">
             {/* Card with tabs */}
-            <div className="bg-white border border-[#E8E2D8] rounded-lg overflow-hidden">
+            <div className="bg-white border-y sm:border border-[#E8E2D8] rounded-none sm:rounded-lg overflow-hidden -mx-4 sm:mx-0">
               {/* Tabs */}
               <div className="flex border-b border-[#E8E2D8] px-6">
                 {TABS.map((t) => (
                   <button
                     key={t.id}
                     onClick={() => setTab(t.id)}
-                    className={`py-4 pr-6 text-sm transition-colors border-b-2 -mb-px ${
+                    className={`py-4 pr-6 text-sm transition-colors border-b-2 -mb-px rounded-none ${
+                      t.id === "imagenes" || t.id === "seo" ? "lg:hidden" : ""
+                    } ${
                       tab === t.id
                         ? "text-[#1A1A1A] font-semibold border-[#1A2B1C]"
                         : "text-[#8A8A8A] border-transparent hover:text-[#4A4A4A]"
@@ -532,71 +533,7 @@ export function ProductEdit() {
                       </FormField>
                     </div>
 
-                    {/* Row 3: Price + Promo + Stock, por tamaño de planta */}
-                    <div>
-                      <p className="text-sm font-semibold text-[#1A1A1A] mb-3">
-                        Precio y stock por tamaño
-                      </p>
-                      <div className="flex flex-col gap-3">
-                        <SizePricingRow
-                          label="Planta chica (pequeña)"
-                          price={priceChica}
-                          setPrice={setPriceChica}
-                          promo={promoChica}
-                          setPromo={setPromoChica}
-                          stock={stockChica}
-                          setStock={setStockChica}
-                          weight={weightChica}
-                          setWeight={setWeightChica}
-                          height={heightChica}
-                          setHeight={setHeightChica}
-                          active={activeChica}
-                          setActive={setActiveChica}
-                          pots={potsChica}
-                          setPots={setPotsChica}
-                          excludeProductId={productId}
-                        />
-                        <SizePricingRow
-                          label="Planta mediana"
-                          price={price}
-                          setPrice={setPrice}
-                          promo={promoPrice}
-                          setPromo={setPromoPrice}
-                          stock={stock}
-                          setStock={setStock}
-                          weight={weight}
-                          setWeight={setWeight}
-                          height={height}
-                          setHeight={setHeight}
-                          active={active}
-                          setActive={setActive}
-                          pots={recommendedPotIds}
-                          setPots={setRecommendedPotIds}
-                          excludeProductId={productId}
-                          required
-                        />
-                        <SizePricingRow
-                          label="Planta grande"
-                          price={priceGrande}
-                          setPrice={setPriceGrande}
-                          promo={promoGrande}
-                          setPromo={setPromoGrande}
-                          stock={stockGrande}
-                          setStock={setStockGrande}
-                          weight={weightGrande}
-                          setWeight={setWeightGrande}
-                          height={heightGrande}
-                          setHeight={setHeightGrande}
-                          active={activeGrande}
-                          setActive={setActiveGrande}
-                          pots={potsGrande}
-                          setPots={setPotsGrande}
-                          excludeProductId={productId}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Row 4: Destacado */}
+                    {/* Row 3: Destacado */}
                     <div className="flex items-end gap-5 flex-wrap">
                       <div>
                         <p className={LABEL}>Destacado</p>
@@ -718,11 +655,105 @@ export function ProductEdit() {
                   </div>
                 )}
 
-                {tab !== "general" && (
-                  <div className="py-12 text-center">
-                    <p className="font-serif text-lg text-[#8A8A8A]">
-                      {TABS.find((t) => t.id === tab)?.label} — próximamente
+                {tab === "variantes" && (
+                  <div>
+                    <p className="text-sm font-semibold text-[#1A1A1A] mb-3">
+                      Precio y stock por tamaño
                     </p>
+                    <div className="flex flex-col gap-3">
+                      <SizePricingRow
+                        label="Planta chica (pequeña)"
+                        price={priceChica}
+                        setPrice={setPriceChica}
+                        promo={promoChica}
+                        setPromo={setPromoChica}
+                        stock={stockChica}
+                        setStock={setStockChica}
+                        weight={weightChica}
+                        setWeight={setWeightChica}
+                        height={heightChica}
+                        setHeight={setHeightChica}
+                        active={activeChica}
+                        setActive={setActiveChica}
+                        pots={potsChica}
+                        setPots={setPotsChica}
+                        excludeProductId={productId}
+                      />
+                      <SizePricingRow
+                        label="Planta mediana"
+                        price={price}
+                        setPrice={setPrice}
+                        promo={promoPrice}
+                        setPromo={setPromoPrice}
+                        stock={stock}
+                        setStock={setStock}
+                        weight={weight}
+                        setWeight={setWeight}
+                        height={height}
+                        setHeight={setHeight}
+                        active={active}
+                        setActive={setActive}
+                        pots={recommendedPotIds}
+                        setPots={setRecommendedPotIds}
+                        excludeProductId={productId}
+                        required
+                      />
+                      <SizePricingRow
+                        label="Planta grande"
+                        price={priceGrande}
+                        setPrice={setPriceGrande}
+                        promo={promoGrande}
+                        setPromo={setPromoGrande}
+                        stock={stockGrande}
+                        setStock={setStockGrande}
+                        weight={weightGrande}
+                        setWeight={setWeightGrande}
+                        height={heightGrande}
+                        setHeight={setHeightGrande}
+                        active={activeGrande}
+                        setActive={setActiveGrande}
+                        pots={potsGrande}
+                        setPots={setPotsGrande}
+                        excludeProductId={productId}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {tab === "imagenes" && (
+                  <div className="lg:hidden">
+                    <p className="text-sm font-semibold text-[#1A1A1A] mb-4">Imágenes del producto</p>
+                    <ProductImageUploader
+                      uploadingCount={uploadingCount}
+                      onFiles={handleFiles}
+                      onDrop={handleDrop}
+                      productId={productId}
+                      images={images}
+                      pendingFiles={pendingFiles}
+                      coverIndex={coverIndex}
+                      onSelectCover={setCoverIndex}
+                      onRemove={removeImage}
+                      apiBase={API_BASE}
+                    />
+                  </div>
+                )}
+
+                {tab === "seo" && (
+                  <div className="lg:hidden">
+                    <ProductPreviewCard
+                      productId={productId}
+                      images={images}
+                      pendingFiles={pendingFiles}
+                      coverIndex={coverIndex}
+                      apiBase={API_BASE}
+                      name={name}
+                      plantType={plantType}
+                      price={price}
+                      promoPrice={promoPrice}
+                      careLight={careLight}
+                      careWater={careWater}
+                      careEnv={careEnv}
+                    />
                   </div>
                 )}
               </div>
@@ -731,183 +762,39 @@ export function ProductEdit() {
 
           {/* ── Right column ──────────────────────────────────── */}
           <div className="w-full lg:w-[420px] shrink-0 flex flex-col gap-4">
-            {/* Images card */}
-            <div className="bg-white border border-[#E8E2D8] rounded-lg p-5">
+            {/* Images card (desktop only — en mobile vive en la solapa "Imágenes") */}
+            <div className="hidden lg:block bg-white border border-[#E8E2D8] rounded-lg p-5">
               <p className="text-sm font-semibold text-[#1A1A1A] mb-4">Imágenes del producto</p>
-
-              {/* Hidden file input */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                multiple
-                className="hidden"
-                onChange={(e) => e.target.files && handleFiles(e.target.files)}
-              />
-
-              {/* Drop zone */}
-              <div
-                className="border-2 border-dashed border-[#D0C8C0] rounded-lg p-6 text-center mb-4 hover:border-[#1A2B1C] transition-colors cursor-pointer group"
-                onClick={() => fileInputRef.current?.click()}
-                onDragOver={(e) => e.preventDefault()}
+              <ProductImageUploader
+                uploadingCount={uploadingCount}
+                onFiles={handleFiles}
                 onDrop={handleDrop}
-              >
-                <div className="flex justify-center mb-2 text-[#ABABAB] group-hover:text-[#5A7A5C] transition-colors">
-                  {uploadingCount > 0 ? (
-                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="animate-spin">
-                      <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
-                    </svg>
-                  ) : (
-                    <UploadIcon />
-                  )}
-                </div>
-                <p className="text-xs text-[#6B6B6B] leading-relaxed">
-                  {uploadingCount > 0
-                    ? `Subiendo ${uploadingCount} imagen${uploadingCount > 1 ? "es" : ""}…`
-                    : <>Arrastrá y soltá imágenes aquí<br /><span className="text-[#3D6040]">o hacé clic para seleccionar</span></>
-                  }
-                </p>
-                <p className="text-[10px] text-[#ABABAB] mt-1.5">
-                  Formato recomendado: 1:1 o 4:5. Máx 5MB
-                </p>
-              </div>
-
-              {/* Thumbnails */}
-              {(productId ? images : pendingFiles).length > 0 && (
-                <div className="grid grid-cols-4 gap-1.5 mb-2">
-                  {productId
-                    ? images.map((url, i) => (
-                        <div key={url} className="relative group">
-                          <div
-                            className="aspect-square bg-[#F0EDE8] rounded-lg overflow-hidden cursor-pointer"
-                            onClick={() => setCoverIndex(i)}
-                          >
-                            <img
-                              src={url.startsWith("/uploads") ? `${API_BASE}${url}` : url}
-                              alt=""
-                              className="w-full h-full object-cover"
-                            />
-                          </div>
-                          {i === coverIndex && (
-                            <span className="absolute bottom-0 left-0 right-0 bg-[#1A2B1C] text-white text-[8px] font-bold text-center py-0.5">
-                              Portada
-                            </span>
-                          )}
-                          <button
-                            onClick={() => removeImage(i)}
-                            className="absolute top-0.5 right-0.5 w-4 h-4 bg-white border border-[#E8E2D8] text-[#6B6B6B] hover:text-[#DC2626] text-[10px] leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                            aria-label="Quitar imagen"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ))
-                    : pendingFiles.map((file, i) => {
-                        const src = URL.createObjectURL(file);
-                        return (
-                          <div key={i} className="relative group">
-                            <img
-                              src={src}
-                              alt={file.name}
-                              onLoad={() => URL.revokeObjectURL(src)}
-                              className="aspect-square w-full object-cover rounded-lg cursor-pointer"
-                              onClick={() => setCoverIndex(i)}
-                            />
-                            {i === coverIndex && (
-                              <span className="absolute bottom-0 left-0 right-0 bg-[#1A2B1C] text-white text-[8px] font-bold text-center py-0.5">
-                                Portada
-                              </span>
-                            )}
-                            <button
-                              onClick={() => removeImage(i)}
-                              className="absolute top-0.5 right-0.5 w-4 h-4 bg-white border border-[#E8E2D8] text-[#6B6B6B] hover:text-[#DC2626] text-[10px] leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                              aria-label="Quitar imagen"
-                            >
-                              ×
-                            </button>
-                          </div>
-                        );
-                      })
-                  }
-                </div>
-              )}
-              {(productId ? images : pendingFiles).length > 0 && (
-                <p className="text-[10px] text-[#ABABAB] text-center">Clic en una imagen para elegir portada</p>
-              )}
+                productId={productId}
+                images={images}
+                pendingFiles={pendingFiles}
+                coverIndex={coverIndex}
+                onSelectCover={setCoverIndex}
+                onRemove={removeImage}
+                apiBase={API_BASE}
+              />
             </div>
 
-            {/* Preview card */}
-            <div className="bg-white border border-[#E8E2D8] rounded-lg p-5">
-              <div className="flex items-center justify-between mb-4">
-                <p className="text-sm font-semibold text-[#1A1A1A]">Vista previa en tienda</p>
-                {productId && (
-                  <Link
-                    to={`/products/${productId}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-xs text-[#3D6040] hover:text-[#1A2B1C] transition-colors"
-                  >
-                    Ver página
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                      <polyline points="15 3 21 3 21 9" />
-                      <line x1="10" y1="14" x2="21" y2="3" />
-                    </svg>
-                  </Link>
-                )}
-              </div>
-              <div className="border border-[#E8E2D8] rounded-lg overflow-hidden">
-                <div className="aspect-[4/3] bg-gradient-to-br from-[#C8D8C0] to-[#A8BCA0] flex items-center justify-center overflow-hidden">
-                  {productId && images[coverIndex] ? (
-                    <img
-                      src={images[coverIndex].startsWith("/uploads") ? `${API_BASE}${images[coverIndex]}` : images[coverIndex]}
-                      alt="Portada"
-                      className="w-full h-full object-cover"
-                    />
-                  ) : !productId && pendingFiles[coverIndex] ? (
-                    <img
-                      src={URL.createObjectURL(pendingFiles[coverIndex])}
-                      alt="Portada"
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <PlantPreviewIcon />
-                  )}
-                </div>
-                <div className="p-3">
-                  <p className="font-serif text-base font-normal text-[#1A1A1A] leading-tight">
-                    {name || <span className="text-[#ABABAB]">Nombre del producto</span>}
-                  </p>
-                  {plantType && <p className="text-[10px] text-[#6B6B6B] mb-2">{plantType}</p>}
-                  <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-                    {price ? (
-                      <span className="text-sm font-bold text-[#1A1A1A]">${price}</span>
-                    ) : (
-                      <span className="text-sm text-[#ABABAB]">$ —</span>
-                    )}
-                    {promoPrice && price && (
-                      <span className="text-[10px] text-[#ABABAB] line-through">${promoPrice}</span>
-                    )}
-                  </div>
-                  <div className="flex flex-col gap-1 mb-3">
-                    {[
-                      { icon: <PreviewSunIcon />, text: careLight, placeholder: "Luz" },
-                      { icon: <PreviewWaterIcon />, text: careWater, placeholder: "Riego" },
-                      { icon: <PreviewEnvIcon />, text: careEnv, placeholder: "Ambiente" },
-                    ].map((row) => (
-                      <div key={row.placeholder} className="flex items-center gap-1.5">
-                        <span className="text-[#5A7A5C] shrink-0">{row.icon}</span>
-                        <span className={`text-[10px] truncate ${row.text ? "text-[#6B6B6B]" : "text-[#CCCCCC]"}`}>
-                          {row.text || row.placeholder}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                  <button className="w-full bg-[#1A2B1C] text-white text-[10px] font-semibold uppercase tracking-widest py-2 rounded-lg">
-                    Agregar al carrito
-                  </button>
-                </div>
-              </div>
+            {/* Preview card (desktop only — en mobile vive en la solapa "SEO y visibilidad") */}
+            <div className="hidden lg:block bg-white border border-[#E8E2D8] rounded-lg p-5">
+              <ProductPreviewCard
+                productId={productId}
+                images={images}
+                pendingFiles={pendingFiles}
+                coverIndex={coverIndex}
+                apiBase={API_BASE}
+                name={name}
+                plantType={plantType}
+                price={price}
+                promoPrice={promoPrice}
+                careLight={careLight}
+                careWater={careWater}
+                careEnv={careEnv}
+              />
             </div>
 
             {/* Info card */}
@@ -960,6 +847,240 @@ function FormField({
       </label>
       {children}
     </div>
+  );
+}
+
+function ProductPreviewCard({
+  productId,
+  images,
+  pendingFiles,
+  coverIndex,
+  apiBase,
+  name,
+  plantType,
+  price,
+  promoPrice,
+  careLight,
+  careWater,
+  careEnv,
+}: {
+  productId?: string;
+  images: string[];
+  pendingFiles: File[];
+  coverIndex: number;
+  apiBase: string;
+  name: string;
+  plantType: string;
+  price: string;
+  promoPrice: string;
+  careLight: string;
+  careWater: string;
+  careEnv: string;
+}) {
+  return (
+    <>
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-sm font-semibold text-[#1A1A1A]">Vista previa en tienda</p>
+        {productId && (
+          <Link
+            to={`/products/${productId}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 text-xs text-[#3D6040] hover:text-[#1A2B1C] transition-colors"
+          >
+            Ver página
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+              <polyline points="15 3 21 3 21 9" />
+              <line x1="10" y1="14" x2="21" y2="3" />
+            </svg>
+          </Link>
+        )}
+      </div>
+      <div className="border border-[#E8E2D8] rounded-lg overflow-hidden">
+        <div className="aspect-[4/3] bg-gradient-to-br from-[#C8D8C0] to-[#A8BCA0] flex items-center justify-center overflow-hidden">
+          {productId && images[coverIndex] ? (
+            <img
+              src={images[coverIndex].startsWith("/uploads") ? `${apiBase}${images[coverIndex]}` : images[coverIndex]}
+              alt="Portada"
+              className="w-full h-full object-cover"
+            />
+          ) : !productId && pendingFiles[coverIndex] ? (
+            <img
+              src={URL.createObjectURL(pendingFiles[coverIndex])}
+              alt="Portada"
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <PlantPreviewIcon />
+          )}
+        </div>
+        <div className="p-3">
+          <p className="font-serif text-base font-normal text-[#1A1A1A] leading-tight">
+            {name || <span className="text-[#ABABAB]">Nombre del producto</span>}
+          </p>
+          {plantType && <p className="text-[10px] text-[#6B6B6B] mb-2">{plantType}</p>}
+          <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+            {price ? (
+              <span className="text-sm font-bold text-[#1A1A1A]">${price}</span>
+            ) : (
+              <span className="text-sm text-[#ABABAB]">$ —</span>
+            )}
+            {promoPrice && price && (
+              <span className="text-[10px] text-[#ABABAB] line-through">${promoPrice}</span>
+            )}
+          </div>
+          <div className="flex flex-col gap-1 mb-3">
+            {[
+              { icon: <PreviewSunIcon />, text: careLight, placeholder: "Luz" },
+              { icon: <PreviewWaterIcon />, text: careWater, placeholder: "Riego" },
+              { icon: <PreviewEnvIcon />, text: careEnv, placeholder: "Ambiente" },
+            ].map((row) => (
+              <div key={row.placeholder} className="flex items-center gap-1.5">
+                <span className="text-[#5A7A5C] shrink-0">{row.icon}</span>
+                <span className={`text-[10px] truncate ${row.text ? "text-[#6B6B6B]" : "text-[#CCCCCC]"}`}>
+                  {row.text || row.placeholder}
+                </span>
+              </div>
+            ))}
+          </div>
+          <button className="w-full bg-[#1A2B1C] text-white text-[10px] font-semibold uppercase tracking-widest py-2 rounded-lg">
+            Agregar al carrito
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function ProductImageUploader({
+  uploadingCount,
+  onFiles,
+  onDrop,
+  productId,
+  images,
+  pendingFiles,
+  coverIndex,
+  onSelectCover,
+  onRemove,
+  apiBase,
+}: {
+  uploadingCount: number;
+  onFiles: (files: FileList | File[]) => void;
+  onDrop: (e: React.DragEvent<HTMLDivElement>) => void;
+  productId?: string;
+  images: string[];
+  pendingFiles: File[];
+  coverIndex: number;
+  onSelectCover: (i: number) => void;
+  onRemove: (i: number) => void;
+  apiBase: string;
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const items = productId ? images : pendingFiles;
+
+  return (
+    <>
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={(e) => e.target.files && onFiles(e.target.files)}
+      />
+
+      {/* Drop zone */}
+      <div
+        className="border-2 border-dashed border-[#D0C8C0] rounded-lg p-6 text-center mb-4 hover:border-[#1A2B1C] transition-colors cursor-pointer group"
+        onClick={() => fileInputRef.current?.click()}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={onDrop}
+      >
+        <div className="flex justify-center mb-2 text-[#ABABAB] group-hover:text-[#5A7A5C] transition-colors">
+          {uploadingCount > 0 ? (
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="animate-spin">
+              <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+            </svg>
+          ) : (
+            <UploadIcon />
+          )}
+        </div>
+        <p className="text-xs text-[#6B6B6B] leading-relaxed">
+          {uploadingCount > 0
+            ? `Subiendo ${uploadingCount} imagen${uploadingCount > 1 ? "es" : ""}…`
+            : <>Arrastrá y soltá imágenes aquí<br /><span className="text-[#3D6040]">o hacé clic para seleccionar</span></>
+          }
+        </p>
+        <p className="text-[10px] text-[#ABABAB] mt-1.5">
+          Formato recomendado: 1:1 o 4:5. Máx 5MB
+        </p>
+      </div>
+
+      {/* Thumbnails */}
+      {items.length > 0 && (
+        <div className="grid grid-cols-4 gap-1.5 mb-2">
+          {productId
+            ? images.map((url, i) => (
+                <div key={url} className="relative group">
+                  <div
+                    className="aspect-square bg-[#F0EDE8] rounded-lg overflow-hidden cursor-pointer"
+                    onClick={() => onSelectCover(i)}
+                  >
+                    <img
+                      src={url.startsWith("/uploads") ? `${apiBase}${url}` : url}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  {i === coverIndex && (
+                    <span className="absolute bottom-0 left-0 right-0 bg-[#1A2B1C] text-white text-[8px] font-bold text-center py-0.5">
+                      Portada
+                    </span>
+                  )}
+                  <button
+                    onClick={() => onRemove(i)}
+                    className="absolute top-0.5 right-0.5 w-4 h-4 bg-white border border-[#E8E2D8] text-[#6B6B6B] hover:text-[#DC2626] text-[10px] leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    aria-label="Quitar imagen"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))
+            : pendingFiles.map((file, i) => {
+                const src = URL.createObjectURL(file);
+                return (
+                  <div key={i} className="relative group">
+                    <img
+                      src={src}
+                      alt={file.name}
+                      onLoad={() => URL.revokeObjectURL(src)}
+                      className="aspect-square w-full object-cover rounded-lg cursor-pointer"
+                      onClick={() => onSelectCover(i)}
+                    />
+                    {i === coverIndex && (
+                      <span className="absolute bottom-0 left-0 right-0 bg-[#1A2B1C] text-white text-[8px] font-bold text-center py-0.5">
+                        Portada
+                      </span>
+                    )}
+                    <button
+                      onClick={() => onRemove(i)}
+                      className="absolute top-0.5 right-0.5 w-4 h-4 bg-white border border-[#E8E2D8] text-[#6B6B6B] hover:text-[#DC2626] text-[10px] leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      aria-label="Quitar imagen"
+                    >
+                      ×
+                    </button>
+                  </div>
+                );
+              })
+          }
+        </div>
+      )}
+      {items.length > 0 && (
+        <p className="text-[10px] text-[#ABABAB] text-center">Clic en una imagen para elegir portada</p>
+      )}
+    </>
   );
 }
 

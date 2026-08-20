@@ -48,6 +48,14 @@ function SearchIcon() {
   );
 }
 
+function FilterIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+    </svg>
+  );
+}
+
 function PencilIcon() {
   return (
     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
@@ -282,6 +290,116 @@ function CategoryRow({
   );
 }
 
+function CategoryCardMobile({
+  category,
+  selected,
+  onToggle,
+  onDelete,
+}: {
+  category: Category;
+  selected: boolean;
+  onToggle: (id: string) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  async function handleDelete() {
+    setDeleting(true);
+    try {
+      await categoryService.deleteById(category.category_id);
+      toast.success(`"${category.name}" eliminada`);
+      onDelete(category.category_id);
+    } catch {
+      toast.error("No se pudo eliminar la categoría");
+      setDeleting(false);
+      setConfirming(false);
+    }
+  }
+
+  return (
+    <div className={`transition-colors ${selected ? "bg-[#F4F8F4]" : ""}`}>
+      <div className="flex items-start gap-3 px-4 py-3.5">
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={() => onToggle(category.category_id)}
+          className="w-4 h-4 rounded border-[#C8C4BE] accent-[#1A2B1C] cursor-pointer mt-1 shrink-0"
+        />
+        <CategoryThumb src={category.image_url} name={category.name} />
+        <button onClick={() => setExpanded((e) => !e)} className="flex-1 min-w-0 text-left">
+          <p className="text-sm font-medium text-[#1A1A1A] leading-snug line-clamp-1">{category.name}</p>
+          <p className="text-xs text-[#ABABAB] mt-0.5">/{category.slug}</p>
+        </button>
+        <button
+          onClick={() => setExpanded((e) => !e)}
+          className="flex flex-col items-end gap-1.5 shrink-0"
+          aria-label={expanded ? "Ocultar detalles" : "Ver detalles"}
+        >
+          <StatusBadge isActive={category.is_active} />
+          <svg
+            width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+            className={`text-[#8A8A8A] transition-transform ${expanded ? "rotate-180" : ""}`}
+          >
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+        </button>
+      </div>
+
+      {expanded && (
+        <div className="px-4 pb-3.5 pl-[68px] flex flex-col gap-2.5 border-t border-[#F0EDE8] pt-3">
+          {category.description && (
+            <p className="text-xs text-[#6B6B6B] leading-relaxed">{category.description}</p>
+          )}
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-[#8A8A8A]">Productos</span>
+            <span className="text-[#4A4A4A]">{category.product_count || "—"}</span>
+          </div>
+          <div className="flex items-center gap-2 pt-1">
+            {confirming ? (
+              <>
+                <span className="text-xs text-[#6B6B6B] mr-auto">¿Eliminar?</span>
+                <button
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="px-3 py-1.5 text-xs font-medium bg-[#DC2626] text-white rounded-lg hover:bg-[#B91C1C] transition-colors disabled:opacity-50"
+                >
+                  {deleting ? "…" : "Sí"}
+                </button>
+                <button
+                  onClick={() => setConfirming(false)}
+                  disabled={deleting}
+                  className="px-3 py-1.5 text-xs text-[#6B6B6B] border border-[#E8E2D8] rounded-lg hover:bg-[#F5F5F3] transition-colors"
+                >
+                  No
+                </button>
+              </>
+            ) : (
+              <>
+                <Link
+                  to={`/seller/categories/${category.category_id}/edit`}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#1A2B1C] border border-[#E8E2D8] rounded-lg hover:bg-[#F5F5F3] transition-colors"
+                >
+                  <PencilIcon />
+                  Editar
+                </Link>
+                <button
+                  onClick={() => setConfirming(true)}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#DC2626] border border-[#FECACA] rounded-lg hover:bg-[#FEF2F2] transition-colors"
+                >
+                  <TrashIcon className="w-3.5 h-3.5" />
+                  Eliminar
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SkeletonRows() {
   return (
     <div className="animate-pulse divide-y divide-[#F0EDE8]">
@@ -412,6 +530,7 @@ export function CategoryList() {
   const [statusFilter, setStatusFilter] = useState("");
   const [sort, setSort] = useState("newest");
   const [page, setPage] = useState(1);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const [items, setItems] = useState<Category[]>([]);
   const [total, setTotal] = useState(0);
@@ -471,6 +590,7 @@ export function CategoryList() {
   }, [debouncedQ, statusFilter, sort, page]);
 
   const hasFilters = !!(q || statusFilter || sort !== "newest");
+  const activeFilterCount = [q, statusFilter, sort !== "newest" ? sort : ""].filter(Boolean).length;
 
   function handleReset() {
     setQ("");
@@ -541,6 +661,16 @@ export function CategoryList() {
     setConfirmBulk(false);
   }
 
+  function handleRowDelete(id: string) {
+    setItems((prev) => prev.filter((x) => x.category_id !== id));
+    setTotal((t) => t - 1);
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  }
+
   return (
     <AdminLayout>
       {/* Mobile sticky action bar */}
@@ -579,8 +709,30 @@ export function CategoryList() {
           </div>
         </div>
 
+        {/* Filter toggle (mobile only) */}
+        <button
+          onClick={() => setFiltersOpen((o) => !o)}
+          className="sm:hidden w-full flex items-center justify-between rounded-lg bg-white border border-[#E8E2D8] px-4 py-2.5 mb-4 text-sm text-[#1A1A1A]"
+        >
+          <span className="flex items-center gap-2">
+            <FilterIcon />
+            Filtros
+            {activeFilterCount > 0 && (
+              <span className="bg-[#1A2B1C] text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                {activeFilterCount}
+              </span>
+            )}
+          </span>
+          <svg
+            width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+            className={`text-[#8A8A8A] transition-transform ${filtersOpen ? "rotate-180" : ""}`}
+          >
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+        </button>
+
         {/* Filter bar */}
-        <div className="rounded-lg bg-white border border-[#E8E2D8] p-4 mb-4">
+        <div className={`rounded-lg bg-white border border-[#E8E2D8] p-4 mb-4 ${filtersOpen ? "block" : "hidden"} sm:block`}>
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:flex-wrap">
             <div className="relative w-full sm:flex-1 sm:min-w-[220px]">
               <SearchIcon />
@@ -695,7 +847,8 @@ export function CategoryList() {
                 </div>
               )}
 
-              <table className="w-full">
+              {/* Desktop table */}
+              <table className="w-full hidden sm:table">
                 <thead>
                   <tr className="border-b border-[#E8E2D8] bg-[#F9F8F5]">
                     <th className="w-[48px] px-4 py-3">
@@ -728,19 +881,24 @@ export function CategoryList() {
                       category={c}
                       selected={selected.has(c.category_id)}
                       onToggle={toggleOne}
-                      onDelete={(id) => {
-                        setItems((prev) => prev.filter((x) => x.category_id !== id));
-                        setTotal((t) => t - 1);
-                        setSelected((prev) => {
-                          const next = new Set(prev);
-                          next.delete(id);
-                          return next;
-                        });
-                      }}
+                      onDelete={handleRowDelete}
                     />
                   ))}
                 </tbody>
               </table>
+
+              {/* Mobile cards */}
+              <div className="sm:hidden divide-y divide-[#F0EDE8]">
+                {items.map((c) => (
+                  <CategoryCardMobile
+                    key={c.category_id}
+                    category={c}
+                    selected={selected.has(c.category_id)}
+                    onToggle={toggleOne}
+                    onDelete={handleRowDelete}
+                  />
+                ))}
+              </div>
 
               {pages > 1 && (
                 <Pagination page={page} pages={pages} onPage={handlePageChange} />

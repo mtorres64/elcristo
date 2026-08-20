@@ -36,6 +36,14 @@ function SearchIcon() {
   );
 }
 
+function FilterIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+    </svg>
+  );
+}
+
 function PencilIcon() {
   return (
     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
@@ -394,6 +402,155 @@ function UserRow({
   );
 }
 
+// ─── User Card (mobile) ─────────────────────────────────────────────
+function UserCardMobile({
+  user,
+  selected,
+  onToggle,
+  onDelete,
+  onToggleActive,
+}: {
+  user: User;
+  selected: boolean;
+  onToggle: (id: string) => void;
+  onDelete: (id: string) => void;
+  onToggleActive: (updated: User) => void;
+}) {
+  const navigate = useNavigate();
+  const [expanded, setExpanded] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [togglingActive, setTogglingActive] = useState(false);
+
+  async function handleDelete() {
+    setDeleting(true);
+    try {
+      await userService.deleteById(user.user_id);
+      toast.success(`"${user.name}" eliminado`);
+      onDelete(user.user_id);
+    } catch {
+      toast.error("No se pudo eliminar el usuario");
+      setDeleting(false);
+      setConfirming(false);
+    }
+  }
+
+  async function handleToggleActive() {
+    setTogglingActive(true);
+    try {
+      const updated = await userService.toggleActive(user.user_id);
+      onToggleActive(updated);
+      toast.success(updated.is_active ? `"${user.name}" activado` : `"${user.name}" desactivado`);
+    } catch {
+      toast.error("No se pudo cambiar el estado del usuario");
+    } finally {
+      setTogglingActive(false);
+    }
+  }
+
+  const joinDate = new Date(user.created_at).toLocaleDateString("es-AR", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+
+  return (
+    <div className={`transition-colors ${selected ? "bg-[#F4F8F4]" : ""}`}>
+      <div className="flex items-start gap-3 px-4 py-3.5">
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={() => onToggle(user.user_id)}
+          className="w-4 h-4 rounded border-[#C8C4BE] accent-[#1A2B1C] cursor-pointer mt-1 shrink-0"
+        />
+        <UserAvatar name={user.name} avatarUrl={user.avatar_url} />
+        <button onClick={() => setExpanded((e) => !e)} className="flex-1 min-w-0 text-left">
+          <p className="text-sm font-medium text-[#1A1A1A] leading-snug line-clamp-1">{user.name}</p>
+          <p className="text-xs text-[#ABABAB] mt-0.5 truncate">{user.email}</p>
+          <div className="flex items-center gap-1 flex-wrap mt-1">
+            <RoleBadge role={user.role} />
+          </div>
+        </button>
+        <button
+          onClick={() => setExpanded((e) => !e)}
+          className="flex flex-col items-end gap-1.5 shrink-0"
+          aria-label={expanded ? "Ocultar detalles" : "Ver detalles"}
+        >
+          <ActiveBadge isActive={user.is_active} />
+          <svg
+            width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+            className={`text-[#8A8A8A] transition-transform ${expanded ? "rotate-180" : ""}`}
+          >
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+        </button>
+      </div>
+
+      {expanded && (
+        <div className="px-4 pb-3.5 pl-[68px] flex flex-col gap-2.5 border-t border-[#F0EDE8] pt-3">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-[#8A8A8A]">Email verificado</span>
+            <VerifiedIcon verified={user.email_verified} />
+          </div>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-[#8A8A8A]">Registro</span>
+            <span className="text-[#4A4A4A]">{joinDate}</span>
+          </div>
+          <div className="flex items-center gap-2 pt-1">
+            {confirming ? (
+              <>
+                <span className="text-xs text-[#6B6B6B] mr-auto">¿Eliminar?</span>
+                <button
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="px-3 py-1.5 text-xs font-medium bg-[#DC2626] text-white rounded-lg hover:bg-[#B91C1C] transition-colors disabled:opacity-50"
+                >
+                  {deleting ? "…" : "Sí"}
+                </button>
+                <button
+                  onClick={() => setConfirming(false)}
+                  disabled={deleting}
+                  className="px-3 py-1.5 text-xs text-[#6B6B6B] border border-[#E8E2D8] rounded-lg hover:bg-[#F5F5F3] transition-colors"
+                >
+                  No
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => navigate(`/seller/users/${user.user_id}/edit`)}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#1A2B1C] border border-[#E8E2D8] rounded-lg hover:bg-[#F5F5F3] transition-colors"
+                >
+                  <PencilIcon />
+                  Editar
+                </button>
+                <button
+                  onClick={handleToggleActive}
+                  disabled={togglingActive}
+                  className={`flex-1 flex items-center justify-center px-3 py-1.5 text-xs font-medium border rounded-lg transition-colors disabled:opacity-50 ${
+                    user.is_active
+                      ? "text-[#A05A00] border-[#F0DEC0] hover:bg-[#FFF8E7]"
+                      : "text-[#2D6A4F] border-[#D4E8D4] hover:bg-[#E6F4EA]"
+                  }`}
+                >
+                  {user.is_active ? "Desactivar" : "Activar"}
+                </button>
+                <button
+                  onClick={() => setConfirming(true)}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#DC2626] border border-[#FECACA] rounded-lg hover:bg-[#FEF2F2] transition-colors"
+                >
+                  <TrashIcon className="w-3.5 h-3.5" />
+                  Eliminar
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────
 export function UserList() {
   const [q, setQ] = useState("");
@@ -402,6 +559,7 @@ export function UserList() {
   const [statusFilter, setStatusFilter] = useState("");
   const [sort, setSort] = useState("newest");
   const [page, setPage] = useState(1);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const [items, setItems] = useState<User[]>([]);
   const [total, setTotal] = useState(0);
@@ -463,6 +621,7 @@ export function UserList() {
   }, [debouncedQ, roleFilter, statusFilter, sort, page]);
 
   const hasFilters = !!(q || roleFilter || statusFilter || sort !== "newest");
+  const activeFilterCount = [q, roleFilter, statusFilter, sort !== "newest" ? sort : ""].filter(Boolean).length;
 
   function handleReset() {
     setQ("");
@@ -528,6 +687,20 @@ export function UserList() {
     setConfirmBulk(false);
   }
 
+  function handleRowDelete(id: string) {
+    setItems((prev) => prev.filter((x) => x.user_id !== id));
+    setTotal((t) => t - 1);
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  }
+
+  function handleToggleActiveUser(updated: User) {
+    setItems((prev) => prev.map((x) => (x.user_id === updated.user_id ? updated : x)));
+  }
+
   return (
     <AdminLayout>
       {/* Mobile sticky action bar */}
@@ -560,8 +733,30 @@ export function UserList() {
           </div>
         </div>
 
+        {/* Filter toggle (mobile only) */}
+        <button
+          onClick={() => setFiltersOpen((o) => !o)}
+          className="sm:hidden w-full flex items-center justify-between rounded-lg bg-white border border-[#E8E2D8] px-4 py-2.5 mb-4 text-sm text-[#1A1A1A]"
+        >
+          <span className="flex items-center gap-2">
+            <FilterIcon />
+            Filtros
+            {activeFilterCount > 0 && (
+              <span className="bg-[#1A2B1C] text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                {activeFilterCount}
+              </span>
+            )}
+          </span>
+          <svg
+            width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+            className={`text-[#8A8A8A] transition-transform ${filtersOpen ? "rotate-180" : ""}`}
+          >
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+        </button>
+
         {/* Filter bar */}
-        <div className="rounded-lg bg-white border border-[#E8E2D8] p-4 mb-4">
+        <div className={`rounded-lg bg-white border border-[#E8E2D8] p-4 mb-4 ${filtersOpen ? "block" : "hidden"} sm:block`}>
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:flex-wrap">
             {/* Search */}
             <div className="relative w-full sm:flex-1 sm:min-w-[220px]">
@@ -663,7 +858,8 @@ export function UserList() {
                 </div>
               )}
 
-              <div className="overflow-x-auto">
+              {/* Desktop table */}
+              <div className="overflow-x-auto hidden sm:block">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-[#E8E2D8] bg-[#F9F8F5]">
@@ -690,18 +886,26 @@ export function UserList() {
                       user={u}
                       selected={selected.has(u.user_id)}
                       onToggle={toggleOne}
-                      onDelete={(id) => {
-                        setItems((prev) => prev.filter((x) => x.user_id !== id));
-                        setTotal((t) => t - 1);
-                        setSelected((prev) => { const next = new Set(prev); next.delete(id); return next; });
-                      }}
-                      onToggleActive={(updated) => {
-                        setItems((prev) => prev.map((x) => x.user_id === updated.user_id ? updated : x));
-                      }}
+                      onDelete={handleRowDelete}
+                      onToggleActive={handleToggleActiveUser}
                     />
                   ))}
                 </tbody>
               </table>
+              </div>
+
+              {/* Mobile cards */}
+              <div className="sm:hidden divide-y divide-[#F0EDE8]">
+                {items.map((u) => (
+                  <UserCardMobile
+                    key={u.user_id}
+                    user={u}
+                    selected={selected.has(u.user_id)}
+                    onToggle={toggleOne}
+                    onDelete={handleRowDelete}
+                    onToggleActive={handleToggleActiveUser}
+                  />
+                ))}
               </div>
 
               {pages > 1 && <Pagination page={page} pages={pages} onPage={handlePageChange} />}

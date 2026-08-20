@@ -51,6 +51,14 @@ function SearchIcon() {
   );
 }
 
+function FilterIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+    </svg>
+  );
+}
+
 function SkeletonRows() {
   return (
     <div className="animate-pulse divide-y divide-[#F0EDE8]">
@@ -86,6 +94,53 @@ function EmptyState({ hasFilters, onReset }: { hasFilters: boolean; onReset: () 
         </>
       ) : (
         <p className="text-sm text-[#6B6B6B]">Todavía no hay pedidos.</p>
+      )}
+    </div>
+  );
+}
+
+function OrderCardMobile({ order }: { order: OrderSummary }) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div>
+      <button onClick={() => setExpanded((e) => !e)} className="w-full flex items-start gap-3 px-4 py-3.5 text-left">
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-[#1A2B1C] mb-0.5">{order.order_number}</p>
+          <p className="text-sm text-[#1A1A1A] truncate">{order.buyer_name}</p>
+          <p className="text-xs text-[#ABABAB] truncate">{order.buyer_email}</p>
+        </div>
+        <div className="flex flex-col items-end gap-1.5 shrink-0">
+          <p className="text-sm font-semibold text-[#1A1A1A]">{formatARS(order.total)}</p>
+          <StatusBadge status={order.status} />
+        </div>
+        <svg
+          width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+          className={`text-[#8A8A8A] transition-transform shrink-0 mt-1 ${expanded ? "rotate-180" : ""}`}
+        >
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+
+      {expanded && (
+        <div className="px-4 pb-3.5 flex flex-col gap-2.5 border-t border-[#F0EDE8] pt-3">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-[#8A8A8A]">Ítems</span>
+            <span className="text-[#4A4A4A]">{order.item_count}</span>
+          </div>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-[#8A8A8A]">Fecha</span>
+            <span className="text-[#4A4A4A]">
+              {new Date(order.created_at).toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric" })}
+            </span>
+          </div>
+          <Link
+            to={`/seller/orders/${order.order_id}`}
+            className="mt-1 flex items-center justify-center px-3 py-1.5 text-xs font-medium text-[#1A2B1C] border border-[#E8E2D8] rounded-lg hover:bg-[#F5F5F3] transition-colors"
+          >
+            Ver pedido
+          </Link>
+        </div>
       )}
     </div>
   );
@@ -135,6 +190,7 @@ export function OrderList() {
   const [statusFilter, setStatusFilter] = useState("");
   const [sort, setSort] = useState("newest");
   const [page, setPage] = useState(1);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const [items, setItems] = useState<OrderSummary[]>([]);
   const [total, setTotal] = useState(0);
@@ -184,6 +240,7 @@ export function OrderList() {
   }, [debouncedQ, statusFilter, sort, page, user?.tenant_id]);
 
   const hasFilters = !!(q || statusFilter || sort !== "newest");
+  const activeFilterCount = [q, statusFilter, sort !== "newest" ? sort : ""].filter(Boolean).length;
 
   function handleReset() {
     setQ("");
@@ -210,7 +267,29 @@ export function OrderList() {
           </div>
         </div>
 
-        <div className="rounded-lg bg-white border border-[#E8E2D8] p-4 mb-4">
+        {/* Filter toggle (mobile only) */}
+        <button
+          onClick={() => setFiltersOpen((o) => !o)}
+          className="sm:hidden w-full flex items-center justify-between rounded-lg bg-white border border-[#E8E2D8] px-4 py-2.5 mb-4 text-sm text-[#1A1A1A]"
+        >
+          <span className="flex items-center gap-2">
+            <FilterIcon />
+            Filtros
+            {activeFilterCount > 0 && (
+              <span className="bg-[#1A2B1C] text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                {activeFilterCount}
+              </span>
+            )}
+          </span>
+          <svg
+            width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+            className={`text-[#8A8A8A] transition-transform ${filtersOpen ? "rotate-180" : ""}`}
+          >
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+        </button>
+
+        <div className={`rounded-lg bg-white border border-[#E8E2D8] p-4 mb-4 ${filtersOpen ? "block" : "hidden"} sm:block`}>
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:flex-wrap">
             <div className="relative w-full sm:flex-1 sm:min-w-[220px]">
               <SearchIcon />
@@ -257,7 +336,8 @@ export function OrderList() {
             <EmptyState hasFilters={hasFilters} onReset={handleReset} />
           ) : (
             <>
-              <table className="w-full">
+              {/* Desktop table */}
+              <table className="w-full hidden sm:table">
                 <thead>
                   <tr className="border-b border-[#E8E2D8] bg-[#F9F8F5]">
                     <th className="text-left px-4 py-3 text-xs font-semibold text-[#6B6B6B] uppercase tracking-wider">Nº pedido</th>
@@ -296,6 +376,13 @@ export function OrderList() {
                   ))}
                 </tbody>
               </table>
+
+              {/* Mobile cards */}
+              <div className="sm:hidden divide-y divide-[#F0EDE8]">
+                {items.map((order) => (
+                  <OrderCardMobile key={order.order_id} order={order} />
+                ))}
+              </div>
 
               {pages > 1 && <Pagination page={page} pages={pages} onPage={setPage} />}
             </>

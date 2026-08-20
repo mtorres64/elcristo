@@ -207,26 +207,67 @@ Todas las páginas de formulario y listado con acciones primarias usan una barra
 </div>
 ```
 
-**Barra de filtros en listados:**
+**Barra de filtros en listados (colapsable en mobile):**
+
+Patrón obligatorio en toda página de listado admin con filtros (búsqueda + selects). En mobile la barra
+arranca **colapsada** detrás de un botón "Filtros" con contador de filtros activos; en desktop (`sm:` en
+adelante) siempre está visible, el botón toggle desaparece. Implementado igual en `ProductList.tsx`,
+`OrderList.tsx`, `CategoryList.tsx`, `ClientList.tsx` y `UserList.tsx`:
+
 ```tsx
-{/* flex-col en mobile (cada filtro 100% ancho), flex-row en desktop */}
-<div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:flex-wrap">
-  <div className="relative w-full sm:flex-1 sm:min-w-[220px]">
-    {/* search input */}
-  </div>
-  <div className="relative w-full sm:w-auto">
-    <select className="… w-full sm:w-[160px]">…</select>
+const [filtersOpen, setFiltersOpen] = useState(false);
+const activeFilterCount = [q, statusFilter, sort !== "newest" ? sort : ""].filter(Boolean).length;
+
+{/* Botón toggle — solo mobile */}
+<button
+  onClick={() => setFiltersOpen((o) => !o)}
+  className="sm:hidden w-full flex items-center justify-between rounded-lg bg-white border border-[#E8E2D8] px-4 py-2.5 mb-4 text-sm text-[#1A1A1A]"
+>
+  <span className="flex items-center gap-2">
+    <FilterIcon />
+    Filtros
+    {activeFilterCount > 0 && (
+      <span className="bg-[#1A2B1C] text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+        {activeFilterCount}
+      </span>
+    )}
+  </span>
+  <svg className={`… transition-transform ${filtersOpen ? "rotate-180" : ""}`}>{/* chevron */}</svg>
+</button>
+
+{/* Panel de filtros: hidden/block por state en mobile, siempre block desde sm: */}
+<div className={`rounded-lg bg-white border border-[#E8E2D8] p-4 mb-4 ${filtersOpen ? "block" : "hidden"} sm:block`}>
+  <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:flex-wrap">
+    <div className="relative w-full sm:flex-1 sm:min-w-[220px]">{/* search input */}</div>
+    <div className="relative w-full sm:w-auto"><select className="… w-full sm:w-[160px]">…</select></div>
   </div>
 </div>
 ```
 
-**Tablas de listado (responsive):**
+**Listados: tabla en desktop, cards colapsables en mobile:**
+
+Toda página de listado admin con tabla usa tabla en desktop y una lista de cards colapsables en mobile
+(no la misma tabla con scroll horizontal — las columnas secundarias no caben ni son prioritarias en una
+pantalla angosta). Mismo dataset, dos componentes de fila que renderizan condicionalmente por breakpoint:
+
 ```tsx
-{/* overflow-x-auto para scroll horizontal en mobile */}
-<div className="rounded-lg bg-white border border-[#E8E2D8] overflow-hidden overflow-x-auto">
-  <table className="w-full">…</table>
+{/* Desktop: tabla completa con todas las columnas */}
+<table className="w-full hidden sm:table">…</table>
+
+{/* Mobile: una card por ítem — checkbox + thumb + campo principal siempre visibles;
+    el resto de las columnas (categoría, precio, fecha, acciones…) vive detrás de un
+    toggle de expandir/colapsar por card */}
+<div className="sm:hidden divide-y divide-[#F0EDE8]">
+  {items.map((item) => <ItemCardMobile key={item.id} item={item} … />)}
 </div>
 ```
+
+Cada `*CardMobile` (`ProductCardMobile`, `OrderCardMobile`, `CategoryCardMobile`, `ClientCardMobile`,
+`UserCardMobile`) sigue la misma estructura interna: fila colapsada con checkbox (si aplica) + thumbnail/avatar
++ campo principal (nombre) + badge más importante (stock/estado) + flecha que rota (`rotate-180` cuando
+`expanded`); al tocar la card o la flecha se expande un bloque `border-t border-[#F0EDE8] pt-3` con el resto
+de los campos en filas `flex items-center justify-between text-xs` y, al final, los botones de acción
+(editar/eliminar/etc.) en un `flex` con `flex-1` cada uno.
 
 ### Patrones de componentes admin
 

@@ -35,6 +35,14 @@ function ChevronDown() {
   );
 }
 
+function FilterIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+    </svg>
+  );
+}
+
 function SearchIcon() {
   return (
     <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#ABABAB]" viewBox="0 0 24 24" fill="none">
@@ -300,6 +308,159 @@ function ProductRow({
   );
 }
 
+function ProductCardMobile({
+  product,
+  categoryName,
+  selected,
+  onToggle,
+  onDelete,
+}: {
+  product: ProductSummary;
+  categoryName: string | null;
+  selected: boolean;
+  onToggle: (id: string) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  async function handleDelete() {
+    setDeleting(true);
+    try {
+      await productService.deleteById(product.product_id);
+      toast.success(`"${product.title}" eliminado`);
+      onDelete(product.product_id);
+    } catch {
+      toast.error("No se pudo eliminar el producto");
+      setDeleting(false);
+      setConfirming(false);
+    }
+  }
+
+  const visibleTags = product.tags.slice(0, 3);
+  const extraTags = product.tags.length - visibleTags.length;
+  const careKeys = Object.entries(product.care).filter(([, v]) => v).map(([k]) => k);
+
+  return (
+    <div className={`transition-colors ${selected ? "bg-[#F4F8F4]" : ""}`}>
+      <div className="flex items-start gap-3 px-4 py-3.5">
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={() => onToggle(product.product_id)}
+          className="w-4 h-4 rounded border-[#C8C4BE] accent-[#1A2B1C] cursor-pointer mt-1 shrink-0"
+        />
+        <ProductThumb src={product.image_url} title={product.title} />
+        <button onClick={() => setExpanded((e) => !e)} className="flex-1 min-w-0 text-left">
+          <div className="flex items-center gap-1.5 mb-0.5">
+            <p className="text-sm font-medium text-[#1A1A1A] leading-snug line-clamp-1">{product.title}</p>
+            {product.is_featured && <span className="text-[#D4A017] text-sm shrink-0" title="Destacado">★</span>}
+          </div>
+          {product.short_description && (
+            <p className="text-[11px] text-[#8A8A8A] line-clamp-1 mb-1.5 leading-relaxed">
+              {product.short_description}
+            </p>
+          )}
+          {visibleTags.length > 0 && (
+            <div className="flex items-center gap-1 flex-wrap">
+              {visibleTags.map((tag) => (
+                <span key={tag} className="bg-[#F0EDE8] text-[#6B6B6B] text-[10px] px-1.5 py-0.5 rounded leading-none">
+                  {tag}
+                </span>
+              ))}
+              {extraTags > 0 && <span className="text-[#ABABAB] text-[10px]">+{extraTags}</span>}
+            </div>
+          )}
+        </button>
+        <button
+          onClick={() => setExpanded((e) => !e)}
+          className="flex flex-col items-end gap-1.5 shrink-0"
+          aria-label={expanded ? "Ocultar detalles" : "Ver detalles"}
+        >
+          <StockBadge stock={product.stock} />
+          <svg
+            width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+            className={`text-[#8A8A8A] transition-transform ${expanded ? "rotate-180" : ""}`}
+          >
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+        </button>
+      </div>
+
+      {expanded && (
+        <div className="px-4 pb-3.5 pl-[68px] flex flex-col gap-2.5 border-t border-[#F0EDE8] pt-3">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-[#8A8A8A]">Categoría</span>
+            <span className="text-[#4A4A4A]">{categoryName ?? "—"}</span>
+          </div>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-[#8A8A8A]">Estado</span>
+            <StatusBadge status={product.status} />
+          </div>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-[#8A8A8A]">Precio</span>
+            <div className="text-right">
+              <p className="text-sm font-medium text-[#1A1A1A] tabular-nums">{formatARS(product.price)}</p>
+              {product.compare_at_price && (
+                <p className="text-[11px] text-[#2D6A4F] tabular-nums">{formatARS(product.compare_at_price)}</p>
+              )}
+            </div>
+          </div>
+          {careKeys.length > 0 && (
+            <div className="flex items-center gap-1 flex-wrap">
+              {careKeys.map((k) => CARE_ICONS[k] && (
+                <span key={k} className="inline-flex items-center gap-0.5 bg-[#F0F5F0] text-[#3D6040] text-[10px] px-1.5 py-0.5 rounded leading-none">
+                  <span className="shrink-0">{CARE_ICONS[k]}</span>
+                  <span className="max-w-[140px] truncate">{product.care[k]}</span>
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="flex items-center gap-2 pt-1">
+            {confirming ? (
+              <>
+                <span className="text-xs text-[#6B6B6B] mr-auto">¿Eliminar?</span>
+                <button
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="px-3 py-1.5 text-xs font-medium bg-[#DC2626] text-white rounded-lg hover:bg-[#B91C1C] transition-colors disabled:opacity-50"
+                >
+                  {deleting ? "…" : "Sí"}
+                </button>
+                <button
+                  onClick={() => setConfirming(false)}
+                  disabled={deleting}
+                  className="px-3 py-1.5 text-xs text-[#6B6B6B] border border-[#E8E2D8] rounded-lg hover:bg-[#F5F5F3] transition-colors"
+                >
+                  No
+                </button>
+              </>
+            ) : (
+              <>
+                <Link
+                  to={`/seller/products/${product.product_id}/edit`}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#1A2B1C] border border-[#E8E2D8] rounded-lg hover:bg-[#F5F5F3] transition-colors"
+                >
+                  <PencilIcon />
+                  Editar
+                </Link>
+                <button
+                  onClick={() => setConfirming(true)}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#DC2626] border border-[#FECACA] rounded-lg hover:bg-[#FEF2F2] transition-colors"
+                >
+                  <TrashIcon className="w-3.5 h-3.5" />
+                  Eliminar
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SkeletonRows() {
   return (
     <div className="animate-pulse divide-y divide-[#F0EDE8]">
@@ -438,6 +599,8 @@ export function ProductList() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmBulk, setConfirmBulk] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -491,6 +654,7 @@ export function ProductList() {
   }, [debouncedQ, status, sort, page, user?.tenant_id]);
 
   const hasFilters = !!(q || status || sort !== "newest");
+  const activeFilterCount = [q, status, sort !== "newest" ? sort : ""].filter(Boolean).length;
 
   function handleReset() {
     setQ("");
@@ -554,6 +718,16 @@ export function ProductList() {
     }
   }
 
+  function handleRowDelete(id: string) {
+    setItems((prev) => prev.filter((x) => x.product_id !== id));
+    setTotal((t) => t - 1);
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  }
+
   function handlePageChange(p: number) {
     setPage(p);
     setSelected(new Set());
@@ -598,8 +772,30 @@ export function ProductList() {
           </div>
         </div>
 
+        {/* Filter toggle (mobile only) */}
+        <button
+          onClick={() => setFiltersOpen((o) => !o)}
+          className="sm:hidden w-full flex items-center justify-between rounded-lg bg-white border border-[#E8E2D8] px-4 py-2.5 mb-4 text-sm text-[#1A1A1A]"
+        >
+          <span className="flex items-center gap-2">
+            <FilterIcon />
+            Filtros
+            {activeFilterCount > 0 && (
+              <span className="bg-[#1A2B1C] text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                {activeFilterCount}
+              </span>
+            )}
+          </span>
+          <svg
+            width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+            className={`text-[#8A8A8A] transition-transform ${filtersOpen ? "rotate-180" : ""}`}
+          >
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+        </button>
+
         {/* Filter bar */}
-        <div className="rounded-lg bg-white border border-[#E8E2D8] p-4 mb-4">
+        <div className={`rounded-lg bg-white border border-[#E8E2D8] p-4 mb-4 ${filtersOpen ? "block" : "hidden"} sm:block`}>
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:flex-wrap">
             {/* Search */}
             <div className="relative w-full sm:flex-1 sm:min-w-[220px]">
@@ -720,7 +916,8 @@ export function ProductList() {
                 </div>
               )}
 
-              <table className="w-full">
+              {/* Desktop table */}
+              <table className="w-full hidden sm:table">
                 <thead>
                   <tr className="border-b border-[#E8E2D8] bg-[#F9F8F5]">
                     <th className="w-[48px] px-4 py-3">
@@ -757,19 +954,25 @@ export function ProductList() {
                       categoryName={p.category_id ? (categoryMap[p.category_id] ?? null) : null}
                       selected={selected.has(p.product_id)}
                       onToggle={toggleOne}
-                      onDelete={(id) => {
-                        setItems((prev) => prev.filter((x) => x.product_id !== id));
-                        setTotal((t) => t - 1);
-                        setSelected((prev) => {
-                          const next = new Set(prev);
-                          next.delete(id);
-                          return next;
-                        });
-                      }}
+                      onDelete={handleRowDelete}
                     />
                   ))}
                 </tbody>
               </table>
+
+              {/* Mobile cards */}
+              <div className="sm:hidden divide-y divide-[#F0EDE8]">
+                {items.map((p) => (
+                  <ProductCardMobile
+                    key={p.product_id}
+                    product={p}
+                    categoryName={p.category_id ? (categoryMap[p.category_id] ?? null) : null}
+                    selected={selected.has(p.product_id)}
+                    onToggle={toggleOne}
+                    onDelete={handleRowDelete}
+                  />
+                ))}
+              </div>
 
               {pages > 1 && (
                 <Pagination page={page} pages={pages} onPage={handlePageChange} />

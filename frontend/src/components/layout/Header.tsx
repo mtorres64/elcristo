@@ -123,6 +123,16 @@ export function Header() {
                     <p className="text-xs font-semibold text-[#1A1A1A] truncate">{user.name}</p>
                     <p className="text-[10px] text-[#8A8A8A] truncate">{user.email}</p>
                   </div>
+                  {(user.role === "seller" || user.role === "platform_admin") && (
+                    <Link
+                      to="/seller"
+                      onClick={() => setUserMenuOpen(false)}
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-[#1A1A1A] hover:bg-[#F5F5F3] transition-colors border-b border-[#F0EDE8]"
+                    >
+                      <AdminPanelIcon />
+                      Ir a administración
+                    </Link>
+                  )}
                   <button
                     onClick={handleLogout}
                     className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-[#DC2626] hover:bg-[#FEF2F2] transition-colors"
@@ -225,12 +235,23 @@ export function Header() {
             </button>
           ))}
           {user ? (
-            <button
-              onClick={() => { handleLogout(); setMenuOpen(false); }}
-              className="text-sm text-left py-2 text-[#DC2626] tracking-wide"
-            >
-              Cerrar sesión
-            </button>
+            <>
+              {(user.role === "seller" || user.role === "platform_admin") && (
+                <Link
+                  to="/seller"
+                  onClick={() => setMenuOpen(false)}
+                  className="text-sm text-left py-2 text-[#1A1A1A] tracking-wide"
+                >
+                  Ir a administración
+                </Link>
+              )}
+              <button
+                onClick={() => { handleLogout(); setMenuOpen(false); }}
+                className="text-sm text-left py-2 text-[#DC2626] tracking-wide"
+              >
+                Cerrar sesión
+              </button>
+            </>
           ) : (
             <Link
               to="/login"
@@ -277,6 +298,17 @@ function UserIcon() {
     <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
       <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
       <circle cx="12" cy="7" r="4" />
+    </svg>
+  );
+}
+
+function AdminPanelIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <rect x="3" y="3" width="7" height="7" rx="1" />
+      <rect x="14" y="3" width="7" height="7" rx="1" />
+      <rect x="3" y="14" width="7" height="7" rx="1" />
+      <rect x="14" y="14" width="7" height="7" rx="1" />
     </svg>
   );
 }

@@ -88,7 +88,6 @@ export function ProductNew() {
   const [saving, setSaving] = useState(false);
   const [tagInput, setTagInput] = useState("");
   const tagInputRef = useRef<HTMLInputElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
   function addTag(value: string) {
@@ -287,14 +286,16 @@ export function ProductNew() {
           {/* ── Left column ───────────────────────────────────── */}
           <div className="flex-1 min-w-0">
             {/* Card with tabs */}
-            <div className="bg-white border border-[#E8E2D8]">
+            <div className="bg-white border-y sm:border border-[#E8E2D8] -mx-4 sm:mx-0">
               {/* Tabs */}
               <div className="flex border-b border-[#E8E2D8] px-6">
                 {TABS.map((t) => (
                   <button
                     key={t.id}
                     onClick={() => setTab(t.id)}
-                    className={`py-4 pr-6 text-sm transition-colors border-b-2 -mb-px ${
+                    className={`py-4 pr-6 text-sm transition-colors border-b-2 -mb-px rounded-none ${
+                      t.id === "imagenes" || t.id === "seo" ? "lg:hidden" : ""
+                    } ${
                       tab === t.id
                         ? "text-[#1A1A1A] font-semibold border-[#1A2B1C]"
                         : "text-[#8A8A8A] border-transparent hover:text-[#4A4A4A]"
@@ -385,68 +386,7 @@ export function ProductNew() {
                       </FormField>
                     </div>
 
-                    {/* Row 3: Price + Promo + Stock, por tamaño de planta */}
-                    <div>
-                      <p className="text-sm font-semibold text-[#1A1A1A] mb-3">
-                        Precio y stock por tamaño
-                      </p>
-                      <div className="flex flex-col gap-3">
-                        <SizePricingRow
-                          label="Planta chica (pequeña)"
-                          price={priceChica}
-                          setPrice={setPriceChica}
-                          promo={promoChica}
-                          setPromo={setPromoChica}
-                          stock={stockChica}
-                          setStock={setStockChica}
-                          weight={weightChica}
-                          setWeight={setWeightChica}
-                          height={heightChica}
-                          setHeight={setHeightChica}
-                          active={activeChica}
-                          setActive={setActiveChica}
-                          pots={potsChica}
-                          setPots={setPotsChica}
-                        />
-                        <SizePricingRow
-                          label="Planta mediana"
-                          price={price}
-                          setPrice={setPrice}
-                          promo={promoPrice}
-                          setPromo={setPromoPrice}
-                          stock={stock}
-                          setStock={setStock}
-                          weight={weight}
-                          setWeight={setWeight}
-                          height={height}
-                          setHeight={setHeight}
-                          active={active}
-                          setActive={setActive}
-                          pots={recommendedPotIds}
-                          setPots={setRecommendedPotIds}
-                          required
-                        />
-                        <SizePricingRow
-                          label="Planta grande"
-                          price={priceGrande}
-                          setPrice={setPriceGrande}
-                          promo={promoGrande}
-                          setPromo={setPromoGrande}
-                          stock={stockGrande}
-                          setStock={setStockGrande}
-                          weight={weightGrande}
-                          setWeight={setWeightGrande}
-                          height={heightGrande}
-                          setHeight={setHeightGrande}
-                          active={activeGrande}
-                          setActive={setActiveGrande}
-                          pots={potsGrande}
-                          setPots={setPotsGrande}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Row 4: Destacado + Date */}
+                    {/* Row 3: Destacado + Date */}
                     <div className="flex items-end gap-5 flex-wrap">
                       <div>
                         <p className={LABEL}>Destacado</p>
@@ -578,127 +518,132 @@ export function ProductNew() {
                   </div>
                 )}
 
-                {tab !== "general" && (
-                  <div className="py-12 text-center">
-                    <p className="font-serif text-lg text-[#8A8A8A]">
-                      {TABS.find((t) => t.id === tab)?.label} — próximamente
+                {tab === "variantes" && (
+                  <div>
+                    <p className="text-sm font-semibold text-[#1A1A1A] mb-3">
+                      Precio y stock por tamaño
                     </p>
+                    <div className="flex flex-col gap-3">
+                      <SizePricingRow
+                        label="Planta chica (pequeña)"
+                        price={priceChica}
+                        setPrice={setPriceChica}
+                        promo={promoChica}
+                        setPromo={setPromoChica}
+                        stock={stockChica}
+                        setStock={setStockChica}
+                        weight={weightChica}
+                        setWeight={setWeightChica}
+                        height={heightChica}
+                        setHeight={setHeightChica}
+                        active={activeChica}
+                        setActive={setActiveChica}
+                        pots={potsChica}
+                        setPots={setPotsChica}
+                      />
+                      <SizePricingRow
+                        label="Planta mediana"
+                        price={price}
+                        setPrice={setPrice}
+                        promo={promoPrice}
+                        setPromo={setPromoPrice}
+                        stock={stock}
+                        setStock={setStock}
+                        weight={weight}
+                        setWeight={setWeight}
+                        height={height}
+                        setHeight={setHeight}
+                        active={active}
+                        setActive={setActive}
+                        pots={recommendedPotIds}
+                        setPots={setRecommendedPotIds}
+                        required
+                      />
+                      <SizePricingRow
+                        label="Planta grande"
+                        price={priceGrande}
+                        setPrice={setPriceGrande}
+                        promo={promoGrande}
+                        setPromo={setPromoGrande}
+                        stock={stockGrande}
+                        setStock={setStockGrande}
+                        weight={weightGrande}
+                        setWeight={setWeightGrande}
+                        height={heightGrande}
+                        setHeight={setHeightGrande}
+                        active={activeGrande}
+                        setActive={setActiveGrande}
+                        pots={potsGrande}
+                        setPots={setPotsGrande}
+                      />
+                    </div>
                   </div>
                 )}
+
+                {tab === "imagenes" && (
+                  <div className="lg:hidden">
+                    <p className="text-sm font-semibold text-[#1A1A1A] mb-4">Imágenes del producto</p>
+                    <ProductImageUploader
+                      pendingFiles={pendingFiles}
+                      coverIndex={coverIndex}
+                      onSelectCover={setCoverIndex}
+                      onRemove={removeImage}
+                      onFiles={handleFiles}
+                      onDrop={handleDrop}
+                    />
+                  </div>
+                )}
+
+                {tab === "seo" && (
+                  <div className="lg:hidden">
+                    <p className="text-sm font-semibold text-[#1A1A1A] mb-4">Vista previa en tienda</p>
+                    <ProductPreviewCard
+                      pendingFiles={pendingFiles}
+                      coverIndex={coverIndex}
+                      name={name}
+                      plantType={plantType}
+                      price={price}
+                      promoPrice={promoPrice}
+                      careLight={careLight}
+                      careWater={careWater}
+                      careEnv={careEnv}
+                    />
+                  </div>
+                )}
+
               </div>
             </div>
           </div>
 
           {/* ── Right column ──────────────────────────────────── */}
           <div className="w-full lg:w-[300px] shrink-0 flex flex-col gap-4">
-            {/* Images card */}
-            <div className="bg-white border border-[#E8E2D8] p-5">
+            {/* Images card (desktop only — en mobile vive en la solapa "Imágenes") */}
+            <div className="hidden lg:block bg-white border border-[#E8E2D8] p-5">
               <p className="text-sm font-semibold text-[#1A1A1A] mb-4">Imágenes del producto</p>
-
-              {/* Drop zone */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                multiple
-                className="hidden"
-                onChange={(e) => e.target.files && handleFiles(e.target.files)}
-              />
-              <div
-                className="border-2 border-dashed border-[#D0C8C0] p-6 text-center mb-4 hover:border-[#1A2B1C] transition-colors cursor-pointer group"
-                onClick={() => fileInputRef.current?.click()}
-                onDragOver={(e) => e.preventDefault()}
+              <ProductImageUploader
+                pendingFiles={pendingFiles}
+                coverIndex={coverIndex}
+                onSelectCover={setCoverIndex}
+                onRemove={removeImage}
+                onFiles={handleFiles}
                 onDrop={handleDrop}
-              >
-                <div className="flex justify-center mb-2 text-[#ABABAB] group-hover:text-[#5A7A5C] transition-colors">
-                  <UploadIcon />
-                </div>
-                <p className="text-xs text-[#6B6B6B] leading-relaxed">
-                  Arrastrá y soltá imágenes aquí<br />
-                  <span className="text-[#3D6040]">o hacé clic para seleccionar</span>
-                </p>
-                <p className="text-[10px] text-[#ABABAB] mt-1.5">
-                  Formato recomendado: 1:1 o 4:5. Máx 5MB
-                </p>
-              </div>
-
-              {/* Thumbnails */}
-              {pendingFiles.length > 0 && (
-                <div className="grid grid-cols-4 gap-1.5 mb-2">
-                  {pendingFiles.map((file, i) => {
-                    const src = URL.createObjectURL(file);
-                    return (
-                      <div key={i} className="relative group">
-                        <img
-                          src={src}
-                          alt={file.name}
-                          onLoad={() => URL.revokeObjectURL(src)}
-                          className="aspect-square w-full object-cover cursor-pointer"
-                          onClick={() => setCoverIndex(i)}
-                        />
-                        {i === coverIndex && (
-                          <span className="absolute bottom-0 left-0 right-0 bg-[#1A2B1C] text-white text-[8px] font-bold text-center py-0.5">
-                            Portada
-                          </span>
-                        )}
-                        <button
-                          onClick={() => removeImage(i)}
-                          className="absolute top-0.5 right-0.5 w-4 h-4 bg-white border border-[#E8E2D8] text-[#6B6B6B] hover:text-[#DC2626] text-[10px] leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                          aria-label="Quitar imagen"
-                        >
-                          ×
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-              {pendingFiles.length > 0 && (
-                <p className="text-[10px] text-[#ABABAB] text-center">Tocá para marcar como portada</p>
-              )}
+              />
             </div>
 
-            {/* Preview card */}
-            <div className="bg-white border border-[#E8E2D8] p-5">
+            {/* Preview card (desktop only — en mobile vive en la solapa "SEO y visibilidad") */}
+            <div className="hidden lg:block bg-white border border-[#E8E2D8] p-5">
               <p className="text-sm font-semibold text-[#1A1A1A] mb-4">Vista previa en tienda</p>
-              <div className="border border-[#E8E2D8]">
-                <div className="aspect-[4/3] bg-gradient-to-br from-[#C8D8C0] to-[#A8BCA0] flex items-center justify-center">
-                  <PlantPreviewIcon />
-                </div>
-                <div className="p-3">
-                  <p className="font-serif text-base font-normal text-[#1A1A1A] leading-tight">{name || <span className="text-[#ABABAB]">Nombre del producto</span>}</p>
-                  {plantType && <p className="text-[10px] text-[#6B6B6B] mb-2">{plantType}</p>}
-                  <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-                    {price ? (
-                      <span className="text-sm font-bold text-[#1A1A1A]">${price}</span>
-                    ) : (
-                      <span className="text-sm text-[#ABABAB]">$ —</span>
-                    )}
-                    {promoPrice && price && (
-                      <>
-                        <span className="text-[10px] text-[#ABABAB] line-through">${promoPrice}</span>
-                      </>
-                    )}
-                  </div>
-                  <div className="flex flex-col gap-1 mb-3">
-                    {[
-                      { icon: <PreviewSunIcon />, text: careLight, placeholder: "Luz" },
-                      { icon: <PreviewWaterIcon />, text: careWater, placeholder: "Riego" },
-                      { icon: <PreviewEnvIcon />, text: careEnv, placeholder: "Ambiente" },
-                    ].map((row) => (
-                      <div key={row.placeholder} className="flex items-center gap-1.5">
-                        <span className="text-[#5A7A5C] shrink-0">{row.icon}</span>
-                        <span className={`text-[10px] truncate ${row.text ? "text-[#6B6B6B]" : "text-[#CCCCCC]"}`}>
-                          {row.text || row.placeholder}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                  <button className="w-full bg-[#1A2B1C] text-white text-[10px] font-semibold uppercase tracking-widest py-2">
-                    Agregar al carrito
-                  </button>
-                </div>
-              </div>
+              <ProductPreviewCard
+                pendingFiles={pendingFiles}
+                coverIndex={coverIndex}
+                name={name}
+                plantType={plantType}
+                price={price}
+                promoPrice={promoPrice}
+                careLight={careLight}
+                careWater={careWater}
+                careEnv={careEnv}
+              />
             </div>
 
             {/* Info card */}
@@ -751,6 +696,159 @@ function FormField({
       </label>
       {children}
     </div>
+  );
+}
+
+function ProductPreviewCard({
+  pendingFiles,
+  coverIndex,
+  name,
+  plantType,
+  price,
+  promoPrice,
+  careLight,
+  careWater,
+  careEnv,
+}: {
+  pendingFiles: File[];
+  coverIndex: number;
+  name: string;
+  plantType: string;
+  price: string;
+  promoPrice: string;
+  careLight: string;
+  careWater: string;
+  careEnv: string;
+}) {
+  return (
+    <div className="border border-[#E8E2D8]">
+      <div className="aspect-[4/3] bg-gradient-to-br from-[#C8D8C0] to-[#A8BCA0] flex items-center justify-center overflow-hidden">
+        {pendingFiles[coverIndex] ? (
+          <img
+            src={URL.createObjectURL(pendingFiles[coverIndex])}
+            alt="Portada"
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <PlantPreviewIcon />
+        )}
+      </div>
+      <div className="p-3">
+        <p className="font-serif text-base font-normal text-[#1A1A1A] leading-tight">{name || <span className="text-[#ABABAB]">Nombre del producto</span>}</p>
+        {plantType && <p className="text-[10px] text-[#6B6B6B] mb-2">{plantType}</p>}
+        <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+          {price ? (
+            <span className="text-sm font-bold text-[#1A1A1A]">${price}</span>
+          ) : (
+            <span className="text-sm text-[#ABABAB]">$ —</span>
+          )}
+          {promoPrice && price && (
+            <span className="text-[10px] text-[#ABABAB] line-through">${promoPrice}</span>
+          )}
+        </div>
+        <div className="flex flex-col gap-1 mb-3">
+          {[
+            { icon: <PreviewSunIcon />, text: careLight, placeholder: "Luz" },
+            { icon: <PreviewWaterIcon />, text: careWater, placeholder: "Riego" },
+            { icon: <PreviewEnvIcon />, text: careEnv, placeholder: "Ambiente" },
+          ].map((row) => (
+            <div key={row.placeholder} className="flex items-center gap-1.5">
+              <span className="text-[#5A7A5C] shrink-0">{row.icon}</span>
+              <span className={`text-[10px] truncate ${row.text ? "text-[#6B6B6B]" : "text-[#CCCCCC]"}`}>
+                {row.text || row.placeholder}
+              </span>
+            </div>
+          ))}
+        </div>
+        <button className="w-full bg-[#1A2B1C] text-white text-[10px] font-semibold uppercase tracking-widest py-2">
+          Agregar al carrito
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ProductImageUploader({
+  pendingFiles,
+  coverIndex,
+  onSelectCover,
+  onRemove,
+  onFiles,
+  onDrop,
+}: {
+  pendingFiles: File[];
+  coverIndex: number;
+  onSelectCover: (i: number) => void;
+  onRemove: (i: number) => void;
+  onFiles: (files: FileList | File[]) => void;
+  onDrop: (e: React.DragEvent<HTMLDivElement>) => void;
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  return (
+    <>
+      {/* Drop zone */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={(e) => e.target.files && onFiles(e.target.files)}
+      />
+      <div
+        className="border-2 border-dashed border-[#D0C8C0] p-6 text-center mb-4 hover:border-[#1A2B1C] transition-colors cursor-pointer group"
+        onClick={() => fileInputRef.current?.click()}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={onDrop}
+      >
+        <div className="flex justify-center mb-2 text-[#ABABAB] group-hover:text-[#5A7A5C] transition-colors">
+          <UploadIcon />
+        </div>
+        <p className="text-xs text-[#6B6B6B] leading-relaxed">
+          Arrastrá y soltá imágenes aquí<br />
+          <span className="text-[#3D6040]">o hacé clic para seleccionar</span>
+        </p>
+        <p className="text-[10px] text-[#ABABAB] mt-1.5">
+          Formato recomendado: 1:1 o 4:5. Máx 5MB
+        </p>
+      </div>
+
+      {/* Thumbnails */}
+      {pendingFiles.length > 0 && (
+        <div className="grid grid-cols-4 gap-1.5 mb-2">
+          {pendingFiles.map((file, i) => {
+            const src = URL.createObjectURL(file);
+            return (
+              <div key={i} className="relative group">
+                <img
+                  src={src}
+                  alt={file.name}
+                  onLoad={() => URL.revokeObjectURL(src)}
+                  className="aspect-square w-full object-cover cursor-pointer"
+                  onClick={() => onSelectCover(i)}
+                />
+                {i === coverIndex && (
+                  <span className="absolute bottom-0 left-0 right-0 bg-[#1A2B1C] text-white text-[8px] font-bold text-center py-0.5">
+                    Portada
+                  </span>
+                )}
+                <button
+                  onClick={() => onRemove(i)}
+                  className="absolute top-0.5 right-0.5 w-4 h-4 bg-white border border-[#E8E2D8] text-[#6B6B6B] hover:text-[#DC2626] text-[10px] leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  aria-label="Quitar imagen"
+                >
+                  ×
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {pendingFiles.length > 0 && (
+        <p className="text-[10px] text-[#ABABAB] text-center">Tocá para marcar como portada</p>
+      )}
+    </>
   );
 }
 
