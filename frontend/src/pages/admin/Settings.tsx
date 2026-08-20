@@ -1,6 +1,13 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import toast from "react-hot-toast";
 import { AdminLayout } from "../../components/admin/AdminLayout";
-import { HeroCarouselSettings } from "./settings/HeroCarouselSettings";
+import { HeroCarouselSettings, emptySlide } from "./settings/HeroCarouselSettings";
+import { contentService } from "../../services/content.service";
+import { categoryService } from "../../services/category.service";
+import { productService } from "../../services/product.service";
+import type { HeroSlide } from "../../types/content";
+import type { Category } from "../../types/category";
+import type { ProductSummary } from "../../types/product";
 
 /* ─── Secciones de configuración ────────────────────────────────
  * Botonera extensible: para sumar una nueva sección alcanza con
@@ -14,8 +21,89 @@ const SECTIONS: { id: SectionId; label: string }[] = [
 export function Settings() {
   const [section, setSection] = useState<SectionId>("hero");
 
+  // Estado del carrusel hero. Vive acá (no en HeroCarouselSettings) para que
+  // el botón "Guardar cambios" pueda salir tanto en la barra de acciones
+  // desktop como en la barra sticky mobile de abajo, que se renderiza por
+  // fuera (antes) del contenido con padding — el mismo patrón universal de
+  // "barra de acción mobile sticky" que usan el resto de las páginas admin.
+  const [slides, setSlides] = useState<HeroSlide[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [products, setProducts] = useState<ProductSummary[]>([]);
+
+  useEffect(() => {
+    contentService
+      .getHero()
+      .then((data) => setSlides(data.slides))
+      .catch(() => toast.error("No se pudo cargar el carrusel"))
+      .finally(() => setLoading(false));
+    categoryService.list({ page_size: 100, sort: "name_asc" }).then((r) => setCategories(r.items)).catch(() => {});
+    productService.list({ page_size: 100 }).then((r) => setProducts(r.items)).catch(() => {});
+  }, []);
+
+  function patchSlide(index: number, patch: Partial<HeroSlide>) {
+    setSlides((prev) => prev.map((s, i) => (i === index ? { ...s, ...patch } : s)));
+  }
+
+  function addSlide() {
+    setSlides((prev) => [...prev, emptySlide()]);
+  }
+
+  function removeSlide(index: number) {
+    setSlides((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function moveSlide(index: number, dir: -1 | 1) {
+    setSlides((prev) => {
+      const target = index + dir;
+      if (target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  }
+
+  async function handleSave() {
+    const missing = slides.find((s) => !s.image_desktop);
+    if (missing) {
+      toast.error("Todos los slides necesitan una imagen de escritorio");
+      return;
+    }
+    setSaving(true);
+    try {
+      const data = await contentService.updateHero(slides);
+      setSlides(data.slides);
+      toast.success("Carrusel actualizado");
+    } catch {
+      toast.error("No se pudieron guardar los cambios");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <AdminLayout>
+      {/* Barra de acción mobile sticky — patrón universal en páginas admin:
+          fija justo debajo del topbar, por fuera del padding de la página. */}
+      {section === "hero" && (
+        <div className="sm:hidden sticky top-0 z-10 bg-white border-b border-[#E8E2D8] px-4 py-3 flex items-center gap-3">
+          <button
+            onClick={addSlide}
+            className="px-4 py-2 border border-[#E8E2D8] text-sm text-[#4A4A4A] bg-white hover:bg-[#F9F8F5] transition-colors rounded-lg shrink-0"
+          >
+            + Slide
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex-1 bg-[#1A2B1C] text-white text-xs font-semibold uppercase tracking-widest px-5 py-2.5 rounded-lg hover:bg-[#253824] transition-colors disabled:opacity-50"
+          >
+            {saving ? "Guardando…" : "Guardar cambios"}
+          </button>
+        </div>
+      )}
+
       <div className="px-4 sm:px-8 py-6 min-h-full">
         {/* Header */}
         <div className="mb-6">
@@ -45,7 +133,20 @@ export function Settings() {
         </div>
 
         {/* Contenido de la sección activa */}
-        {section === "hero" && <HeroCarouselSettings />}
+        {section === "hero" && (
+          <HeroCarouselSettings
+            slides={slides}
+            loading={loading}
+            saving={saving}
+            categories={categories}
+            products={products}
+            onAddSlide={addSlide}
+            onSave={handleSave}
+            onPatchSlide={patchSlide}
+            onRemoveSlide={removeSlide}
+            onMoveSlide={moveSlide}
+          />
+        )}
       </div>
     </AdminLayout>
   );

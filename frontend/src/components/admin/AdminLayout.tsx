@@ -215,6 +215,14 @@ export function AdminLayout({ children }: { children: ReactNode }) {
                     <p className="text-xs font-semibold text-[#1A1A1A] truncate">{displayName}</p>
                     <p className="text-[10px] text-[#8A8A8A] truncate">{user?.email}</p>
                   </div>
+                  <Link
+                    to="/"
+                    onClick={() => setUserMenuOpen(false)}
+                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-[#1A1A1A] hover:bg-[#F5F5F3] transition-colors border-b border-[#F0EDE8]"
+                  >
+                    <StoreIcon />
+                    Ir a la tienda
+                  </Link>
                   <button
                     onClick={handleLogout}
                     className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-[#DC2626] hover:bg-[#FEF2F2] transition-colors"
@@ -340,6 +348,17 @@ function CloseIcon() {
     </svg>
   );
 }
+function StoreIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M3 9l1-6h16l1 6" />
+      <path d="M3 9a2 2 0 0 0 4 0 2 2 0 0 0 4 0 2 2 0 0 0 4 0 2 2 0 0 0 4 0" />
+      <path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9" />
+      <path d="M9 21v-6h6v6" />
+    </svg>
+  );
+}
+
 function LogoutIcon() {
   return (
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">

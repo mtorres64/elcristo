@@ -1,8 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { contentService } from "../../../services/content.service";
-import { categoryService } from "../../../services/category.service";
-import { productService } from "../../../services/product.service";
 import type { HeroLayout, HeroSlide, HeroTextPosition } from "../../../types/content";
 import type { Category } from "../../../types/category";
 import type { ProductSummary } from "../../../types/product";
@@ -25,7 +23,7 @@ function imgSrc(url: string) {
   return url.startsWith("/uploads") ? `${API_BASE}${url}` : url;
 }
 
-function emptySlide(): HeroSlide {
+export function emptySlide(): HeroSlide {
   return {
     id: crypto.randomUUID(),
     image_desktop: "",
@@ -53,65 +51,32 @@ const POSITIONS: { id: HeroTextPosition; label: string }[] = [
   { id: "right", label: "Derecha" },
 ];
 
-export function HeroCarouselSettings() {
-  const [slides, setSlides] = useState<HeroSlide[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  // Se cargan acá (una sola vez) y se pasan a cada slide, en vez de que
-  // cada LinkPicker pida lo mismo por separado.
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [products, setProducts] = useState<ProductSummary[]>([]);
-
-  useEffect(() => {
-    contentService
-      .getHero()
-      .then((data) => setSlides(data.slides))
-      .catch(() => toast.error("No se pudo cargar el carrusel"))
-      .finally(() => setLoading(false));
-    categoryService.list({ page_size: 100, sort: "name_asc" }).then((r) => setCategories(r.items)).catch(() => {});
-    productService.list({ page_size: 100 }).then((r) => setProducts(r.items)).catch(() => {});
-  }, []);
-
-  function patchSlide(index: number, patch: Partial<HeroSlide>) {
-    setSlides((prev) => prev.map((s, i) => (i === index ? { ...s, ...patch } : s)));
-  }
-
-  function addSlide() {
-    setSlides((prev) => [...prev, emptySlide()]);
-  }
-
-  function removeSlide(index: number) {
-    setSlides((prev) => prev.filter((_, i) => i !== index));
-  }
-
-  function moveSlide(index: number, dir: -1 | 1) {
-    setSlides((prev) => {
-      const target = index + dir;
-      if (target < 0 || target >= prev.length) return prev;
-      const next = [...prev];
-      [next[index], next[target]] = [next[target], next[index]];
-      return next;
-    });
-  }
-
-  async function handleSave() {
-    const missing = slides.find((s) => !s.image_desktop);
-    if (missing) {
-      toast.error("Todos los slides necesitan una imagen de escritorio");
-      return;
-    }
-    setSaving(true);
-    try {
-      const data = await contentService.updateHero(slides);
-      setSlides(data.slides);
-      toast.success("Carrusel actualizado");
-    } catch {
-      toast.error("No se pudieron guardar los cambios");
-    } finally {
-      setSaving(false);
-    }
-  }
-
+/** Estado del carrusel + sus handlers viven en `Settings.tsx` (el padre), no acá:
+ * así el botón "Guardar cambios" puede salir en la barra sticky mobile que se
+ * renderiza por fuera de esta sección — ver el comentario en Settings.tsx. */
+export function HeroCarouselSettings({
+  slides,
+  loading,
+  saving,
+  categories,
+  products,
+  onAddSlide,
+  onSave,
+  onPatchSlide,
+  onRemoveSlide,
+  onMoveSlide,
+}: {
+  slides: HeroSlide[];
+  loading: boolean;
+  saving: boolean;
+  categories: Category[];
+  products: ProductSummary[];
+  onAddSlide: () => void;
+  onSave: () => void;
+  onPatchSlide: (index: number, patch: Partial<HeroSlide>) => void;
+  onRemoveSlide: (index: number) => void;
+  onMoveSlide: (index: number, dir: -1 | 1) => void;
+}) {
   if (loading) {
     return (
       <div className="bg-white border border-[#E8E2D8] rounded-lg p-12 text-center">
@@ -122,8 +87,8 @@ export function HeroCarouselSettings() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Barra de acciones */}
-      <div className="flex items-center justify-between bg-white border border-[#E8E2D8] rounded-lg px-5 py-4">
+      {/* Barra de acciones — en mobile las mismas acciones viven en la sticky bar de Settings.tsx */}
+      <div className="hidden sm:flex items-center justify-between bg-white border border-[#E8E2D8] rounded-lg px-5 py-4">
         <div>
           <p className="text-sm font-semibold text-[#1A1A1A]">Slides del hero</p>
           <p className="text-xs text-[#8A8A8A] mt-0.5">
@@ -132,13 +97,13 @@ export function HeroCarouselSettings() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={addSlide}
+            onClick={onAddSlide}
             className="px-4 py-2 border border-[#C8C0B4] rounded-lg text-sm text-[#1A2B1C] font-medium bg-white hover:bg-[#F5F5F3] transition-colors"
           >
             + Agregar slide
           </button>
           <button
-            onClick={handleSave}
+            onClick={onSave}
             disabled={saving}
             className="bg-[#1A2B1C] text-white text-xs font-semibold uppercase tracking-widest px-5 py-2.5 rounded-lg hover:bg-[#253824] transition-colors disabled:opacity-50"
           >
@@ -151,7 +116,7 @@ export function HeroCarouselSettings() {
         <div className="bg-white border border-dashed border-[#D0C8C0] rounded-lg p-12 text-center">
           <p className="text-sm text-[#6B6B6B] mb-4">Todavía no hay slides configurados.</p>
           <button
-            onClick={addSlide}
+            onClick={onAddSlide}
             className="bg-[#1A2B1C] text-white text-xs font-semibold uppercase tracking-widest px-5 py-2.5 rounded-lg hover:bg-[#253824] transition-colors"
           >
             Agregar el primer slide
@@ -167,9 +132,9 @@ export function HeroCarouselSettings() {
           total={slides.length}
           categories={categories}
           products={products}
-          onChange={(patch) => patchSlide(index, patch)}
-          onRemove={() => removeSlide(index)}
-          onMove={(dir) => moveSlide(index, dir)}
+          onChange={(patch) => onPatchSlide(index, patch)}
+          onRemove={() => onRemoveSlide(index)}
+          onMove={(dir) => onMoveSlide(index, dir)}
         />
       ))}
     </div>
@@ -205,6 +170,12 @@ function SlideCard({
       toast.error(`No se pudo subir ${file.name}`);
     }
   }
+
+  // Igual que en el sitio (HeroSection.tsx): "Imagen completa" sin texto no
+  // lleva velo ni panel — se renderiza como imagen limpia (FullBleedSlide).
+  // Si mostráramos el velo/panel igual acá, el preview mentiría para fotos
+  // que ya traen todo el diseño resuelto (texto y CTA incluidos).
+  const hasText = slide.html.trim().length > 0;
 
   return (
     <div className="bg-white border border-[#E8E2D8] rounded-lg p-5">
@@ -247,16 +218,22 @@ function SlideCard({
       <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-6">
         {/* Columna izquierda: imágenes + link + alt */}
         <div className="flex flex-col gap-4">
-          <div className="grid grid-cols-2 gap-3">
+          {/* Escritorio (16:9, ancho completo) y mobile (9:16, angosta) no son la
+              misma forma — el hero en el celular ocupa toda la pantalla en vertical,
+              así que el recorte de esa imagen es completamente distinto al de desktop. */}
+          <div className="grid grid-cols-[1fr_auto] gap-3 items-start">
             <ImageDropzone
               label="Imagen de escritorio"
               required
+              aspect="aspect-video"
               value={slide.image_desktop || null}
               onFile={(f) => uploadTo("image_desktop", f)}
               onClear={() => onChange({ image_desktop: "" })}
             />
             <ImageDropzone
-              label="Imagen mobile (opcional)"
+              label="Mobile (opcional)"
+              aspect="aspect-[9/16]"
+              className="w-28"
               value={slide.image_mobile}
               onFile={(f) => uploadTo("image_mobile", f)}
               onClear={() => onChange({ image_mobile: null })}
@@ -356,32 +333,58 @@ function SlideCard({
         {/* Columna derecha: contenido del slide (editor visual, sin HTML a mano) */}
         <div className="flex flex-col gap-2">
           <FormField label="Contenido del slide">
-            <div
-              className="relative border border-[#E8E2D8] rounded-lg overflow-hidden bg-cover bg-center"
-              style={
-                slide.image_desktop
-                  ? { backgroundImage: `url(${imgSrc(slide.image_desktop)})` }
-                  : undefined
-              }
-            >
-              {/* Sin imagen todavía: fondo a cuadros para no confundirlo con negro/blanco real */}
-              {!slide.image_desktop && (
-                <div className="absolute inset-0 bg-[repeating-conic-gradient(#EFEFEF_0%_25%,transparent_0%_50%)] bg-[length:16px_16px]" />
-              )}
-              {/* Igual que en el sitio: la imagen completa lleva un velo oscuro debajo del panel */}
-              {slide.layout === "full" && <div className="absolute inset-0 bg-black/35" />}
-              {/* El color/opacidad elegidos, con el mismo desenfoque (backdrop-blur) que usa el panel en el sitio */}
-              <div
-                className="relative backdrop-blur-sm"
-                style={{ backgroundColor: hexToRgba(slide.bg_color, slide.bg_opacity) }}
-              >
-                <HtmlEditor
-                  value={slide.html}
-                  onChange={(html) => onChange({ html })}
-                  align={slide.layout === "full" ? slide.text_position : "left"}
-                />
+            {slide.layout === "full" && slide.image_desktop ? (
+              // "Imagen completa": mostramos la foto real a su ancho 100%, tal
+              // como se ve en el sitio (sin recortarla a un aspect-ratio fijo
+              // inventado) — el panel de texto se superpone encima, absoluto,
+              // ocupando exactamente el alto que termina teniendo la imagen.
+              <div className="relative border border-[#E8E2D8] rounded-lg overflow-hidden">
+                <img src={imgSrc(slide.image_desktop)} alt="" className="block w-full h-auto" />
+                {/* Velo oscuro sobre toda la foto — solo si hay texto, igual que en el sitio */}
+                {hasText && <div className="absolute inset-0 bg-black/35" />}
+                {/* El panel de texto va arriba, de borde a borde en ancho, con su
+                    propio alto (según el contenido) — el resto de la imagen abajo
+                    queda visible sin recortar. Sin texto todavía: ni velo ni fondo
+                    de color, solo el editor (transparente) para poder empezar a
+                    escribir — así una foto que ya trae todo resuelto se ve limpia. */}
+                <div
+                  className={`absolute inset-x-0 top-0 ${hasText ? "backdrop-blur-sm" : ""}`}
+                  style={hasText ? { backgroundColor: hexToRgba(slide.bg_color, slide.bg_opacity) } : undefined}
+                >
+                  <HtmlEditor
+                    value={slide.html}
+                    onChange={(html) => onChange({ html })}
+                    align={slide.text_position}
+                  />
+                </div>
               </div>
-            </div>
+            ) : (
+              <div
+                className="relative border border-[#E8E2D8] rounded-lg overflow-hidden bg-cover bg-center"
+                style={
+                  slide.image_desktop
+                    ? { backgroundImage: `url(${imgSrc(slide.image_desktop)})` }
+                    : undefined
+                }
+              >
+                {/* Sin imagen todavía: fondo a cuadros para no confundirlo con negro/blanco real */}
+                {!slide.image_desktop && (
+                  <div className="absolute inset-0 bg-[repeating-conic-gradient(#EFEFEF_0%_25%,transparent_0%_50%)] bg-[length:16px_16px]" />
+                )}
+                {/* "Mitad y mitad": la imagen y el texto van lado a lado en el sitio,
+                    no superpuestos, así que acá el panel queda content-driven. */}
+                <div
+                  className="relative backdrop-blur-sm"
+                  style={{ backgroundColor: hexToRgba(slide.bg_color, slide.bg_opacity) }}
+                >
+                  <HtmlEditor
+                    value={slide.html}
+                    onChange={(html) => onChange({ html })}
+                    align="left"
+                  />
+                </div>
+              </div>
+            )}
           </FormField>
           <p className="text-[10px] text-[#ABABAB] leading-relaxed">
             Así se ve tal cual sobre la imagen del slide. Dejalo vacío para un slide sin texto.
@@ -546,12 +549,18 @@ function ImageDropzone({
   value,
   onFile,
   onClear,
+  aspect = "aspect-video",
+  className = "w-full",
 }: {
   label: string;
   required?: boolean;
   value: string | null;
   onFile: (file: File) => void;
   onClear: () => void;
+  /** Clase Tailwind de aspect-ratio del recorte — 16:9 en desktop, 9:16 en mobile. */
+  aspect?: string;
+  /** Ancho del contenedor — angosto para el dropzone mobile (vertical). */
+  className?: string;
 }) {
   const [uploading, setUploading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -568,7 +577,7 @@ function ImageDropzone({
   }
 
   return (
-    <div>
+    <div className={className}>
       <label className={`${LABEL} block mb-1.5`}>
         {label}
         {required && <span className="text-[#DC2626] ml-0.5">*</span>}
@@ -581,7 +590,7 @@ function ImageDropzone({
         onChange={(e) => e.target.files && handle(e.target.files)}
       />
       <div
-        className="relative w-full aspect-video border-2 border-dashed border-[#D0C8C0] rounded-lg overflow-hidden cursor-pointer hover:border-[#1A2B1C] transition-colors group bg-[#F9F8F5]"
+        className={`relative w-full ${aspect} border-2 border-dashed border-[#D0C8C0] rounded-lg overflow-hidden cursor-pointer hover:border-[#1A2B1C] transition-colors group bg-[#F9F8F5]`}
         onClick={() => inputRef.current?.click()}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => { e.preventDefault(); handle(e.dataTransfer.files); }}

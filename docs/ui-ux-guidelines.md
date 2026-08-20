@@ -391,10 +391,19 @@ Las siguientes secciones están implementadas en `src/components/home/` y deben 
 - Hamburger visible en mobile
 
 ### Hero
-- Layout: `42% texto | 58% imagen` en desktop, full-width imagen en mobile
-- Fondo izquierdo: cream (solo desktop, `hidden lg:block`)
-- **Mobile**: imagen cubre todo el ancho, bloque de texto encima con `bg-cream/80 backdrop-blur-sm` (semitransparente). El bloque de texto va de borde a borde (`px-0 lg:px-6` en el contenedor outer, `px-6 lg:px-0` en el bloque).
-- Imagen derecha: placeholder verde-grisáceo, con card flotante bottom-right (solo desktop `hidden lg:block`)
+Carrusel CMS-driven (`HeroSection.tsx`), slides configurables desde `/seller/settings` → cada slide define
+`layout` (`split` | `overlay` | sin texto = full-bleed), `text_position`/`align`, `bg_color` + `bg_opacity`
+(color y opacidad del panel de texto), e imagen desktop/mobile independientes. `min-h-[630px]` fijo en el
+slide contenedor; dots de navegación abajo-centro si hay más de un slide activo.
+
+- **`SplitSlide`** (`layout: "split"`): desktop `42% texto | 58% imagen` (panel a la izquierda o derecha
+  según `text_position`); mobile imagen full-width con el panel de texto **encima, borde a borde** (100%
+  ancho y alto del slide, sin `rounded`, `backdrop-blur-sm`, fondo = `bg_color`/`bg_opacity` del slide).
+- **`OverlaySlide`** (`layout` no split, con texto): imagen de fondo + scrim `bg-black/35` + panel de texto.
+  **Mobile**: el panel es full-bleed — **100% ancho y alto del slide**, sin esquinas redondeadas, alineación
+  del contenido (izq/centro/der) vía `justify-*` interno. **Desktop (`lg:`)**: vuelve a ser una card chica
+  (`rounded-lg p-8`) flotante, posicionada según `align` dentro de `max-w-screen-xl`.
+- **`FullBleedSlide`**: sin texto, solo imagen `object-cover` a pantalla completa.
 - Trust badges: strip blanco debajo del hero con 4 items + divisores
 
 ### Categorías

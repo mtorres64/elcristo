@@ -176,18 +176,22 @@ function SplitSlide({ slide, side }: { slide: HeroSlide; side: "left" | "right" 
 }
 
 function OverlaySlide({ slide, align }: { slide: HeroSlide; align: "left" | "center" | "right" }) {
-  const justify = align === "left" ? "justify-start" : align === "right" ? "justify-end" : "justify-center";
+  const justify = align === "left" ? "lg:justify-start" : align === "right" ? "lg:justify-end" : "lg:justify-center";
+  const contentAlign = align === "center" ? "justify-center text-center" : align === "right" ? "justify-end" : "justify-start";
   const panelBg = hexToRgba(slide.bg_color, slide.bg_opacity);
   return (
     <div className="absolute inset-0">
       <SlideImage slide={slide} />
       <div className="absolute inset-0 bg-black/35" />
-      <div className={`relative z-10 h-full flex items-center ${justify} max-w-screen-xl mx-auto px-6`}>
+      {/* Mobile: el panel de texto ocupa el 100% del ancho/alto del slide (borde a borde).
+          Desktop (lg:): vuelve a ser una card flotante, chica y posicionada según `align`. */}
+      <div className={`relative z-10 h-full flex items-center justify-center lg:max-w-screen-xl lg:mx-auto lg:px-6 ${justify}`}>
         <div
-          className={`hero-copy rounded-lg p-8 backdrop-blur-sm ${align === "center" ? "text-center" : ""}`}
+          className={`w-full h-full lg:w-fit lg:h-auto flex items-center rounded-none lg:rounded-lg p-8 backdrop-blur-sm ${contentAlign}`}
           style={{ backgroundColor: panelBg }}
-          dangerouslySetInnerHTML={{ __html: slide.html }}
-        />
+        >
+          <div className="hero-copy" dangerouslySetInnerHTML={{ __html: slide.html }} />
+        </div>
       </div>
     </div>
   );

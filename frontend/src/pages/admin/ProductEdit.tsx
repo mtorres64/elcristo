@@ -433,12 +433,12 @@ export function ProductEdit() {
             {/* Card with tabs */}
             <div className="bg-white border-y sm:border border-[#E8E2D8] rounded-none sm:rounded-lg overflow-hidden -mx-4 sm:mx-0">
               {/* Tabs */}
-              <div className="flex border-b border-[#E8E2D8] px-6">
+              <div className="flex overflow-x-auto border-b border-[#E8E2D8] px-6">
                 {TABS.map((t) => (
                   <button
                     key={t.id}
                     onClick={() => setTab(t.id)}
-                    className={`py-4 pr-6 text-sm transition-colors border-b-2 -mb-px rounded-none ${
+                    className={`py-4 pr-6 text-sm whitespace-nowrap shrink-0 transition-colors border-b-2 -mb-px rounded-none ${
                       t.id === "imagenes" || t.id === "seo" ? "lg:hidden" : ""
                     } ${
                       tab === t.id
