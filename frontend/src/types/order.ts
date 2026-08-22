@@ -44,6 +44,8 @@ export interface OrderPayment {
   provider: string;
   brand: string | null;
   last4: string | null;
+  payment_id: string | null;
+  authorization_code: string | null;
   status: string;
   paid_at: string | null;
 }

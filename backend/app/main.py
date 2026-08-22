@@ -12,9 +12,10 @@ from app.middleware.tenant import TenantMiddleware
 from app.routers import (
     addresses,
     auth,
-    categories,
     cart,
+    categories,
     content,
+    integrations,
     orders,
     payment_methods,
     products,
@@ -61,6 +62,7 @@ app.include_router(payment_methods.router, prefix="/payment-methods", tags=["pay
 app.include_router(search.router, prefix="/search", tags=["search"])
 app.include_router(users.router, prefix="/users", tags=["users"])
 app.include_router(content.router, prefix="/content", tags=["content"])
+app.include_router(integrations.router, prefix="/integrations", tags=["integrations"])
 
 _uploads_dir = Path("./uploads")
 _uploads_dir.mkdir(exist_ok=True)

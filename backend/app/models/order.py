@@ -37,12 +37,14 @@ class OrderAddress(BaseModel):
 
 
 class OrderPayment(BaseModel):
-    provider: Literal["mock", "mercadopago"] = "mock"
+    provider: Literal["mock", "mercadopago", "getnet"] = "mock"
     payment_method_id: str | None = None
     brand: str | None = None
     last4: str | None = None
     payment_id: str | None = None
     preference_id: str | None = None
+    authorization_code: str | None = None                         # Getnet: código de autorización
+    environment: Literal["sandbox", "production"] | None = None   # Getnet: ambiente en que se cobró
     status: Literal["pending", "approved", "rejected", "refunded"] = "pending"
     paid_at: datetime | None = None
 

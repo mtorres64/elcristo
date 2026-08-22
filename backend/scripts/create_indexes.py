@@ -75,6 +75,10 @@ async def create_indexes():
     await db.store_settings.create_index([("tenant_id", 1)], unique=True)
     print("✓ store_settings")
 
+    # tenant_integrations — config de pasarelas de pago por tenant (ej. Getnet)
+    await db.tenant_integrations.create_index([("tenant_id", 1), ("provider", 1)], unique=True)
+    print("✓ tenant_integrations")
+
     client.close()
     print("\n✅ Todos los índices creados correctamente")
 

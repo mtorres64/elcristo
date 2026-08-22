@@ -20,6 +20,7 @@ import { CategoryEdit } from "./pages/admin/CategoryEdit";
 import { ClientList } from "./pages/admin/ClientList";
 import { Dashboard } from "./pages/admin/Dashboard";
 import { Settings } from "./pages/admin/Settings";
+import { Integrations } from "./pages/admin/Integrations";
 import { Cart } from "./pages/Cart";
 import { OrderConfirmation } from "./pages/OrderConfirmation";
 import { OrderList } from "./pages/admin/OrderList";
@@ -69,6 +70,7 @@ export default function App() {
             <Route path="/seller/categories/new" element={<CategoryNew />} />
             <Route path="/seller/categories/:id/edit" element={<CategoryEdit />} />
             <Route path="/seller/settings" element={<Settings />} />
+            <Route path="/seller/integrations" element={<Integrations />} />
             <Route path="/diseno" element={<PlaceholderPage title="Diseño & Paisajismo" />} />
             <Route path="/inspiracion" element={<PlaceholderPage title="Inspiración" />} />
             <Route path="/nosotros" element={<PlaceholderPage title="Sobre Nosotros" />} />

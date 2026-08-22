@@ -28,6 +28,12 @@ class Settings(BaseSettings):
     # MercadoPago (Fase 2)
     mercadopago_access_token: str = ""
 
+    # Getnet — clave simétrica para cifrar/descifrar el client_secret guardado
+    # por tenant en `tenant_integrations` (Mongo). Las credenciales operativas
+    # (client_id, client_secret, seller_id, ambiente, on/off) NO viven acá:
+    # se configuran por tenant desde el panel Integraciones.
+    integrations_encryption_key: str = ""
+
     # Cloudinary — almacenamiento de imágenes en producción
     # (con ENVIRONMENT=development se ignora y se usa disco local)
     cloudinary_cloud_name: str = ""

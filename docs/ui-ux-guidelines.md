@@ -298,6 +298,30 @@ de los campos en filas `flex items-center justify-between text-xs` y, al final, 
 </div>
 ```
 
+**Tabs (navegación de sección dentro de una página):**
+
+Subrayado plano, **sin esquinas redondeadas** — como todo `<button>` recibe `border-radius: 8px` por la
+regla global de `index.css`, hay que pisarlo explícitamente con `rounded-none` o el tab activo se ve con
+las puntas de arriba redondeadas. Implementado en `ProductEdit.tsx`/`ProductNew.tsx` (tabs de secciones del
+formulario) e `Integrations.tsx` (tabs de ambiente sandbox/producción):
+```tsx
+<div className="flex overflow-x-auto border-b border-[#E8E2D8]">
+  {TABS.map((t) => (
+    <button
+      key={t.id}
+      onClick={() => setTab(t.id)}
+      className={`py-4 px-3 text-sm whitespace-nowrap shrink-0 transition-colors border-b-2 -mb-px rounded-none ${
+        tab === t.id
+          ? "text-[#1A1A1A] font-semibold border-[#1A2B1C]"
+          : "text-[#8A8A8A] border-transparent hover:text-[#4A4A4A]"
+      }`}
+    >
+      {t.label}
+    </button>
+  ))}
+</div>
+```
+
 **Badges de estado:**
 ```tsx
 // Siempre rounded-full

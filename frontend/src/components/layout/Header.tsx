@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useCart } from "../../hooks/useCart";
 import { useAuth } from "../../hooks/useAuth";
+import { useCategories } from "../../hooks/useCategories";
 
 export function Header() {
   const { itemCount } = useCart();
@@ -12,6 +13,7 @@ export function Header() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
@@ -65,7 +67,7 @@ export function Header() {
 
         {/* Nav desktop */}
         <nav className="hidden lg:flex items-center gap-7">
-          <NavLink to="/products" hasArrow>Plantas</NavLink>
+          <PlantsMenu />
           <NavLink to="/diseno">Diseño & Paisajismo</NavLink>
           <NavLink to="/macetas">Macetas & Accesorios</NavLink>
           <NavLink to="/inspiracion">Inspiración</NavLink>
@@ -94,10 +96,12 @@ export function Header() {
                 className="flex items-center gap-2 text-[#1A2B1C] hover:text-forest-accent transition-colors"
                 aria-label="Mi cuenta"
               >
-                {user.avatar_url ? (
+                {user.avatar_url && !avatarError ? (
                   <img
                     src={user.avatar_url}
                     alt={user.name}
+                    referrerPolicy="no-referrer"
+                    onError={() => setAvatarError(true)}
                     className="w-7 h-7 rounded-full object-cover shrink-0"
                   />
                 ) : (
@@ -268,18 +272,60 @@ export function Header() {
   );
 }
 
-function NavLink({ to, children, hasArrow }: { to: string; children: React.ReactNode; hasArrow?: boolean }) {
+/** "Plantas" del nav desktop: despliega un submenú con todas las categorías
+ * activas al pasar el mouse. Sin gap entre el link y el panel (top-full, sin
+ * margin) para que el hover no se pierda al bajar el cursor del texto al
+ * panel — con margin quedaría una franja "muerta" que corta el :hover. */
+function PlantsMenu() {
+  const { categories } = useCategories(20);
+
+  return (
+    <div className="relative group">
+      <Link
+        to="/products"
+        className="text-[11px] uppercase tracking-widest text-[#1A1A1A] font-medium hover:text-forest-accent transition-colors flex items-center gap-1"
+      >
+        Plantas
+        <svg
+          width="10" height="10" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" strokeWidth="2.5"
+          className="transition-transform group-hover:rotate-180"
+        >
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </Link>
+
+      <div className="hidden group-hover:block absolute left-0 top-full pt-3 z-50">
+        <div className="w-56 bg-white border border-[#E8E2D8] shadow-lg py-1.5">
+          <Link
+            to="/products"
+            className="block px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[#1A2B1C] hover:bg-[#F5F5F3] transition-colors"
+          >
+            Todas
+          </Link>
+          {categories.length > 0 && <div className="border-t border-[#F0EDE8] my-1" />}
+          {categories.map((cat) => (
+            <Link
+              key={cat.category_id}
+              to={`/products?category=${cat.slug}`}
+              className="block px-4 py-2 text-xs text-[#4A4A4A] hover:bg-[#F5F5F3] hover:text-forest-accent transition-colors"
+            >
+              {cat.name}
+            </Link>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function NavLink({ to, children }: { to: string; children: React.ReactNode }) {
   return (
     <Link
       to={to}
       className="text-[11px] uppercase tracking-widest text-[#1A1A1A] font-medium hover:text-forest-accent transition-colors flex items-center gap-1"
     >
       {children}
-      {hasArrow && (
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-          <path d="M6 9l6 6 6-6" />
-        </svg>
-      )}
     </Link>
   );
 }

@@ -55,7 +55,9 @@ export function OrderConfirmation() {
             {ORDER_STATUS_LABEL[order.status]}
           </p>
           <p className="text-xs text-[#8A8A8A] mt-2 max-w-sm mx-auto">
-            Todavía no procesamos ningún cobro real: en breve nos contactamos para confirmar el pago de tu pedido.
+            {order.payment.provider === "getnet"
+              ? "Tu pago fue confirmado con Getnet."
+              : "Todavía no procesamos ningún cobro real: en breve nos contactamos para confirmar el pago de tu pedido."}
           </p>
         </div>
 

@@ -16,4 +16,7 @@ export interface PaymentCardInput {
   exp_month: number;
   exp_year: number;
   is_default?: boolean;
+  // Sólo lo llena GetnetPaymentForm — el flujo mock (PaymentMethodForm) nunca
+  // lo pide ni lo manda. Se usa una vez para cobrar con Getnet y se descarta.
+  security_code?: string;
 }

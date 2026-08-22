@@ -7,14 +7,17 @@ import { AddressCard } from "../components/checkout/AddressCard";
 import { AddressForm } from "../components/checkout/AddressForm";
 import { PaymentMethodCard } from "../components/checkout/PaymentMethodCard";
 import { PaymentMethodForm } from "../components/checkout/PaymentMethodForm";
+import { GetnetPaymentForm } from "../components/checkout/GetnetPaymentForm";
 import { OrderSummary } from "../components/checkout/OrderSummary";
 import { useCart } from "../hooks/useCart";
 import { useAuth } from "../hooks/useAuth";
 import { addressService } from "../services/address.service";
 import { paymentService } from "../services/payment.service";
 import { orderService } from "../services/order.service";
+import { integrationsService } from "../services/integrations.service";
 import type { Address, AddressInput } from "../types/address";
 import type { PaymentCardInput, PaymentMethod } from "../types/payment";
+import type { GetnetPublicConfig } from "../types/integration";
 import { formatARS } from "../utils/currency";
 
 type Step = "cart" | "address" | "payment" | "review";
@@ -44,6 +47,15 @@ export function Cart() {
   const [pendingCard, setPendingCard] = useState<PaymentCardInput | null>(null);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
 
+  // Si la tienda tiene Getnet activo, el checkout usa GetnetPaymentForm (pide
+  // CVV, cobra de verdad) en vez del formulario mock / tarjetas guardadas
+  // mock — coherente con el guardrail del backend, que rechaza
+  // payment_method_id cuando el tenant cobra con Getnet. La tarjeta cargada
+  // se guarda en el mismo `pendingCard` que ya usaba el flujo mock "no
+  // guardada": misma forma de dato (PaymentCardInput), sólo que acá viene
+  // con `security_code` seteado.
+  const [getnetConfig, setGetnetConfig] = useState<GetnetPublicConfig | null>(null);
+
   const [notes, setNotes] = useState("");
   const [placingOrder, setPlacingOrder] = useState(false);
 
@@ -64,6 +76,14 @@ export function Cart() {
 
   useEffect(() => {
     if (step !== "payment" || !isAuthenticated) return;
+    integrationsService
+      .getGetnetPublicConfig()
+      .then(setGetnetConfig)
+      .catch(() => setGetnetConfig({ enabled: false, environment: "sandbox", seller_id: null }));
+  }, [step, isAuthenticated]);
+
+  useEffect(() => {
+    if (step !== "payment" || !isAuthenticated || getnetConfig?.enabled) return;
     setLoadingPayments(true);
     paymentService
       .list()
@@ -75,7 +95,7 @@ export function Cart() {
       })
       .catch(() => toast.error("No se pudieron cargar tus tarjetas"))
       .finally(() => setLoadingPayments(false));
-  }, [step, isAuthenticated]);
+  }, [step, isAuthenticated, getnetConfig?.enabled]);
 
   function goToAddress() {
     if (!isAuthenticated) {
@@ -245,7 +265,7 @@ export function Cart() {
               <div className="rounded-lg border border-[#E8E2D8] bg-white p-5">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-sm font-semibold text-[#1A1A1A]">Elegí un método de pago</h2>
-                  {!showPaymentForm && (
+                  {!getnetConfig?.enabled && !showPaymentForm && (
                     <button
                       onClick={() => setShowPaymentForm(true)}
                       className="text-xs font-semibold text-[#1A2B1C] hover:underline"
@@ -255,7 +275,29 @@ export function Cart() {
                   )}
                 </div>
 
-                {loadingPayments ? (
+                {getnetConfig?.enabled ? (
+                  pendingCard ? (
+                    <div className="flex items-center justify-between gap-3 rounded-lg border border-[#1A2B1C] bg-[#F4F8F4] p-4">
+                      <div className="flex items-center gap-3">
+                        <input type="radio" checked readOnly className="w-4 h-4 accent-[#1A2B1C] shrink-0" />
+                        <p className="text-sm text-[#1A1A1A]">
+                          Tarjeta terminada en {pendingCard.card_number.slice(-4)}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setPendingCard(null)}
+                        className="text-xs font-semibold text-[#1A2B1C] hover:underline shrink-0"
+                      >
+                        Cambiar
+                      </button>
+                    </div>
+                  ) : (
+                    <GetnetPaymentForm
+                      onCancel={() => {}}
+                      onSave={async (card) => setPendingCard(card)}
+                    />
+                  )
+                ) : loadingPayments ? (
                   <p className="text-sm text-[#8A8A8A] py-8 text-center">Cargando tarjetas...</p>
                 ) : showPaymentForm ? (
                   <PaymentMethodForm

@@ -18,6 +18,12 @@ class PaymentCardIn(BaseModel):
     holder_name: str
     exp_month: int
     exp_year: int
+    # Sólo se usa (y sólo se exige) cuando el tenant cobra con Getnet — ver
+    # `_charge_with_getnet` en orders.py. El flujo mock lo ignora: nunca lo
+    # pide, nunca lo persiste. Con Getnet tampoco se persiste en ningún lado
+    # (ni en `payment_methods` ni en la orden); viaja transitoriamente en
+    # este request y se reenvía tal cual al cobro con Getnet.
+    security_code: str | None = None
 
     @field_validator("card_number")
     @classmethod
@@ -41,7 +47,7 @@ class OrderCreate(BaseModel):
     def check_address_and_payment(self) -> "OrderCreate":
         if not self.address_id and not self.shipping_address:
             raise ValueError("Falta la dirección de envío")
-        if not self.payment_method_id and not self.payment_card:
+        if not (self.payment_method_id or self.payment_card):
             raise ValueError("Falta el método de pago")
         return self
 
@@ -70,6 +76,8 @@ class OrderPaymentOut(BaseModel):
     provider: str
     brand: str | None = None
     last4: str | None = None
+    payment_id: str | None = None
+    authorization_code: str | None = None
     status: str
     paid_at: datetime | None = None
 

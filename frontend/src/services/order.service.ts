@@ -28,6 +28,9 @@ interface CreateOrderData {
     holder_name: string;
     exp_month: number;
     exp_year: number;
+    // Sólo se manda con Getnet activo (GetnetPaymentForm) — el backend tokeniza
+    // y cobra server-to-server; el flujo mock nunca lo pide ni lo persiste.
+    security_code?: string;
   };
   save_card?: boolean;
   notes?: string | null;

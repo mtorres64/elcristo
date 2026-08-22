@@ -9,7 +9,10 @@ class PaymentMethodDocument(BaseModel):
 
     Nunca se persiste el número completo (PAN) ni el CVV: sólo los datos no
     sensibles necesarios para mostrarla en el checkout. Placeholder hasta
-    integrar un procesador real (Mercado Pago) que tokenice del lado suyo.
+    integrar un procesador real que tokenice del lado suyo.
+
+    `getnet_card_token` queda preparado para una fase futura de "recompra con
+    Getnet" (fuera de alcance por ahora): hoy nada lo escribe ni lo lee.
     """
 
     id: str | None = Field(None, alias="_id")
@@ -21,6 +24,7 @@ class PaymentMethodDocument(BaseModel):
     exp_month: int
     exp_year: int
     is_default: bool = False
+    getnet_card_token: str | None = None
     created_at: datetime
     updated_at: datetime
     deleted_at: datetime | None = None

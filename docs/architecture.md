@@ -64,6 +64,7 @@ Buyer/Seller browser
 | Integración | Propósito | Env var clave |
 |---|---|---|
 | MercadoPago | Pagos (Checkout Pro + webhooks) | `MERCADOPAGO_ACCESS_TOKEN` |
+| Getnet | Pagos con tarjeta (tokenización client-side + auth/captura inmediata) | `INTEGRATIONS_ENCRYPTION_KEY` (credenciales por tenant en Mongo, panel Integraciones) |
 | S3 / MinIO | Almacenamiento de imágenes en producción | `S3_BUCKET`, `S3_ENDPOINT`, `S3_KEY`, `S3_SECRET` |
 | SMTP | Emails transaccionales | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` |
 
@@ -81,6 +82,7 @@ Buyer/Seller browser
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | Expiración del access token | `30` |
 | `REFRESH_TOKEN_EXPIRE_DAYS` | Expiración del refresh token | `7` |
 | `MERCADOPAGO_ACCESS_TOKEN` | Token de MercadoPago | `APP_USR-...` |
+| `INTEGRATIONS_ENCRYPTION_KEY` | Clave Fernet para cifrar `client_secret` de integraciones (ej. Getnet) en Mongo | `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
 | `UPLOAD_DIR` | Directorio local para imágenes (dev) | `./uploads` |
 | `S3_BUCKET` | Bucket S3 (producción) | `tienda-images` |
 | `S3_ENDPOINT` | Endpoint S3-compatible | `https://s3.amazonaws.com` |

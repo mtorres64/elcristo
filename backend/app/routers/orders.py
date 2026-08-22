@@ -6,9 +6,18 @@ from fastapi import APIRouter, HTTPException, Query, Request
 
 from app.database import get_db
 from app.schemas.common import PaginatedResponse
-from app.schemas.order import OrderCreate, OrderCreateResponse, OrderDetail, OrderStatusUpdate, OrderSummary
+from app.schemas.order import (
+    OrderCreate,
+    OrderCreateResponse,
+    OrderDetail,
+    OrderStatusUpdate,
+    OrderSummary,
+    PaymentCardIn,
+)
+from app.utils import getnet_client
 from app.utils.auth_deps import require_user
 from app.utils.card import detect_brand, luhn_is_valid
+from app.utils.crypto import CryptoConfigError, decrypt_secret
 
 router = APIRouter()
 
@@ -102,7 +111,121 @@ async def _resolve_address(db, user_id: str, body: OrderCreate) -> dict:
     return doc
 
 
-async def _resolve_payment(db, user_id: str, body: OrderCreate) -> dict:
+async def _mark_stock_decremented(db, doc: dict) -> dict:
+    """Descuenta el stock de cada item del pedido `doc` y devuelve el dict de
+    updates a mergear (o {} si ya se había descontado antes). Idempotente vía
+    `stock_decremented` — usado tanto acá (pago síncrono aprobado) como en
+    `update_order_status` (seller marca "paid" a mano) y en el webhook de
+    Getnet (refuerzo eventual), para no descontar dos veces el mismo pedido
+    sin importar por cuál de los tres caminos llegó a "paid"."""
+    if doc.get("stock_decremented", False):
+        return {}
+    for item in doc["items"]:
+        await db.products.update_one(
+            {"_id": ObjectId(item["product_id"])}, {"$inc": {"stock": -item["quantity"]}}
+        )
+    return {"stock_decremented": True}
+
+
+async def _get_active_getnet_integration(db, tenant_id: str) -> getnet_client.GetnetConfig | None:
+    doc = await db.tenant_integrations.find_one(
+        {"tenant_id": tenant_id, "provider": "getnet", "enabled": True, "deleted_at": None}
+    )
+    if not doc:
+        return None
+    active_env = doc.get("active_environment", "sandbox")
+    env_doc = doc.get(active_env) or {}
+    if not env_doc.get("client_secret_encrypted"):
+        return None
+    try:
+        client_secret = decrypt_secret(env_doc["client_secret_encrypted"])
+    except CryptoConfigError as exc:
+        raise HTTPException(500, "La configuración de la pasarela de pago es inválida") from exc
+    return getnet_client.GetnetConfig(
+        environment=active_env,
+        seller_id=env_doc["seller_id"],
+        client_id=env_doc["client_id"],
+        client_secret=client_secret,
+    )
+
+
+async def _charge_with_getnet(
+    db,
+    cfg: getnet_client.GetnetConfig,
+    tenant_id: str,
+    order_number: str,
+    total: int,
+    buyer: dict,
+    card: PaymentCardIn,
+) -> dict:
+    """Tokeniza y cobra en dos llamadas server-to-server a Getnet.
+
+    El número de tarjeta pasa transitoriamente por acá (Getnet no ofrece
+    tokenización client-side en esta API — ver `tokenize_card`) pero nunca se
+    persiste: sólo se usa en memoria para armar el request y se descarta al
+    salir de esta función. Lo mismo el CVV (`card.security_code`), que ni
+    siquiera viaja a `tokenize_card` (Getnet no lo pide para tokenizar), sólo
+    al cobro final.
+    """
+    brand = detect_brand(card.card_number)
+    last4 = card.card_number[-4:]
+    try:
+        tokenized = await getnet_client.tokenize_card(cfg, tenant_id, card_number=card.card_number)
+        result = await getnet_client.create_payment(
+            cfg,
+            tenant_id,
+            idempotency_key=f"{tenant_id}:{order_number}",
+            order_number=order_number,
+            amount_cents=total,
+            currency="ARS",
+            customer={"name": buyer["name"], "email": buyer["email"]},
+            number_token=tokenized.number_token,
+            exp_month=card.exp_month,
+            exp_year=card.exp_year,
+            holder_name=card.holder_name,
+            security_code=card.security_code,
+            device_session_id=None,
+        )
+    except getnet_client.GetnetError as exc:
+        raise HTTPException(502, str(exc)) from exc
+
+    if result.status not in getnet_client.GETNET_APPROVED_STATUSES:
+        raise HTTPException(402, "El pago fue rechazado por la pasarela")
+
+    now = datetime.now(UTC)
+    return {
+        "provider": "getnet",
+        "payment_method_id": None,
+        "brand": result.brand or brand,
+        "last4": last4,
+        "payment_id": result.payment_id,
+        "preference_id": None,
+        "authorization_code": result.authorization_code,
+        "environment": cfg.environment,
+        "status": "approved",
+        "paid_at": now,
+    }
+
+
+async def _resolve_payment(
+    db, tenant_id: str, order_number: str, total: int, buyer: dict, user_id: str, body: OrderCreate
+) -> dict:
+    integration = await _get_active_getnet_integration(db, tenant_id)
+    if integration:
+        # Una tarjeta "guardada" hoy es mock (last4/brand sin token real, ver
+        # payment_methods.py): no sirve para cobrar de verdad, así que con
+        # Getnet activo sólo se acepta una tarjeta nueva en el mismo request.
+        if not body.payment_card:
+            raise HTTPException(400, "Esta tienda cobra con Getnet: falta la tarjeta")
+        card = body.payment_card
+        if not luhn_is_valid(card.card_number):
+            raise HTTPException(400, "Número de tarjeta inválido")
+        if not card.security_code:
+            raise HTTPException(400, "Falta el código de seguridad")
+        return await _charge_with_getnet(
+            db, integration, tenant_id, order_number, total, buyer, card
+        )
+
     if body.payment_method_id:
         try:
             oid = ObjectId(body.payment_method_id)
@@ -205,9 +328,9 @@ async def create_order(body: OrderCreate, request: Request):
 
     if len(tenant_ids) > 1:
         raise HTTPException(400, "Los productos del pedido deben ser de la misma tienda")
+    tenant_id = next(iter(tenant_ids))
 
     address = await _resolve_address(db, user_id, body)
-    payment = await _resolve_payment(db, user_id, body)
 
     buyer = await db.users.find_one({"_id": ObjectId(user_id), "deleted_at": None})
     if not buyer:
@@ -223,13 +346,24 @@ async def create_order(body: OrderCreate, request: Request):
     count_this_year = await db.orders.count_documents({"order_number": {"$regex": f"^ORD-{year}-"}})
     order_number = f"ORD-{year}-{count_this_year + 1:04d}"
 
+    # Se resuelve DESPUÉS de calcular total/order_number/buyer: Getnet necesita
+    # el order_number (idempotency_key) y el total (monto a cobrar) y los datos
+    # del comprador para el request de cobro. Si el tenant no tiene Getnet
+    # activo, el comportamiento es idéntico al de antes (mock, status "pending").
+    payment = await _resolve_payment(db, tenant_id, order_number, total, buyer, user_id, body)
+
+    # Con Getnet (auth+captura inmediata) el pedido puede nacer ya pago; con
+    # el flujo mock (o cualquier otro proveedor todavía sin cobro real) sigue
+    # naciendo pending_payment exactamente como antes.
+    initial_status = "paid" if payment["status"] == "approved" else "pending_payment"
+
     order_doc = {
-        "tenant_id": tenant_ids.pop(),
+        "tenant_id": tenant_id,
         "buyer_id": user_id,
         "buyer_name": buyer["name"],
         "buyer_email": buyer["email"],
         "order_number": order_number,
-        "status": "pending_payment",
+        "status": initial_status,
         "items": order_items,
         "subtotal": subtotal,
         "shipping_cost": shipping_cost,
@@ -256,11 +390,17 @@ async def create_order(body: OrderCreate, request: Request):
         "deleted_at": None,
     }
     result = await db.orders.insert_one(order_doc)
+    order_doc["_id"] = result.inserted_id
+
+    if initial_status == "paid":
+        stock_updates = await _mark_stock_decremented(db, order_doc)
+        if stock_updates:
+            await db.orders.update_one({"_id": result.inserted_id}, {"$set": stock_updates})
 
     return {
         "order_id": str(result.inserted_id),
         "order_number": order_number,
-        "status": "pending_payment",
+        "status": initial_status,
         "total": total,
     }
 
@@ -378,13 +518,7 @@ async def update_order_status(order_id: str, body: OrderStatusUpdate, request: R
     if new_status == "paid":
         updates["payment.status"] = "approved"
         updates["payment.paid_at"] = now
-        if not was_decremented:
-            for item in doc["items"]:
-                await db.products.update_one(
-                    {"_id": ObjectId(item["product_id"])},
-                    {"$inc": {"stock": -item["quantity"]}},
-                )
-            updates["stock_decremented"] = True
+        updates.update(await _mark_stock_decremented(db, doc))
     elif new_status in ("cancelled", "refunded"):
         if new_status == "refunded":
             updates["payment.status"] = "refunded"
@@ -404,4 +538,47 @@ async def update_order_status(order_id: str, body: OrderStatusUpdate, request: R
 @router.post("/webhook/mercadopago")
 async def mp_webhook():
     # TODO: implementar cuando se integre Mercado Pago (Fase 2, ver roadmap.md)
+    return {"ok": True}
+
+
+@router.post("/webhook/getnet")
+async def getnet_webhook(request: Request):
+    """Refuerzo asíncrono del resultado síncrono de `create_order`/`_charge_with_getnet`.
+
+    Idempotente: no-op si el pedido ya no está en pending_payment (ya fue
+    resuelto por el camino síncrono o por una entrega anterior del mismo
+    webhook) o si el evento no es una aprobación. Siempre devuelve 200 con
+    payload no reconocido para no generar reintentos infinitos del lado de
+    Getnet — el payload se loggea igual dentro de `parse_webhook_payload`
+    para poder confirmar el shape real la primera vez que llegue uno de
+    sandbox de verdad.
+    """
+    raw = await request.json()
+    # TODO: una vez confirmado el mecanismo real de firma de Getnet, validar acá
+    # con getnet_client.verify_webhook_signature antes de confiar en el payload.
+    event = getnet_client.parse_webhook_payload(raw)
+    if event is None:
+        return {"ok": True}
+
+    db = get_db()
+    doc = await db.orders.find_one({"payment.payment_id": event.payment_id, "deleted_at": None})
+    if not doc and event.order_number:
+        doc = await db.orders.find_one({"order_number": event.order_number, "deleted_at": None})
+
+    if (
+        not doc
+        or doc["status"] != "pending_payment"
+        or event.status not in getnet_client.GETNET_APPROVED_STATUSES
+    ):
+        return {"ok": True}
+
+    now = datetime.now(UTC)
+    updates: dict = {
+        "status": "paid",
+        "updated_at": now,
+        "payment.status": "approved",
+        "payment.paid_at": now,
+    }
+    updates.update(await _mark_stock_decremented(db, doc))
+    await db.orders.update_one({"_id": doc["_id"]}, {"$set": updates})
     return {"ok": True}

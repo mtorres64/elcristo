@@ -10,15 +10,24 @@ const LABEL = "block text-xs font-medium text-[#4A4A4A] mb-1.5";
 
 interface Props {
   onCancel: () => void;
-  onSave: (card: PaymentCardInput, save: boolean) => Promise<void>;
+  onSave: (card: Required<Pick<PaymentCardInput, "security_code">> & PaymentCardInput) => Promise<void>;
 }
 
-export function PaymentMethodForm({ onCancel, onSave }: Props) {
+/** Tarjeta de pago cuando la tienda cobra con Getnet.
+ *
+ * A diferencia de PaymentMethodForm (mock), acá el número de tarjeta y el
+ * CVV sí viajan — al backend, no a ningún tercero: Getnet no ofrece
+ * tokenización client-side en esta API, así que el backend recibe la
+ * tarjeta transitoriamente, la tokeniza y cobra server-to-server contra
+ * Getnet, y no la persiste en ningún lado (ver `_charge_with_getnet` en
+ * `orders.py`). No hay opción de "guardar tarjeta": cada cobro con Getnet
+ * es con una tarjeta nueva en el momento.
+ */
+export function GetnetPaymentForm({ onCancel, onSave }: Props) {
   const [cardNumber, setCardNumber] = useState("");
   const [holderName, setHolderName] = useState("");
   const [expiry, setExpiry] = useState("");
   const [cvv, setCvv] = useState("");
-  const [saveCard, setSaveCard] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const cardInputRef = useRef<HTMLInputElement>(null);
@@ -27,9 +36,6 @@ export function PaymentMethodForm({ onCancel, onSave }: Props) {
   function handleCardNumberChange(e: React.ChangeEvent<HTMLInputElement>) {
     const input = e.target;
     const cursorPos = input.selectionStart ?? input.value.length;
-    // Cuántos dígitos había antes del cursor, para reubicarlo en el mismo
-    // lugar "lógico" después de reformatear (si no, el cursor salta siempre
-    // al final y no se puede corregir un número en el medio).
     cardCaretDigitsRef.current = input.value.slice(0, cursorPos).replace(/\D/g, "").length;
     const digits = input.value.replace(/\D/g, "").slice(0, 19);
     setCardNumber(formatCardNumber(digits));
@@ -61,9 +67,6 @@ export function PaymentMethodForm({ onCancel, onSave }: Props) {
     if (digits.length > 2) {
       setExpiry(`${digits.slice(0, 2)}/${digits.slice(2)}`);
     } else if (digits.length === 2 && digits.length > prevDigits.length) {
-      // Se acaba de terminar de escribir el mes (escribiendo hacia adelante):
-      // agregamos la barra ya. Si en cambio se está borrando hacia atrás, no
-      // la volvemos a poner — si no, el backspace nunca podría pasarla.
       setExpiry(`${digits}/`);
     } else {
       setExpiry(digits);
@@ -96,14 +99,15 @@ export function PaymentMethodForm({ onCancel, onSave }: Props) {
 
     setSaving(true);
     try {
-      // El CVV nunca viaja al backend ni se persiste — no hay pasarela de pago
-      // real conectada todavía, sólo se validan datos localmente.
-      await onSave(
-        { card_number: digits, holder_name: holderName.trim(), exp_month: month, exp_year: year },
-        saveCard
-      );
+      await onSave({
+        card_number: digits,
+        holder_name: holderName.trim(),
+        exp_month: month,
+        exp_year: year,
+        security_code: cvv,
+      });
     } catch {
-      toast.error("No se pudo procesar la tarjeta");
+      toast.error("No se pudo procesar la tarjeta. Verificá los datos e intentá de nuevo.");
     } finally {
       setSaving(false);
     }
@@ -112,9 +116,7 @@ export function PaymentMethodForm({ onCancel, onSave }: Props) {
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       <p className="text-xs text-[#8A8A8A] bg-[#F9F8F5] border border-[#E8E2D8] rounded-lg px-3.5 py-2.5">
-        Todavía no hay una pasarela de pago conectada: esta tarjeta no se cobra
-        ahora, el pedido queda pendiente de pago para que lo confirmes por otro
-        medio.
+        Pago seguro procesado por Getnet. Tu tarjeta se cobra al confirmar el pedido.
       </p>
 
       <div>
@@ -167,16 +169,6 @@ export function PaymentMethodForm({ onCancel, onSave }: Props) {
         </div>
       </div>
 
-      <label className="flex items-center gap-2 text-sm text-[#1A1A1A] cursor-pointer">
-        <input
-          type="checkbox"
-          checked={saveCard}
-          onChange={(e) => setSaveCard(e.target.checked)}
-          className="w-4 h-4 rounded border-[#C8C4BE] accent-[#1A2B1C] cursor-pointer"
-        />
-        Guardar esta tarjeta para próximas compras
-      </label>
-
       <div className="flex items-center justify-end gap-3 mt-2">
         <button
           type="button"
@@ -190,7 +182,7 @@ export function PaymentMethodForm({ onCancel, onSave }: Props) {
           disabled={saving}
           className="rounded-lg bg-[#1A2B1C] text-white text-sm font-semibold px-6 py-2.5 hover:bg-[#253824] transition-colors disabled:opacity-50"
         >
-          {saving ? "Guardando..." : "Usar esta tarjeta"}
+          {saving ? "Procesando..." : "Usar esta tarjeta"}
         </button>
       </div>
     </form>
