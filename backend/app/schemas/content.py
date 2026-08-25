@@ -44,3 +44,101 @@ class HeroSettings(BaseModel):
 
 class HeroSettingsUpdate(BaseModel):
     slides: list[HeroSlideInput] = Field(default_factory=list)
+
+
+class AboutChapter(BaseModel):
+    id: str
+    eyebrow: str = ""
+    title: str = ""
+    text: str = ""
+    image: str = ""
+
+
+class AboutChapterInput(BaseModel):
+    id: str | None = None
+    eyebrow: str = ""
+    title: str = ""
+    text: str = ""
+    image: str = ""
+
+
+class AboutSettings(BaseModel):
+    hero_image: str = ""
+    hero_title: str = ""
+    intro_title: str = ""
+    intro_text: str = ""
+    chapters: list[AboutChapter] = Field(default_factory=list)
+    gallery: list[str] = Field(default_factory=list)
+
+
+class AboutSettingsUpdate(BaseModel):
+    hero_image: str = ""
+    hero_title: str = ""
+    intro_title: str = ""
+    intro_text: str = ""
+    chapters: list[AboutChapterInput] = Field(default_factory=list)
+    gallery: list[str] = Field(default_factory=list)
+
+
+class InspirationProject(BaseModel):
+    id: str
+    title: str = ""
+    description: str = ""
+    location: str = ""
+    image: str = ""
+
+
+class InspirationProjectInput(BaseModel):
+    id: str | None = None
+    title: str = ""
+    description: str = ""
+    location: str = ""
+    image: str = ""
+
+
+class InspirationSettings(BaseModel):
+    hero_image: str = ""
+    hero_title: str = ""
+    intro_title: str = ""
+    intro_text: str = ""
+    projects: list[InspirationProject] = Field(default_factory=list)
+
+
+class InspirationSettingsUpdate(BaseModel):
+    hero_image: str = ""
+    hero_title: str = ""
+    intro_title: str = ""
+    intro_text: str = ""
+    projects: list[InspirationProjectInput] = Field(default_factory=list)
+
+
+class DesignProject(BaseModel):
+    id: str
+    title: str = ""
+    description: str = ""
+    location: str = ""
+    image: str = ""
+
+
+class DesignProjectInput(BaseModel):
+    id: str | None = None
+    title: str = ""
+    description: str = ""
+    location: str = ""
+    image: str = ""
+
+
+class DesignSettings(BaseModel):
+    hero_image: str = ""
+    hero_title: str = ""
+    intro_title: str = ""
+    intro_text: str = ""
+    projects: list[DesignProject] = Field(default_factory=list)
+
+
+class DesignSettingsUpdate(BaseModel):
+    hero_image: str = ""
+    hero_title: str = ""
+    intro_title: str = ""
+    intro_text: str = ""
+    projects: list[DesignProjectInput] = Field(default_factory=list)

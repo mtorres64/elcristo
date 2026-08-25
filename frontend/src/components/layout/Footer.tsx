@@ -28,9 +28,18 @@ export function Footer() {
         <div>
           <h4 className="text-[10px] uppercase tracking-widest text-white font-semibold mb-5">Tienda</h4>
           <ul className="flex flex-col gap-3">
-            {["Plantas de Interior", "Plantas de Exterior", "Árboles y Arbustos", "Suculentas y Cactus", "Macetas y Accesorios", "Ofertas"].map((item) => (
-              <li key={item}>
-                <Link to="#" className="text-xs text-[#7A8A7B] hover:text-[#A8B5A9] transition-colors">{item}</Link>
+            {[
+              { label: "Plantas de Interior", to: "/products?category=plantas-interior" },
+              { label: "Plantas de Exterior", to: "/products?category=plantas-exterior" },
+              { label: "Árboles y Arbustos", to: "/products?category=arboles-arbustos" },
+              { label: "Suculentas y Cactus", to: "/products?category=suculentas-cactus" },
+              { label: "Macetas y Accesorios", to: "/products?category=macetas-accesorios" },
+              { label: "Ofertas", to: "/products?on_sale=true" },
+            ].map((item) => (
+              <li key={item.to}>
+                <Link to={item.to} className="text-xs text-[#7A8A7B] hover:text-[#A8B5A9] transition-colors">
+                  {item.label}
+                </Link>
               </li>
             ))}
           </ul>
@@ -40,9 +49,17 @@ export function Footer() {
         <div>
           <h4 className="text-[10px] uppercase tracking-widest text-white font-semibold mb-5">Información</h4>
           <ul className="flex flex-col gap-3">
-            {["Envíos", "Medios de pago", "Cambios y devoluciones", "Preguntas frecuentes", "Términos y condiciones"].map((item) => (
-              <li key={item}>
-                <Link to="#" className="text-xs text-[#7A8A7B] hover:text-[#A8B5A9] transition-colors">{item}</Link>
+            {[
+              { label: "Envíos", to: "/envios" },
+              { label: "Medios de pago", to: "/medios-de-pago" },
+              { label: "Cambios y devoluciones", to: "/cambios-y-devoluciones" },
+              { label: "Preguntas frecuentes", to: "/preguntas-frecuentes" },
+              { label: "Términos y condiciones", to: "/terminos-y-condiciones" },
+            ].map((item) => (
+              <li key={item.to}>
+                <Link to={item.to} className="text-xs text-[#7A8A7B] hover:text-[#A8B5A9] transition-colors">
+                  {item.label}
+                </Link>
               </li>
             ))}
           </ul>
@@ -52,9 +69,17 @@ export function Footer() {
         <div>
           <h4 className="text-[10px] uppercase tracking-widest text-white font-semibold mb-5">Nosotros</h4>
           <ul className="flex flex-col gap-3">
-            {["Sobre Verde Diseño", "Nuestro equipo", "Proyectos", "Blog", "Contacto"].map((item) => (
-              <li key={item}>
-                <Link to="#" className="text-xs text-[#7A8A7B] hover:text-[#A8B5A9] transition-colors">{item}</Link>
+            {[
+              { label: "Sobre Nosotros", to: "/nosotros" },
+              { label: "Nuestro equipo", to: "#" },
+              { label: "Proyectos", to: "/inspiracion" },
+              { label: "Blog", to: "#" },
+              { label: "Contacto", to: "/contacto" },
+            ].map((item) => (
+              <li key={item.label}>
+                <Link to={item.to} className="text-xs text-[#7A8A7B] hover:text-[#A8B5A9] transition-colors">
+                  {item.label}
+                </Link>
               </li>
             ))}
           </ul>
@@ -70,7 +95,7 @@ export function Footer() {
             </li>
             <li className="flex items-start gap-2.5">
               <span className="text-[#5A7A5C] mt-0.5 shrink-0"><MailIcon /></span>
-              <span className="text-xs text-[#7A8A7B]">hola@viveroelcristo.com.ar</span>
+              <span className="text-xs text-[#7A8A7B]">viveroelcristo@gmail.com</span>
             </li>
             <li className="text-xs text-[#7A8A7B] mt-1">Lun a Vie de 9 a 18 h</li>
           </ul>

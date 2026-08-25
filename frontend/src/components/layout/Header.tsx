@@ -69,7 +69,7 @@ export function Header() {
         <nav className="hidden lg:flex items-center gap-7">
           <PlantsMenu />
           <NavLink to="/diseno">Diseño & Paisajismo</NavLink>
-          <NavLink to="/macetas">Macetas & Accesorios</NavLink>
+          <NavLink to="/products?category=macetas-accesorios">Macetas & Accesorios</NavLink>
           <NavLink to="/inspiracion">Inspiración</NavLink>
           <NavLink to="/nosotros">Sobre Nosotros</NavLink>
         </nav>

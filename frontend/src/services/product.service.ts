@@ -15,6 +15,7 @@ interface ListProductsParams {
   category_id?: string;
   min_price?: number;
   max_price?: number;
+  on_sale?: boolean;
   ids?: string;
   page?: number;
   page_size?: number;

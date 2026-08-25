@@ -3,6 +3,15 @@ import { useEffect } from "react";
 import { AuthProvider } from "./context/AuthContext";
 import { CartProvider } from "./context/CartContext";
 import { Home } from "./pages/Home";
+import { AboutUs } from "./pages/AboutUs";
+import { Inspiration } from "./pages/Inspiration";
+import { Design } from "./pages/Design";
+import { Shipping } from "./pages/info/Shipping";
+import { PaymentMethods } from "./pages/info/PaymentMethods";
+import { Returns } from "./pages/info/Returns";
+import { FAQ } from "./pages/info/FAQ";
+import { Terms } from "./pages/info/Terms";
+import { Contact } from "./pages/Contact";
 import { Categories } from "./pages/Categories";
 import { Products } from "./pages/Products";
 import { ProductDetail } from "./pages/ProductDetail";
@@ -20,6 +29,7 @@ import { CategoryEdit } from "./pages/admin/CategoryEdit";
 import { ClientList } from "./pages/admin/ClientList";
 import { Dashboard } from "./pages/admin/Dashboard";
 import { Settings } from "./pages/admin/Settings";
+import { Content } from "./pages/admin/Content";
 import { Integrations } from "./pages/admin/Integrations";
 import { Cart } from "./pages/Cart";
 import { OrderConfirmation } from "./pages/OrderConfirmation";
@@ -70,10 +80,17 @@ export default function App() {
             <Route path="/seller/categories/new" element={<CategoryNew />} />
             <Route path="/seller/categories/:id/edit" element={<CategoryEdit />} />
             <Route path="/seller/settings" element={<Settings />} />
+            <Route path="/seller/content" element={<Content />} />
             <Route path="/seller/integrations" element={<Integrations />} />
-            <Route path="/diseno" element={<PlaceholderPage title="Diseño & Paisajismo" />} />
-            <Route path="/inspiracion" element={<PlaceholderPage title="Inspiración" />} />
-            <Route path="/nosotros" element={<PlaceholderPage title="Sobre Nosotros" />} />
+            <Route path="/diseno" element={<Design />} />
+            <Route path="/inspiracion" element={<Inspiration />} />
+            <Route path="/nosotros" element={<AboutUs />} />
+            <Route path="/envios" element={<Shipping />} />
+            <Route path="/medios-de-pago" element={<PaymentMethods />} />
+            <Route path="/cambios-y-devoluciones" element={<Returns />} />
+            <Route path="/preguntas-frecuentes" element={<FAQ />} />
+            <Route path="/terminos-y-condiciones" element={<Terms />} />
+            <Route path="/contacto" element={<Contact />} />
           </Routes>
         </BrowserRouter>
       </CartProvider>

@@ -11,7 +11,9 @@ import type { ProductSummary } from "../../types/product";
 
 /* ─── Secciones de configuración ────────────────────────────────
  * Botonera extensible: para sumar una nueva sección alcanza con
- * agregar una entrada acá y su componente correspondiente abajo. */
+ * agregar una entrada acá y su componente correspondiente abajo.
+ * Las páginas de contenido (Sobre Nosotros, Inspiración, Diseño &
+ * Paisajismo) viven aparte, en /seller/content — acá solo apariencia. */
 type SectionId = "hero";
 
 const SECTIONS: { id: SectionId; label: string }[] = [

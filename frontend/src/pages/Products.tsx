@@ -35,6 +35,7 @@ export function Products() {
   const [searchParams, setSearchParams] = useSearchParams();
   const qParam = searchParams.get("q") ?? "";
   const categorySlug = searchParams.get("category") ?? "";
+  const onSaleParam = searchParams.get("on_sale") === "true";
   const sortParam = searchParams.get("sort") ?? "featured";
   const pageParam = Number(searchParams.get("page") ?? "1");
 
@@ -61,6 +62,7 @@ export function Products() {
       .list({
         q: qParam || undefined,
         category_id: categoryId,
+        on_sale: onSaleParam || undefined,
         sort: sortParam,
         page: pageParam,
         page_size: PAGE_SIZE,
@@ -72,11 +74,12 @@ export function Products() {
         setPages(data.pages);
       })
       .finally(() => setLoading(false));
-  }, [qParam, categoryId, sortParam, pageParam, categorySlug, catsLoading]);
+  }, [qParam, categoryId, onSaleParam, sortParam, pageParam, categorySlug, catsLoading]);
 
   let pageTitle = "Todas las Plantas";
   if (qParam) pageTitle = `Resultados para "${qParam}"`;
   else if (activeCat) pageTitle = activeCat.name;
+  else if (onSaleParam) pageTitle = "Ofertas";
 
   function setSort(v: string) {
     setSearchParams((prev) => {

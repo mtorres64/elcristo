@@ -64,6 +64,7 @@ async def list_products(
     min_price: int | None = None,
     max_price: int | None = None,
     featured: bool | None = None,
+    on_sale: bool | None = None,
     ids: str | None = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
@@ -111,6 +112,11 @@ async def list_products(
 
     if featured is not None:
         f["is_featured"] = featured
+
+    if on_sale:
+        # "En oferta": el precio de comparación (tachado) existe y es mayor
+        # al precio actual — mismo criterio que usa el badge "% OFF" del sitio.
+        f["$expr"] = {"$gt": ["$compare_at_price", "$price"]}
 
     sort_map = {
         "newest": [("created_at", -1)],
