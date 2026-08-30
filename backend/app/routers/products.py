@@ -19,6 +19,7 @@ def _to_summary(doc: dict) -> dict:
         "short_description": doc.get("short_description"),
         "price": doc["price"],
         "compare_at_price": doc.get("compare_at_price"),
+        "cost_price": doc.get("cost_price"),
         "currency": doc.get("currency", "ARS"),
         "image_url": doc["images"][0] if doc.get("images") else None,
         "is_featured": doc.get("is_featured", False),
@@ -36,6 +37,7 @@ def _to_detail(doc: dict) -> dict:
     result = _to_summary(doc)
     result.update({
         "description": doc.get("description"),
+        "target_markup_pct": doc.get("target_markup_pct"),
         "images": doc.get("images", []),
         "stock": doc.get("stock", 0),
         "variants": doc.get("variants", []),
@@ -173,6 +175,8 @@ async def create_product(body: ProductCreate, request: Request):
         "description": body.description,
         "price": body.price,
         "compare_at_price": body.compare_at_price,
+        "cost_price": body.cost_price,
+        "target_markup_pct": body.target_markup_pct,
         "currency": body.currency,
         "tax": body.tax,
         "category_id": body.category_id,

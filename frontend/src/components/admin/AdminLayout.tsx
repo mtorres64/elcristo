@@ -13,6 +13,7 @@ const NAV: NavItem[] = [
   { icon: <DashboardIcon />, label: "Dashboard", path: "/seller" },
   { icon: <OrdersIcon />, label: "Pedidos", path: "/seller/orders" },
   { icon: <ProductsIcon />, label: "Productos", path: "/seller/products" },
+  { icon: <PurchasesIcon />, label: "Compras", path: "/seller/purchases" },
   { icon: <CategoriesIcon />, label: "Categorías", path: "/seller/categories" },
   { icon: <ClientsIcon />, label: "Clientes", path: "/seller/clients" },
   { icon: <ContentIcon />, label: "Contenido", path: "/seller/content" },
@@ -274,6 +275,14 @@ function ProductsIcon() {
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
       <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
       <polyline points="3.27 6.96 12 12.01 20.73 6.96" /><line x1="12" y1="22.08" x2="12" y2="12" />
+    </svg>
+  );
+}
+function PurchasesIcon() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d="M1 3h15v13H1z" /><path d="M16 8h4l3 3v5h-7z" />
+      <circle cx="5.5" cy="18.5" r="2" /><circle cx="18.5" cy="18.5" r="2" />
     </svg>
   );
 }

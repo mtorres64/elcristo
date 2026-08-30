@@ -9,6 +9,7 @@ class VariantSchema(BaseModel):
     stock: int = 0
     price_override: int | None = None
     compare_at_price_override: int | None = None
+    cost_price_override: int | None = None
     weight_grams_override: int | None = None
     height_cm_override: int | None = None
     sku_override: str | None = None
@@ -22,6 +23,8 @@ class ProductCreate(BaseModel):
     description: str | None = None
     price: int = Field(gt=0)
     compare_at_price: int | None = None
+    cost_price: int | None = None
+    target_markup_pct: float | None = None
     currency: Literal["ARS", "USD"] = "ARS"
     tax: Literal["iva-21", "iva-10", "exento"] = "iva-21"
     category_id: str | None = None
@@ -44,6 +47,8 @@ class ProductUpdate(BaseModel):
     description: str | None = None
     price: int | None = Field(None, gt=0)
     compare_at_price: int | None = None
+    cost_price: int | None = None
+    target_markup_pct: float | None = None
     currency: Literal["ARS", "USD"] | None = None
     tax: Literal["iva-21", "iva-10", "exento"] | None = None
     category_id: str | None = None
@@ -70,6 +75,7 @@ class ProductSummary(BaseModel):
     short_description: str | None = None
     price: int
     compare_at_price: int | None = None
+    cost_price: int | None = None
     currency: str = "ARS"
     image_url: str | None = None
     is_featured: bool = False
@@ -84,6 +90,7 @@ class ProductSummary(BaseModel):
 
 class ProductDetail(ProductSummary):
     description: str | None = None
+    target_markup_pct: float | None = None
     images: list[str]
     stock: int
     variants: list[VariantSchema]

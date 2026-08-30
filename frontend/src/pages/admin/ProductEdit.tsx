@@ -3,7 +3,9 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { AdminLayout } from "../../components/admin/AdminLayout";
 import { PotPicker } from "../../components/admin/PotPicker";
 import { productService } from "../../services/product.service";
+import { storeSettingsService } from "../../services/storeSettings.service";
 import { useCategories } from "../../hooks/useCategories";
+import { formatPct, markupPct, suggestedPrice } from "../../utils/pricing";
 import toast from "react-hot-toast";
 
 /* ─── Types ──────────────────────────────────────────────────── */
@@ -58,9 +60,13 @@ export function ProductEdit() {
   const [tags, setTags] = useState<string[]>([]);
   const [price, setPrice] = useState("");
   const [promoPrice, setPromoPrice] = useState("");
+  const [cost, setCost] = useState("");
+  const [targetMarkup, setTargetMarkup] = useState("");
+  const [defaultMarkup, setDefaultMarkup] = useState(60);
   const [stock, setStock] = useState(0);
   const [priceChica, setPriceChica] = useState("");
   const [promoChica, setPromoChica] = useState("");
+  const [costChica, setCostChica] = useState("");
   const [stockChica, setStockChica] = useState(0);
   const [weightChica, setWeightChica] = useState("");
   const [heightChica, setHeightChica] = useState("");
@@ -68,6 +74,7 @@ export function ProductEdit() {
   const [potsChica, setPotsChica] = useState<string[]>([]);
   const [priceGrande, setPriceGrande] = useState("");
   const [promoGrande, setPromoGrande] = useState("");
+  const [costGrande, setCostGrande] = useState("");
   const [stockGrande, setStockGrande] = useState(0);
   const [weightGrande, setWeightGrande] = useState("");
   const [heightGrande, setHeightGrande] = useState("");
@@ -100,6 +107,10 @@ export function ProductEdit() {
   const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
   useEffect(() => {
+    storeSettingsService.get().then((s) => setDefaultMarkup(s.default_markup_pct)).catch(() => {});
+  }, []);
+
+  useEffect(() => {
     if (!productId) { setLoading(false); return; }
     setLoading(true);
     productService
@@ -111,12 +122,15 @@ export function ProductEdit() {
         setTags(p.tags ?? []);
         setPrice(p.price != null ? String(p.price / 100) : "");
         setPromoPrice(p.compare_at_price != null ? String(p.compare_at_price / 100) : "");
+        setCost(p.cost_price != null ? String(p.cost_price / 100) : "");
+        setTargetMarkup(p.target_markup_pct != null ? String(p.target_markup_pct) : "");
         setCurrency(p.currency ?? "ARS");
         setTax(p.tax ?? "iva-21");
         setStock(p.stock ?? 0);
         const chicaV = p.variants?.find((v) => v.key === "size" && v.value === "pequeña");
         setPriceChica(chicaV?.price_override != null ? String(chicaV.price_override / 100) : "");
         setPromoChica(chicaV?.compare_at_price_override != null ? String(chicaV.compare_at_price_override / 100) : "");
+        setCostChica(chicaV?.cost_price_override != null ? String(chicaV.cost_price_override / 100) : "");
         setStockChica(chicaV?.stock ?? 0);
         setWeightChica(chicaV?.weight_grams_override != null ? String(chicaV.weight_grams_override / 1000) : "");
         setHeightChica(chicaV?.height_cm_override != null ? String(chicaV.height_cm_override) : "");
@@ -125,6 +139,7 @@ export function ProductEdit() {
         const grandeV = p.variants?.find((v) => v.key === "size" && v.value === "grande");
         setPriceGrande(grandeV?.price_override != null ? String(grandeV.price_override / 100) : "");
         setPromoGrande(grandeV?.compare_at_price_override != null ? String(grandeV.compare_at_price_override / 100) : "");
+        setCostGrande(grandeV?.cost_price_override != null ? String(grandeV.cost_price_override / 100) : "");
         setStockGrande(grandeV?.stock ?? 0);
         setWeightGrande(grandeV?.weight_grams_override != null ? String(grandeV.weight_grams_override / 1000) : "");
         setHeightGrande(grandeV?.height_cm_override != null ? String(grandeV.height_cm_override) : "");
@@ -221,6 +236,7 @@ export function ProductEdit() {
         stock: stockChica,
         price_override: priceChica ? Math.round(Number(priceChica) * 100) : null,
         compare_at_price_override: promoChica ? Math.round(Number(promoChica) * 100) : null,
+        cost_price_override: costChica ? Math.round(Number(costChica) * 100) : null,
         weight_grams_override: weightChica ? Math.round(Number(weightChica) * 1000) : null,
         height_cm_override: heightChica ? Number(heightChica) : null,
         active: activeChica,
@@ -232,6 +248,7 @@ export function ProductEdit() {
         stock: stockGrande,
         price_override: priceGrande ? Math.round(Number(priceGrande) * 100) : null,
         compare_at_price_override: promoGrande ? Math.round(Number(promoGrande) * 100) : null,
+        cost_price_override: costGrande ? Math.round(Number(costGrande) * 100) : null,
         weight_grams_override: weightGrande ? Math.round(Number(weightGrande) * 1000) : null,
         height_cm_override: heightGrande ? Number(heightGrande) : null,
         active: activeGrande,
@@ -251,6 +268,8 @@ export function ProductEdit() {
         description: fullDesc || null,
         price: Math.round(Number(price) * 100),
         compare_at_price: promoPrice ? Math.round(Number(promoPrice) * 100) : null,
+        cost_price: cost ? Math.round(Number(cost) * 100) : null,
+        target_markup_pct: targetMarkup ? Number(targetMarkup) : null,
         currency,
         tax,
         category_id: category || null,
@@ -307,6 +326,8 @@ export function ProductEdit() {
         description: fullDesc || null,
         price: price ? Math.round(parseFloat(price) * 100) : undefined,
         compare_at_price: promoPrice ? Math.round(parseFloat(promoPrice) * 100) : null,
+        cost_price: cost ? Math.round(parseFloat(cost) * 100) : null,
+        target_markup_pct: targetMarkup ? Number(targetMarkup) : null,
         currency,
         tax,
         category_id: category || null,
@@ -660,6 +681,19 @@ export function ProductEdit() {
                     <p className="text-sm font-semibold text-[#1A1A1A] mb-3">
                       Precio y stock por tamaño
                     </p>
+                    <div className="mb-4 flex flex-wrap items-center gap-3">
+                      <label className="text-xs font-semibold text-[#4A4A4A]">Markup objetivo (%)</label>
+                      <input
+                        inputMode="decimal"
+                        value={targetMarkup}
+                        onChange={(e) => setTargetMarkup(e.target.value)}
+                        placeholder={String(defaultMarkup)}
+                        className="w-24 rounded-lg border border-[#E8E2D8] px-3 py-1.5 text-sm text-[#1A1A1A] bg-white focus:outline-none focus:border-[#1A2B1C] transition-colors"
+                      />
+                      <span className="text-xs text-[#8A8A8A]">
+                        Si lo dejás vacío se usa el de Configuración ({formatPct(defaultMarkup)}).
+                      </span>
+                    </div>
                     <div className="flex flex-col gap-3">
                       <SizePricingRow
                         label="Planta chica (pequeña)"
@@ -667,6 +701,9 @@ export function ProductEdit() {
                         setPrice={setPriceChica}
                         promo={promoChica}
                         setPromo={setPromoChica}
+                        cost={costChica}
+                        setCost={setCostChica}
+                        markup={targetMarkup ? Number(targetMarkup) : defaultMarkup}
                         stock={stockChica}
                         setStock={setStockChica}
                         weight={weightChica}
@@ -685,6 +722,9 @@ export function ProductEdit() {
                         setPrice={setPrice}
                         promo={promoPrice}
                         setPromo={setPromoPrice}
+                        cost={cost}
+                        setCost={setCost}
+                        markup={targetMarkup ? Number(targetMarkup) : defaultMarkup}
                         stock={stock}
                         setStock={setStock}
                         weight={weight}
@@ -704,6 +744,9 @@ export function ProductEdit() {
                         setPrice={setPriceGrande}
                         promo={promoGrande}
                         setPromo={setPromoGrande}
+                        cost={costGrande}
+                        setCost={setCostGrande}
+                        markup={targetMarkup ? Number(targetMarkup) : defaultMarkup}
                         stock={stockGrande}
                         setStock={setStockGrande}
                         weight={weightGrande}
@@ -1090,6 +1133,9 @@ function SizePricingRow({
   setPrice,
   promo,
   setPromo,
+  cost,
+  setCost,
+  markup,
   stock,
   setStock,
   weight,
@@ -1108,6 +1154,9 @@ function SizePricingRow({
   setPrice: (v: string) => void;
   promo: string;
   setPromo: (v: string) => void;
+  cost: string;
+  setCost: (v: string) => void;
+  markup: number;
   stock: number;
   setStock: React.Dispatch<React.SetStateAction<number>>;
   weight: string;
@@ -1121,6 +1170,10 @@ function SizePricingRow({
   excludeProductId?: string;
   required?: boolean;
 }) {
+  const costCents = Math.round(Number(cost) * 100) || null;
+  const priceCents = Math.round(Number(price) * 100) || null;
+  const currentMarkup = markupPct(priceCents, costCents);
+
   return (
     <div className="border border-[#E8E2D8] rounded-lg p-3">
       <div className="flex items-center justify-between mb-2">
@@ -1130,9 +1183,12 @@ function SizePricingRow({
           <span className="text-xs text-[#4A4A4A]">{active ? "Activo" : "Inactivo"}</span>
         </div>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
         <FormField label="Precio" required={required}>
           <PrefixInput prefix="$" value={price} onChange={setPrice} />
+        </FormField>
+        <FormField label="Precio de costo">
+          <PrefixInput prefix="$" value={cost} onChange={setCost} />
         </FormField>
         <FormField label="Precio promocional">
           <div className="relative">
@@ -1185,6 +1241,20 @@ function SizePricingRow({
         <FormField label="Altura (cm)">
           <input value={height} onChange={(e) => setHeight(e.target.value)} className={INPUT} />
         </FormField>
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-3">
+        <span className="text-xs text-[#4A4A4A]">
+          Markup actual: <strong className="text-[#1A2B1C]">{formatPct(currentMarkup)}</strong>
+        </span>
+        {costCents && (
+          <button
+            type="button"
+            onClick={() => setPrice(String(suggestedPrice(costCents, markup) / 100))}
+            className="text-xs text-[#1A2B1C] border border-[#E8E2D8] rounded-lg px-2.5 py-1 hover:bg-[#F4F8F4] transition-colors"
+          >
+            Sugerir precio ({formatPct(markup)})
+          </button>
+        )}
       </div>
       <div className="mt-4 pt-4 border-t border-[#E8E2D8]">
         <PotPicker selectedIds={pots} onChange={setPots} excludeProductId={excludeProductId} />

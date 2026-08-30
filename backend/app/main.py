@@ -18,8 +18,11 @@ from app.routers import (
     integrations,
     orders,
     payment_methods,
+    product_import,
     products,
+    purchases,
     search,
+    store_settings,
     tenants,
     users,
 )
@@ -53,8 +56,11 @@ app.add_middleware(
 
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(tenants.router, prefix="/tenants", tags=["tenants"])
+app.include_router(product_import.router, prefix="/products/import", tags=["products"])
 app.include_router(products.router, prefix="/products", tags=["products"])
 app.include_router(categories.router, prefix="/categories", tags=["categories"])
+app.include_router(purchases.router, prefix="/purchases", tags=["purchases"])
+app.include_router(store_settings.router, prefix="/store-settings", tags=["store-settings"])
 app.include_router(cart.router, prefix="/cart", tags=["cart"])
 app.include_router(orders.router, prefix="/orders", tags=["orders"])
 app.include_router(addresses.router, prefix="/addresses", tags=["addresses"])

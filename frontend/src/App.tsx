@@ -20,6 +20,9 @@ import { Register } from "./pages/Register";
 import { ForgotPassword } from "./pages/ForgotPassword";
 import { ProductEdit } from "./pages/admin/ProductEdit";
 import { ProductList } from "./pages/admin/ProductList";
+import { PurchaseList } from "./pages/admin/PurchaseList";
+import { PurchaseNew } from "./pages/admin/PurchaseNew";
+import { PurchaseDetail as PurchaseDetailPage } from "./pages/admin/PurchaseDetail";
 import { CategoryList } from "./pages/admin/CategoryList";
 import { UserList } from "./pages/admin/UserList";
 import { UserNew } from "./pages/admin/UserNew";
@@ -72,6 +75,9 @@ export default function App() {
             <Route path="/seller/products" element={<ProductList />} />
             <Route path="/seller/products/new" element={<ProductEdit />} />
             <Route path="/seller/products/:productId/edit" element={<ProductEdit />} />
+            <Route path="/seller/purchases" element={<PurchaseList />} />
+            <Route path="/seller/purchases/new" element={<PurchaseNew />} />
+            <Route path="/seller/purchases/:purchaseId" element={<PurchaseDetailPage />} />
             <Route path="/seller/categories" element={<CategoryList />} />
             <Route path="/seller/clients" element={<ClientList />} />
             <Route path="/seller/users" element={<UserList />} />

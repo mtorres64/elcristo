@@ -4,6 +4,7 @@ export interface ProductVariant {
   stock: number;
   price_override: number | null;
   compare_at_price_override: number | null;
+  cost_price_override: number | null;
   weight_grams_override: number | null;
   height_cm_override: number | null;
   sku_override: string | null;
@@ -19,6 +20,7 @@ export interface ProductSummary {
   short_description: string | null;
   price: number;
   compare_at_price: number | null;
+  cost_price: number | null;
   currency: string;
   image_url: string | null;
   is_featured: boolean;
@@ -31,8 +33,32 @@ export interface ProductSummary {
   care: Record<string, string>;
 }
 
+export interface ImportJobRow {
+  row: number;
+  name: string | null;
+  action: "created" | "updated" | "warning" | "error";
+  message: string | null;
+}
+
+export interface ImportJob {
+  job_id: string;
+  status: "processing" | "completed" | "failed";
+  filename: string | null;
+  total: number;
+  processed: number;
+  created: number;
+  updated: number;
+  warnings: number;
+  errors: number;
+  rows: ImportJobRow[];
+  error: string | null;
+  created_at: string | null;
+  finished_at: string | null;
+}
+
 export interface ProductDetail extends ProductSummary {
   description: string | null;
+  target_markup_pct: number | null;
   images: string[];
   stock: number;
   variants: ProductVariant[];

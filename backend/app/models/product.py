@@ -10,6 +10,7 @@ class ProductVariant(BaseModel):
     stock: int = 0
     price_override: int | None = None
     compare_at_price_override: int | None = None
+    cost_price_override: int | None = None       # Precio de costo del tamaño (centavos)
     weight_grams_override: int | None = None
     height_cm_override: int | None = None
     sku_override: str | None = None
@@ -25,6 +26,8 @@ class ProductDocument(BaseModel):
     description: str | None = None                 # Descripción completa
     price: int                                     # centavos
     compare_at_price: int | None = None            # centavos
+    cost_price: int | None = None                  # Precio de costo (centavos, medida mediana)
+    target_markup_pct: float | None = None         # Markup objetivo del producto (pisa el global)
     currency: Literal["ARS", "USD"] = "ARS"
     tax: Literal["iva-21", "iva-10", "exento"] = "iva-21"
     category_id: str | None = None

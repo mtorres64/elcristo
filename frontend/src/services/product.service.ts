@@ -1,5 +1,5 @@
 import { api } from "./api";
-import type { ProductDetail, ProductSummary, ProductVariant } from "../types/product";
+import type { ImportJob, ProductDetail, ProductSummary, ProductVariant } from "../types/product";
 
 interface PaginatedProducts {
   items: ProductSummary[];
@@ -40,6 +40,8 @@ export const productService = {
     description?: string | null;
     price: number;
     compare_at_price?: number | null;
+    cost_price?: number | null;
+    target_markup_pct?: number | null;
     currency?: string;
     tax?: string;
     category_id?: string | null;
@@ -75,6 +77,8 @@ export const productService = {
       description?: string | null;
       price?: number;
       compare_at_price?: number | null;
+      cost_price?: number | null;
+      target_markup_pct?: number | null;
       currency?: string;
       tax?: string;
       category_id?: string | null;
@@ -98,5 +102,33 @@ export const productService = {
 
   async deleteById(productId: string): Promise<void> {
     await api.delete(`/products/${productId}`);
+  },
+};
+
+export const productImportService = {
+  async downloadTemplate(): Promise<void> {
+    const res = await api.get("/products/import/template", { responseType: "blob" });
+    const url = URL.createObjectURL(res.data as Blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "plantilla-productos.xlsx";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  },
+
+  async start(file: File): Promise<{ job_id: string }> {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await api.post("/products/import", form, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return res.data;
+  },
+
+  async getJob(jobId: string): Promise<ImportJob> {
+    const res = await api.get(`/products/import/${jobId}`);
+    return res.data;
   },
 };

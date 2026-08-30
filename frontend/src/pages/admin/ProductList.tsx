@@ -1,12 +1,16 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { AdminLayout } from "../../components/admin/AdminLayout";
-import { productService } from "../../services/product.service";
+import { ImportProductsModal } from "../../components/admin/ImportProductsModal";
+import { productService, productImportService } from "../../services/product.service";
 import { useAuth } from "../../context/AuthContext";
 import { useCategories } from "../../hooks/useCategories";
 import { formatARS } from "../../utils/currency";
-import type { ProductSummary } from "../../types/product";
+import { formatPct, markupPct } from "../../utils/pricing";
+import type { ImportJob, ProductSummary } from "../../types/product";
 import toast from "react-hot-toast";
+
+const IMPORT_JOB_KEY = "product_import_job";
 
 // ─── Constants ────────────────────────────────────────────────────
 const PAGE_SIZE = 8;
@@ -263,6 +267,11 @@ function ProductRow({
         {product.compare_at_price && (
           <p className="text-[11px] text-[#2D6A4F] tabular-nums mt-0.5">{formatARS(product.compare_at_price)}</p>
         )}
+        {product.cost_price != null && (
+          <p className="text-[11px] text-[#8A8A8A] tabular-nums mt-0.5">
+            margen {formatPct(markupPct(product.price, product.cost_price))}
+          </p>
+        )}
       </td>
 
       {/* Actions */}
@@ -404,6 +413,11 @@ function ProductCardMobile({
               <p className="text-sm font-medium text-[#1A1A1A] tabular-nums">{formatARS(product.price)}</p>
               {product.compare_at_price && (
                 <p className="text-[11px] text-[#2D6A4F] tabular-nums">{formatARS(product.compare_at_price)}</p>
+              )}
+              {product.cost_price != null && (
+                <p className="text-[11px] text-[#8A8A8A] tabular-nums">
+                  margen {formatPct(markupPct(product.price, product.cost_price))}
+                </p>
               )}
             </div>
           </div>
@@ -600,6 +614,11 @@ export function ProductList() {
   const [error, setError] = useState<string | null>(null);
 
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const [importOpen, setImportOpen] = useState(false);
+  const [importJob, setImportJob] = useState<ImportJob | null>(null);
+  const [importStarting, setImportStarting] = useState(false);
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmBulk, setConfirmBulk] = useState(false);
@@ -651,7 +670,63 @@ export function ProductList() {
     return () => {
       cancelled = true;
     };
-  }, [debouncedQ, status, sort, page, user?.tenant_id]);
+  }, [debouncedQ, status, sort, page, user?.tenant_id, refreshKey]);
+
+  // Polling de la importación en segundo plano (sobrevive al cierre del modal
+  // y a la navegación: el job id queda guardado en localStorage).
+  useEffect(() => {
+    const stored = localStorage.getItem(IMPORT_JOB_KEY);
+    if (stored && !importJob) {
+      productImportService
+        .getJob(stored)
+        .then(setImportJob)
+        .catch(() => localStorage.removeItem(IMPORT_JOB_KEY));
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (importJob?.status !== "processing") return;
+    const id = importJob.job_id;
+    const t = setInterval(async () => {
+      try {
+        const next = await productImportService.getJob(id);
+        setImportJob(next);
+        if (next.status !== "processing") {
+          clearInterval(t);
+          localStorage.removeItem(IMPORT_JOB_KEY);
+          setRefreshKey((k) => k + 1);
+          if (next.status === "failed") {
+            toast.error(next.error || "La importación falló");
+          } else {
+            toast.success(
+              `Importación finalizada: ${next.created} creados, ${next.updated} actualizados` +
+                (next.errors ? `, ${next.errors} con error` : "")
+            );
+          }
+        }
+      } catch {
+        clearInterval(t);
+      }
+    }, 1500);
+    return () => clearInterval(t);
+  }, [importJob?.status, importJob?.job_id]);
+
+  async function handleStartImport(file: File) {
+    setImportStarting(true);
+    try {
+      const { job_id } = await productImportService.start(file);
+      localStorage.setItem(IMPORT_JOB_KEY, job_id);
+      setImportJob({
+        job_id, status: "processing", filename: file.name, total: 0, processed: 0,
+        created: 0, updated: 0, warnings: 0, errors: 0, rows: [], error: null,
+        created_at: null, finished_at: null,
+      });
+    } catch {
+      toast.error("No se pudo iniciar la importación");
+    } finally {
+      setImportStarting(false);
+    }
+  }
 
   const hasFilters = !!(q || status || sort !== "newest");
   const activeFilterCount = [q, status, sort !== "newest" ? sort : ""].filter(Boolean).length;
@@ -737,8 +812,14 @@ export function ProductList() {
   return (
     <AdminLayout>
       {/* Mobile sticky action bar */}
-      <div className="sm:hidden sticky top-0 z-10 bg-white border-b border-[#E8E2D8] px-4 py-3">
-        <Link to="/seller/products/new" className="btn-primary w-full text-center block">
+      <div className="sm:hidden sticky top-0 z-10 bg-white border-b border-[#E8E2D8] px-4 py-3 flex gap-2">
+        <button
+          onClick={() => setImportOpen(true)}
+          className="flex-1 px-4 py-2 text-sm font-medium text-[#1A2B1C] border border-[#1A2B1C] rounded-lg hover:bg-[#F4F8F4] transition-colors"
+        >
+          Importar
+        </button>
+        <Link to="/seller/products/new" className="btn-primary flex-1 text-center block">
           + Nuevo producto
         </Link>
       </div>
@@ -765,7 +846,19 @@ export function ProductList() {
                 : `${total} producto${total !== 1 ? "s" : ""} en tu tienda`}
             </p>
           </div>
-          <div className="hidden sm:block shrink-0">
+          <div className="hidden sm:flex shrink-0 items-center gap-3">
+            {importJob?.status === "processing" && (
+              <span className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-[#1A2B1C] bg-[#F4F8F4] border border-[#D4E8D4] rounded-lg">
+                <span className="w-2 h-2 rounded-full bg-[#1A2B1C] animate-pulse" />
+                Importando… {importJob.processed}/{importJob.total || "…"}
+              </span>
+            )}
+            <button
+              onClick={() => setImportOpen(true)}
+              className="px-4 py-2 text-sm font-medium text-[#1A2B1C] border border-[#1A2B1C] rounded-lg hover:bg-[#F4F8F4] transition-colors"
+            >
+              Importar
+            </button>
             <Link to="/seller/products/new" className="btn-primary">
               + Nuevo producto
             </Link>
@@ -981,6 +1074,14 @@ export function ProductList() {
           )}
         </div>
       </div>
+
+      <ImportProductsModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        job={importJob}
+        starting={importStarting}
+        onStart={handleStartImport}
+      />
     </AdminLayout>
   );
 }
