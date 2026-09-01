@@ -11,8 +11,12 @@ from app.schemas.content import (
     DesignSettingsUpdate,
     HeroSettings,
     HeroSettingsUpdate,
+    InfoPageSettings,
+    InfoPageSettingsUpdate,
     InspirationSettings,
     InspirationSettingsUpdate,
+    SocialSettings,
+    SocialSettingsUpdate,
 )
 
 router = APIRouter()
@@ -518,3 +522,336 @@ async def upload_design_image(file: UploadFile = File(...)):
         content, file.filename or "image", max_dimension=HERO_MAX_IMAGE_DIMENSION
     )
     return {"url": url}
+
+
+# ─── Páginas de solo texto del footer ───────────────────────────────
+# Un único par de endpoints parametrizado por slug atiende las cinco
+# páginas de "Información" del footer. Cada tenant guarda su propia versión
+# en site_content con type "info:<slug>"; hasta entonces se sirve el copy
+# por defecto de acá, que replica el texto que estaba hardcodeado en el
+# frontend para que la página no quede vacía.
+INFO_PAGE_SLUGS = (
+    "envios",
+    "medios-de-pago",
+    "cambios-y-devoluciones",
+    "preguntas-frecuentes",
+    "terminos-y-condiciones",
+)
+
+
+def _info_section(n: int, title: str, text: str) -> dict:
+    return {"id": f"default-{n}", "title": title, "text": text}
+
+
+_DEFAULT_INFO_PAGES: dict[str, dict] = {
+    "envios": {
+        "title": "Envíos",
+        "sections": [
+            _info_section(
+                1,
+                "Envíos a todo el país",
+                "Despachamos pedidos a todas las provincias de Argentina a través de "
+                "transporte y correo. En Tucumán capital y alrededores ofrecemos envío "
+                "propio, ideal para plantas grandes o macetas que requieren un traslado "
+                "más cuidadoso.",
+            ),
+            _info_section(
+                2,
+                "Plazos de entrega",
+                "Área metropolitana: 24 a 48 horas hábiles.\nInterior del país: entre 3 y "
+                "7 días hábiles, según la localidad y el transporte disponible.\nLos plazos "
+                "pueden variar en fechas de alta demanda (Día de la Madre, Navidad y "
+                "Primavera).",
+            ),
+            _info_section(
+                3,
+                "Costo de envío",
+                "El costo se calcula automáticamente en el checkout según el código postal "
+                "de destino y el volumen del pedido. Podés ver el valor exacto antes de "
+                "confirmar la compra.",
+            ),
+            _info_section(
+                4,
+                "Cuidado de las plantas en el viaje",
+                "Cada planta se prepara y embala especialmente para el transporte: sustrato "
+                "humedecido, protección de hojas y ramas, y maceta fijada para evitar "
+                "movimientos. Aun así, recomendamos revisar el pedido apenas llega y "
+                "regarlo si el sustrato está seco.",
+            ),
+            _info_section(
+                5,
+                "Seguimiento del pedido",
+                "Una vez despachado tu pedido vas a recibir un email con el número de "
+                'seguimiento. También podés consultar el estado desde tu cuenta, en la '
+                'sección "Mis pedidos".',
+            ),
+        ],
+    },
+    "medios-de-pago": {
+        "title": "Medios de pago",
+        "sections": [
+            _info_section(
+                1,
+                "Tarjetas de crédito y débito",
+                "Aceptamos las principales tarjetas de crédito y débito (Visa, Mastercard "
+                "y American Express), procesadas de forma segura al finalizar la compra. "
+                "Consultá promociones y cuotas sin interés disponibles según el banco "
+                "emisor.",
+            ),
+            _info_section(
+                2,
+                "Transferencia bancaria",
+                "Podés abonar tu pedido por transferencia o depósito bancario. Al elegir "
+                "esta opción en el checkout te vamos a enviar los datos de la cuenta y tu "
+                "pedido queda reservado mientras se acredita el pago.",
+            ),
+            _info_section(
+                3,
+                "Efectivo en puntos de pago",
+                "También podés pagar en efectivo en las redes de cobranza habilitadas. El "
+                "pedido se confirma automáticamente una vez acreditado el pago.",
+            ),
+            _info_section(
+                4,
+                "Seguridad de tus datos",
+                "Todos los pagos con tarjeta se procesan a través de una pasarela de pago "
+                "certificada. No almacenamos los números de tarjeta en nuestros "
+                "servidores.",
+            ),
+        ],
+    },
+    "cambios-y-devoluciones": {
+        "title": "Cambios y devoluciones",
+        "sections": [
+            _info_section(
+                1,
+                "Plazo para solicitar un cambio",
+                "Tenés hasta 5 días corridos desde que recibís tu pedido para solicitar un "
+                "cambio o devolución, escribiéndonos por WhatsApp o email con tu número de "
+                "pedido y una foto del producto.",
+            ),
+            _info_section(
+                2,
+                "Plantas con problemas de salud",
+                "Si una planta llega dañada o con signos de haber sufrido en el viaje, la "
+                "cambiamos sin cargo. Pedimos que nos avises dentro de las 48 horas de "
+                "recibida, con fotos del estado en que llegó.",
+            ),
+            _info_section(
+                3,
+                "Macetas y accesorios",
+                "Los productos que no sean plantas se pueden cambiar o devolver si no "
+                "fueron usados y conservan su embalaje original. El costo del envío de "
+                "devolución corre por cuenta del comprador, salvo que el producto haya "
+                "llegado con una falla.",
+            ),
+            _info_section(
+                4,
+                "Cómo se procesa el reembolso",
+                "Una vez que recibimos y revisamos el producto devuelto, el reembolso se "
+                "acredita por el mismo medio de pago utilizado en la compra. El tiempo de "
+                "acreditación depende de cada entidad bancaria.",
+            ),
+            _info_section(
+                5,
+                "Productos que no admiten devolución",
+                "Por su naturaleza perecedera, los sustratos abiertos y las plantas ya "
+                "trasplantadas no admiten devolución, salvo problema de salud de la planta "
+                "detectado a tiempo.",
+            ),
+        ],
+    },
+    "preguntas-frecuentes": {
+        "title": "Preguntas frecuentes",
+        "sections": [
+            _info_section(
+                1,
+                "¿Cómo sé qué planta elegir para mi espacio?",
+                "En cada ficha de producto vas a encontrar los cuidados recomendados: luz, "
+                "riego y tamaño adulto. Si tenés dudas, escribinos por WhatsApp y te "
+                "asesoramos según la luz y el ambiente que tenés disponible.",
+            ),
+            _info_section(
+                2,
+                "¿Las plantas vienen con maceta?",
+                "Depende del producto: algunas plantas se venden solo con la maceta de "
+                "vivero (de plástico, para trasplantar) y otras incluyen maceta "
+                "decorativa. Esto figura siempre en la descripción de cada producto, y en "
+                "varios casos podés elegir la maceta al momento de comprar.",
+            ),
+            _info_section(
+                3,
+                "¿Hacen envíos a todo el país?",
+                "Sí, enviamos a todas las provincias. Podés ver los plazos y costos en la "
+                "sección de Envíos.",
+            ),
+            _info_section(
+                4,
+                "¿Puedo retirar mi pedido en el vivero?",
+                "Sí, podés elegir la opción de retiro en el checkout y coordinamos un "
+                "horario para que pases a buscarlo sin costo de envío.",
+            ),
+            _info_section(
+                5,
+                "¿Ofrecen servicio de diseño de jardines?",
+                "Sí, contamos con un equipo de paisajistas para proyectos de diseño y "
+                "paisajismo integral, desde un balcón hasta un jardín completo. Podés "
+                "conocer más en la sección Diseño & Paisajismo.",
+            ),
+            _info_section(
+                6,
+                "¿Qué pasa si mi planta llega con problemas?",
+                "La cambiamos sin cargo. Más detalles en la sección Cambios y "
+                "devoluciones.",
+            ),
+        ],
+    },
+    "terminos-y-condiciones": {
+        "title": "Términos y condiciones",
+        "sections": [
+            _info_section(
+                1,
+                "Aceptación de los términos",
+                "El uso de este sitio y la compra de productos implica la aceptación de "
+                "estos términos y condiciones. Te recomendamos leerlos antes de realizar "
+                "un pedido.",
+            ),
+            _info_section(
+                2,
+                "Productos y disponibilidad",
+                "Trabajamos con stock vivo, por lo que la disponibilidad de plantas puede "
+                "variar según la temporada. Si un producto no está disponible luego de "
+                "confirmada la compra, te contactamos para ofrecerte un reemplazo o el "
+                "reembolso correspondiente.",
+            ),
+            _info_section(
+                3,
+                "Precios",
+                "Los precios publicados están expresados en pesos argentinos e incluyen "
+                "los impuestos correspondientes. Nos reservamos el derecho de modificar "
+                "precios sin previo aviso, aunque respetamos siempre el valor vigente al "
+                "momento de confirmar tu compra.",
+            ),
+            _info_section(
+                4,
+                "Cuentas de usuario",
+                "Sos responsable de mantener la confidencialidad de tu usuario y "
+                "contraseña, y de toda actividad realizada desde tu cuenta.",
+            ),
+            _info_section(
+                5,
+                "Propiedad intelectual",
+                "Las imágenes, textos y contenido de este sitio son propiedad de Vivero El "
+                "Cristo y no pueden reproducirse sin autorización previa.",
+            ),
+            _info_section(
+                6,
+                "Modificaciones",
+                "Estos términos pueden actualizarse en cualquier momento. Los cambios "
+                "entran en vigencia desde su publicación en esta misma página.",
+            ),
+            _info_section(
+                7,
+                "Contacto",
+                "Ante cualquier consulta sobre estos términos podés escribirnos a "
+                "viveroelcristo@gmail.com.",
+            ),
+        ],
+    },
+}
+
+
+@router.get("/info/{slug}", response_model=InfoPageSettings)
+async def get_info_page(slug: str, request: Request):
+    if slug not in INFO_PAGE_SLUGS:
+        raise HTTPException(404, "Página no encontrada")
+    db = get_db()
+    doc = await db.site_content.find_one(
+        {"tenant_id": _tenant_id(request), "type": f"info:{slug}"}
+    )
+    if not doc:
+        return _DEFAULT_INFO_PAGES[slug]
+    return {"title": doc.get("title", ""), "sections": doc.get("sections", [])}
+
+
+@router.put("/info/{slug}", response_model=InfoPageSettings)
+async def update_info_page(slug: str, body: InfoPageSettingsUpdate, request: Request):
+    if slug not in INFO_PAGE_SLUGS:
+        raise HTTPException(404, "Página no encontrada")
+
+    tid = _tenant_id(request)
+    sections = []
+    for section in body.sections:
+        data = section.model_dump()
+        data["id"] = data["id"] or uuid.uuid4().hex
+        sections.append(data)
+
+    new_data = {"title": body.title, "sections": sections}
+
+    db = get_db()
+    await db.site_content.update_one(
+        {"tenant_id": tid, "type": f"info:{slug}"},
+        {
+            "$set": {**new_data, "updated_at": datetime.now(UTC)},
+            "$setOnInsert": {
+                "tenant_id": tid, "type": f"info:{slug}", "created_at": datetime.now(UTC)
+            },
+        },
+        upsert=True,
+    )
+
+    return new_data
+
+
+# ─── Redes sociales del footer ─────────────────────────────────────
+# Default usado hasta que el tenant guarda sus propias redes — replica los
+# links que estaban hardcodeados en el footer del frontend.
+_DEFAULT_SOCIAL = {
+    "links": [
+        {
+            "id": "default-1",
+            "platform": "instagram",
+            "url": "https://www.instagram.com/viveroelcristo",
+        },
+        {
+            "id": "default-2",
+            "platform": "facebook",
+            "url": "https://www.facebook.com/profile.php?id=100063910389465",
+        },
+    ]
+}
+
+
+@router.get("/social", response_model=SocialSettings)
+async def get_social(request: Request):
+    db = get_db()
+    doc = await db.site_content.find_one(
+        {"tenant_id": _tenant_id(request), "type": "social"}
+    )
+    if not doc:
+        return _DEFAULT_SOCIAL
+    return {"links": doc.get("links", [])}
+
+
+@router.put("/social", response_model=SocialSettings)
+async def update_social(body: SocialSettingsUpdate, request: Request):
+    tid = _tenant_id(request)
+    links = []
+    for link in body.links:
+        data = link.model_dump()
+        data["id"] = data["id"] or uuid.uuid4().hex
+        links.append(data)
+
+    db = get_db()
+    await db.site_content.update_one(
+        {"tenant_id": tid, "type": "social"},
+        {
+            "$set": {"links": links, "updated_at": datetime.now(UTC)},
+            "$setOnInsert": {
+                "tenant_id": tid, "type": "social", "created_at": datetime.now(UTC)
+            },
+        },
+        upsert=True,
+    )
+
+    return {"links": links}

@@ -34,6 +34,7 @@ import { Dashboard } from "./pages/admin/Dashboard";
 import { Settings } from "./pages/admin/Settings";
 import { Content } from "./pages/admin/Content";
 import { Integrations } from "./pages/admin/Integrations";
+import { Reports } from "./pages/admin/Reports";
 import { Cart } from "./pages/Cart";
 import { OrderConfirmation } from "./pages/OrderConfirmation";
 import { OrderList } from "./pages/admin/OrderList";
@@ -87,6 +88,7 @@ export default function App() {
             <Route path="/seller/categories/:id/edit" element={<CategoryEdit />} />
             <Route path="/seller/settings" element={<Settings />} />
             <Route path="/seller/content" element={<Content />} />
+            <Route path="/seller/reports" element={<Reports />} />
             <Route path="/seller/integrations" element={<Integrations />} />
             <Route path="/diseno" element={<Design />} />
             <Route path="/inspiracion" element={<Inspiration />} />

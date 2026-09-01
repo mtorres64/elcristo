@@ -1,6 +1,19 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { contentService } from "../../services/content.service";
+import { SOCIAL_PLATFORMS, SocialIcon } from "../social/socialPlatforms";
+import type { SocialLink as SocialLinkItem } from "../../types/content";
 
 export function Footer() {
+  const [social, setSocial] = useState<SocialLinkItem[]>([]);
+
+  useEffect(() => {
+    contentService
+      .getSocial()
+      .then((d) => setSocial(d.links.filter((l) => l.url)))
+      .catch(() => {});
+  }, []);
+
   return (
     <footer className="bg-[#111810] text-[#A8B5A9]">
       {/* Main footer */}
@@ -17,11 +30,19 @@ export function Footer() {
           <p className="text-[11px] leading-relaxed text-[#6B7A6C]">
             Diseñamos espacios únicos con plantas seleccionadas y asesoramiento personalizado.
           </p>
-          <div className="flex items-center gap-3 mt-1">
-            <SocialLink href="#" label="Instagram"><InstagramIcon /></SocialLink>
-            <SocialLink href="#" label="Facebook"><FacebookIcon /></SocialLink>
-            <SocialLink href="#" label="Pinterest"><PinterestIcon /></SocialLink>
-          </div>
+          {social.length > 0 && (
+            <div className="flex items-center gap-3 mt-1">
+              {social.map((link) => (
+                <SocialLink
+                  key={link.id}
+                  href={link.url}
+                  label={SOCIAL_PLATFORMS[link.platform]?.label ?? link.platform}
+                >
+                  <SocialIcon platform={link.platform} />
+                </SocialLink>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Tienda */}
@@ -119,21 +140,18 @@ export function Footer() {
 
 function SocialLink({ href, label, children }: { href: string; label: string; children: React.ReactNode }) {
   return (
-    <a href={href} aria-label={label} className="w-8 h-8 rounded-full border border-[#2A3A2B] flex items-center justify-center text-[#5A7A5C] hover:border-[#5A7A5C] hover:text-[#A8B5A9] transition-colors">
+    <a
+      href={href}
+      aria-label={label}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="w-8 h-8 rounded-full border border-[#2A3A2B] flex items-center justify-center text-[#5A7A5C] hover:border-[#5A7A5C] hover:text-[#A8B5A9] transition-colors"
+    >
       {children}
     </a>
   );
 }
 
-function InstagramIcon() {
-  return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="2" y="2" width="20" height="20" rx="5" /><circle cx="12" cy="12" r="4" /><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" /></svg>;
-}
-function FacebookIcon() {
-  return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" /></svg>;
-}
-function PinterestIcon() {
-  return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 2C6.48 2 2 6.48 2 12c0 4.24 2.65 7.86 6.39 9.29-.09-.78-.17-1.98.04-2.83.19-.77 1.27-5.38 1.27-5.38s-.32-.65-.32-1.61c0-1.51.88-2.64 1.97-2.64.93 0 1.38.7 1.38 1.54 0 .94-.6 2.34-.91 3.64-.26 1.09.54 1.97 1.6 1.97 1.92 0 3.4-2.02 3.4-4.94 0-2.58-1.86-4.39-4.51-4.39-3.07 0-4.87 2.3-4.87 4.68 0 .93.36 1.92.8 2.46.09.11.1.2.07.31-.08.33-.26 1.09-.3 1.24-.05.2-.17.24-.38.14-1.39-.65-2.26-2.69-2.26-4.33 0-3.51 2.55-6.74 7.36-6.74 3.86 0 6.86 2.75 6.86 6.42 0 3.83-2.41 6.91-5.76 6.91-1.12 0-2.18-.58-2.54-1.27l-.69 2.58c-.25.96-.93 2.17-1.38 2.9.04.01.07.03.11.04" /></svg>;
-}
 function WhatsAppIcon() {
   return <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>;
 }

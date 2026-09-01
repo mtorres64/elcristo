@@ -142,3 +142,63 @@ class DesignSettingsUpdate(BaseModel):
     intro_title: str = ""
     intro_text: str = ""
     projects: list[DesignProjectInput] = Field(default_factory=list)
+
+
+# Páginas de solo texto del footer (Envíos, Medios de pago, Cambios y
+# devoluciones, Preguntas frecuentes, Términos y condiciones): un título de
+# página y una lista de secciones cortas (subtítulo + párrafo).
+class InfoPageSection(BaseModel):
+    id: str
+    title: str = ""
+    text: str = ""
+
+
+class InfoPageSectionInput(BaseModel):
+    id: str | None = None
+    title: str = ""
+    text: str = ""
+
+
+class InfoPageSettings(BaseModel):
+    title: str = ""
+    sections: list[InfoPageSection] = Field(default_factory=list)
+
+
+class InfoPageSettingsUpdate(BaseModel):
+    title: str = ""
+    sections: list[InfoPageSectionInput] = Field(default_factory=list)
+
+
+# Links a redes sociales que se muestran en el footer. El vendedor elige la
+# red (define el ícono) y pega la URL.
+SocialPlatform = Literal[
+    "instagram",
+    "facebook",
+    "pinterest",
+    "x",
+    "youtube",
+    "tiktok",
+    "linkedin",
+    "threads",
+    "whatsapp",
+]
+
+
+class SocialLink(BaseModel):
+    id: str
+    platform: SocialPlatform
+    url: str = ""
+
+
+class SocialLinkInput(BaseModel):
+    id: str | None = None
+    platform: SocialPlatform
+    url: str = ""
+
+
+class SocialSettings(BaseModel):
+    links: list[SocialLink] = Field(default_factory=list)
+
+
+class SocialSettingsUpdate(BaseModel):
+    links: list[SocialLinkInput] = Field(default_factory=list)

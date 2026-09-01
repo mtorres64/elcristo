@@ -3,6 +3,7 @@ import toast from "react-hot-toast";
 import { AdminLayout } from "../../components/admin/AdminLayout";
 import { HeroCarouselSettings, emptySlide } from "./settings/HeroCarouselSettings";
 import { PricingSettings } from "./settings/PricingSettings";
+import { SocialLinksSettings } from "./settings/SocialLinksSettings";
 import { contentService } from "../../services/content.service";
 import { categoryService } from "../../services/category.service";
 import { productService } from "../../services/product.service";
@@ -15,11 +16,12 @@ import type { ProductSummary } from "../../types/product";
  * agregar una entrada acá y su componente correspondiente abajo.
  * Las páginas de contenido (Sobre Nosotros, Inspiración, Diseño &
  * Paisajismo) viven aparte, en /seller/content — acá solo apariencia. */
-type SectionId = "hero" | "pricing";
+type SectionId = "hero" | "pricing" | "social";
 
 const SECTIONS: { id: SectionId; label: string }[] = [
   { id: "hero", label: "Carrusel principal" },
   { id: "pricing", label: "Precios y márgenes" },
+  { id: "social", label: "Redes sociales" },
 ];
 
 export function Settings() {
@@ -153,6 +155,8 @@ export function Settings() {
         )}
 
         {section === "pricing" && <PricingSettings />}
+
+        {section === "social" && <SocialLinksSettings />}
       </div>
     </AdminLayout>
   );

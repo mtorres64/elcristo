@@ -21,6 +21,7 @@ from app.routers import (
     product_import,
     products,
     purchases,
+    reports,
     search,
     store_settings,
     tenants,
@@ -60,6 +61,7 @@ app.include_router(product_import.router, prefix="/products/import", tags=["prod
 app.include_router(products.router, prefix="/products", tags=["products"])
 app.include_router(categories.router, prefix="/categories", tags=["categories"])
 app.include_router(purchases.router, prefix="/purchases", tags=["purchases"])
+app.include_router(reports.router, prefix="/reports", tags=["reports"])
 app.include_router(store_settings.router, prefix="/store-settings", tags=["store-settings"])
 app.include_router(cart.router, prefix="/cart", tags=["cart"])
 app.include_router(orders.router, prefix="/orders", tags=["orders"])

@@ -4,7 +4,11 @@ import type {
   DesignSettings,
   HeroSettings,
   HeroSlide,
+  InfoPageSettings,
+  InfoPageSlug,
   InspirationSettings,
+  SocialLink,
+  SocialSettings,
 } from "../types/content";
 
 export const contentService = {
@@ -82,5 +86,25 @@ export const contentService = {
       headers: { "Content-Type": "multipart/form-data" },
     });
     return res.data.url as string;
+  },
+
+  async getInfoPage(slug: InfoPageSlug): Promise<InfoPageSettings> {
+    const res = await api.get(`/content/info/${slug}`);
+    return res.data;
+  },
+
+  async updateInfoPage(slug: InfoPageSlug, data: InfoPageSettings): Promise<InfoPageSettings> {
+    const res = await api.put(`/content/info/${slug}`, data);
+    return res.data;
+  },
+
+  async getSocial(): Promise<SocialSettings> {
+    const res = await api.get("/content/social");
+    return res.data;
+  },
+
+  async updateSocial(links: SocialLink[]): Promise<SocialSettings> {
+    const res = await api.put("/content/social", { links });
+    return res.data;
   },
 };

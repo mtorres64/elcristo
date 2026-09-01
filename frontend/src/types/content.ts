@@ -74,3 +74,46 @@ export interface DesignSettings {
   intro_text: string;
   projects: DesignProject[];
 }
+
+/** Páginas de solo texto del footer: Envíos, Medios de pago, Cambios y
+ * devoluciones, Preguntas frecuentes, Términos y condiciones. */
+export type InfoPageSlug =
+  | "envios"
+  | "medios-de-pago"
+  | "cambios-y-devoluciones"
+  | "preguntas-frecuentes"
+  | "terminos-y-condiciones";
+
+export interface InfoPageSection {
+  id: string;
+  title: string;
+  text: string;
+}
+
+export interface InfoPageSettings {
+  title: string;
+  sections: InfoPageSection[];
+}
+
+/** Redes sociales del footer. La `platform` define el ícono y el orden en
+ * el que se listan es el orden en que se muestran. */
+export type SocialPlatform =
+  | "instagram"
+  | "facebook"
+  | "pinterest"
+  | "x"
+  | "youtube"
+  | "tiktok"
+  | "linkedin"
+  | "threads"
+  | "whatsapp";
+
+export interface SocialLink {
+  id: string;
+  platform: SocialPlatform;
+  url: string;
+}
+
+export interface SocialSettings {
+  links: SocialLink[];
+}

@@ -4,20 +4,38 @@ import { AdminLayout } from "../../components/admin/AdminLayout";
 import { AboutPageSettings } from "./settings/AboutPageSettings";
 import { InspirationPageSettings } from "./settings/InspirationPageSettings";
 import { DesignPageSettings } from "./settings/DesignPageSettings";
+import { InfoPageSettings } from "./settings/InfoPageSettings";
 import { contentService } from "../../services/content.service";
-import type { AboutSettings, DesignSettings, InspirationSettings } from "../../types/content";
+import type {
+  AboutSettings,
+  DesignSettings,
+  InfoPageSlug,
+  InspirationSettings,
+} from "../../types/content";
 
 /* ─── Secciones de contenido ────────────────────────────────────
  * Botonera extensible: para sumar una nueva página de contenido alcanza
  * con agregar una entrada acá y su componente correspondiente abajo.
  * El carrusel del hero vive aparte, en /seller/settings — es apariencia
  * de la tienda, no una página de contenido. */
-type SectionId = "about" | "inspiration" | "design";
+type SectionId = "about" | "inspiration" | "design" | InfoPageSlug;
+
+/* Páginas de solo texto del footer ("Información"). Todas comparten el
+ * mismo editor autónomo (InfoPageSettings), así que se listan como datos
+ * y se renderizan en un solo lugar. */
+const INFO_PAGES: { slug: InfoPageSlug; label: string; description: string }[] = [
+  { slug: "envios", label: "Envíos", description: "Página de solo texto de la sección /envios" },
+  { slug: "medios-de-pago", label: "Medios de pago", description: "Página de solo texto de la sección /medios-de-pago" },
+  { slug: "cambios-y-devoluciones", label: "Cambios y devoluciones", description: "Página de solo texto de la sección /cambios-y-devoluciones" },
+  { slug: "preguntas-frecuentes", label: "Preguntas frecuentes", description: "Página de solo texto de la sección /preguntas-frecuentes" },
+  { slug: "terminos-y-condiciones", label: "Términos y condiciones", description: "Página de solo texto de la sección /terminos-y-condiciones" },
+];
 
 const SECTIONS: { id: SectionId; label: string }[] = [
   { id: "about", label: "Sobre Nosotros" },
   { id: "inspiration", label: "Inspiración" },
   { id: "design", label: "Diseño & Paisajismo" },
+  ...INFO_PAGES.map((p) => ({ id: p.slug, label: p.label })),
 ];
 
 const EMPTY_ABOUT: AboutSettings = {
@@ -230,6 +248,17 @@ export function Content() {
             onChange={patchDesign}
             onSave={handleSaveDesign}
           />
+        )}
+        {INFO_PAGES.map(
+          (p) =>
+            section === p.slug && (
+              <InfoPageSettings
+                key={p.slug}
+                slug={p.slug}
+                label={p.label}
+                description={p.description}
+              />
+            ),
         )}
       </div>
     </AdminLayout>
