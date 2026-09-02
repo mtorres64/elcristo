@@ -18,6 +18,8 @@ import { ProductDetail } from "./pages/ProductDetail";
 import { Login } from "./pages/Login";
 import { Register } from "./pages/Register";
 import { ForgotPassword } from "./pages/ForgotPassword";
+import { ResetPassword } from "./pages/ResetPassword";
+import { VerifyEmail } from "./pages/VerifyEmail";
 import { ProductEdit } from "./pages/admin/ProductEdit";
 import { ProductList } from "./pages/admin/ProductList";
 import { PurchaseList } from "./pages/admin/PurchaseList";
@@ -37,6 +39,8 @@ import { Integrations } from "./pages/admin/Integrations";
 import { Reports } from "./pages/admin/Reports";
 import { Cart } from "./pages/Cart";
 import { OrderConfirmation } from "./pages/OrderConfirmation";
+import { MyOrders } from "./pages/MyOrders";
+import { MyOrderDetail } from "./pages/MyOrderDetail";
 import { OrderList } from "./pages/admin/OrderList";
 import { OrderDetail } from "./pages/admin/OrderDetail";
 
@@ -65,11 +69,15 @@ export default function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/verify-email" element={<VerifyEmail />} />
             <Route path="/products" element={<Products />} />
             <Route path="/products/:productId" element={<ProductDetail />} />
             <Route path="/store/:slug" element={<PlaceholderPage title="Tienda pública" />} />
             <Route path="/cart" element={<Cart />} />
             <Route path="/pedido/:orderId" element={<OrderConfirmation />} />
+            <Route path="/mis-pedidos" element={<MyOrders />} />
+            <Route path="/mis-pedidos/:orderId" element={<MyOrderDetail />} />
             <Route path="/seller" element={<Dashboard />} />
             <Route path="/seller/orders" element={<OrderList />} />
             <Route path="/seller/orders/:orderId" element={<OrderDetail />} />

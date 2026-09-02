@@ -1,20 +1,21 @@
-from typing import Literal
-
 from pydantic import BaseModel, EmailStr, field_validator
+
+
+def _validate_password_length(v: str) -> str:
+    if len(v) < 8:
+        raise ValueError("La contraseña debe tener al menos 8 caracteres")
+    return v
 
 
 class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
     name: str
-    role: Literal["buyer", "seller"]
 
     @field_validator("password")
     @classmethod
     def password_min_length(cls, v: str) -> str:
-        if len(v) < 8:
-            raise ValueError("La contraseña debe tener al menos 8 caracteres")
-        return v
+        return _validate_password_length(v)
 
 
 class LoginRequest(BaseModel):
@@ -24,6 +25,32 @@ class LoginRequest(BaseModel):
 
 class RefreshRequest(BaseModel):
     refresh_token: str
+
+
+class VerifyEmailRequest(BaseModel):
+    token: str
+
+
+class ResendVerificationRequest(BaseModel):
+    email: EmailStr
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    password: str
+
+    @field_validator("password")
+    @classmethod
+    def password_min_length(cls, v: str) -> str:
+        return _validate_password_length(v)
+
+
+class MessageResponse(BaseModel):
+    message: str
 
 
 class TokenResponse(BaseModel):
@@ -53,6 +80,7 @@ class MeResponse(BaseModel):
     role: str
     avatar_url: str | None = None
     tenant_id: str | None = None
+    email_verified: bool = False
 
 
 class GoogleLoginRequest(BaseModel):

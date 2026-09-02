@@ -1,18 +1,24 @@
+import asyncio
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
 from app.database import get_db
 from app.schemas.integration import (
+    EmailIntegrationOut,
+    EmailIntegrationUpdate,
+    EmailTestRequest,
     Environment,
     GetnetIntegrationOut,
     GetnetIntegrationUpdate,
     GetnetPublicConfig,
     GetnetTestConnectionResult,
+    IntegrationTestResult,
 )
 from app.utils import getnet_client
 from app.utils.auth_deps import require_user
 from app.utils.crypto import CryptoConfigError, decrypt_secret, encrypt_secret
+from app.utils.email import EmailError, SmtpConfig, deliver_email
 
 router = APIRouter()
 
@@ -208,3 +214,158 @@ async def get_getnet_public_config(request: Request):
     active_env = doc.get("active_environment", "sandbox")
     env_doc = doc.get(active_env) or {}
     return {"enabled": True, "environment": active_env, "seller_id": env_doc.get("seller_id")}
+
+
+# ─── Email (SMTP) ────────────────────────────────────────────────────────────
+# Misma colección `tenant_integrations` con `provider: "email"`. Sin ambientes:
+# un único juego de credenciales. La contraseña se guarda cifrada con la misma
+# `INTEGRATIONS_ENCRYPTION_KEY` que el client_secret de Getnet.
+
+_EMAIL_DEFAULTS = {
+    "enabled": False, "host": None, "port": 587, "username": None,
+    "from_email": None, "use_tls": True, "password_set": False,
+    "last_verified_at": None, "last_verified_ok": None, "last_verified_message": None,
+    "updated_at": None,
+}
+
+
+def _email_to_out(doc: dict | None) -> dict:
+    if not doc:
+        return dict(_EMAIL_DEFAULTS)
+    return {
+        "enabled": doc.get("enabled", False),
+        "host": doc.get("host"),
+        "port": doc.get("port", 587),
+        "username": doc.get("username"),
+        "from_email": doc.get("from_email"),
+        "use_tls": doc.get("use_tls", True),
+        "password_set": bool(doc.get("password_encrypted")),
+        "last_verified_at": doc.get("last_verified_at"),
+        "last_verified_ok": doc.get("last_verified_ok"),
+        "last_verified_message": doc.get("last_verified_message"),
+        "updated_at": doc.get("updated_at"),
+    }
+
+
+@router.get("/email", response_model=EmailIntegrationOut)
+async def get_email_integration(request: Request):
+    _require_seller_or_admin(request)
+    db = get_db()
+    doc = await db.tenant_integrations.find_one(
+        {"tenant_id": _tenant_id(request), "provider": "email", "deleted_at": None}
+    )
+    return _email_to_out(doc)
+
+
+@router.put("/email", response_model=EmailIntegrationOut)
+async def update_email_integration(body: EmailIntegrationUpdate, request: Request):
+    _require_seller_or_admin(request)
+    db = get_db()
+    tid = _tenant_id(request)
+
+    existing = await db.tenant_integrations.find_one(
+        {"tenant_id": tid, "provider": "email", "deleted_at": None}
+    )
+    has_existing_password = bool((existing or {}).get("password_encrypted"))
+
+    if body.enabled:
+        missing = [
+            label
+            for value, label in (
+                (body.host.strip(), "host"),
+                (body.from_email.strip(), "remitente (from)"),
+            )
+            if not value
+        ]
+        if missing:
+            raise HTTPException(400, f"Completá {' y '.join(missing)} para activar el correo")
+        if not body.password and not has_existing_password:
+            raise HTTPException(400, "Falta la contraseña SMTP para activar el correo")
+
+    now = datetime.now(UTC)
+    update: dict = {
+        "enabled": body.enabled,
+        "host": body.host.strip(),
+        "port": body.port,
+        "username": body.username.strip(),
+        "from_email": body.from_email.strip(),
+        "use_tls": body.use_tls,
+        "updated_at": now,
+        # Cualquier cambio de config invalida la última verificación: una prueba
+        # vieja no debe aparentar seguir vigente con credenciales nuevas.
+        "last_verified_at": None,
+        "last_verified_ok": None,
+        "last_verified_message": None,
+    }
+    if body.password:
+        try:
+            update["password_encrypted"] = encrypt_secret(body.password)
+        except CryptoConfigError as exc:
+            raise HTTPException(500, str(exc)) from exc
+
+    await db.tenant_integrations.update_one(
+        {"tenant_id": tid, "provider": "email"},
+        {
+            "$set": update,
+            "$setOnInsert": {
+                "tenant_id": tid, "provider": "email", "created_at": now, "deleted_at": None,
+            },
+        },
+        upsert=True,
+    )
+    updated = await db.tenant_integrations.find_one({"tenant_id": tid, "provider": "email"})
+    return _email_to_out(updated)
+
+
+@router.post("/email/test", response_model=IntegrationTestResult)
+async def test_email_integration(body: EmailTestRequest, request: Request):
+    """Envía un correo de prueba con la config SMTP guardada y registra el
+    resultado en `last_verified_*`."""
+    _require_seller_or_admin(request)
+    db = get_db()
+    tid = _tenant_id(request)
+
+    doc = await db.tenant_integrations.find_one(
+        {"tenant_id": tid, "provider": "email", "deleted_at": None}
+    )
+    doc = doc or {}
+    if not (doc.get("host") and doc.get("from_email") and doc.get("password_encrypted")):
+        raise HTTPException(400, "Completá y guardá host, remitente y contraseña antes de probar")
+
+    try:
+        password = decrypt_secret(doc["password_encrypted"])
+    except CryptoConfigError as exc:
+        raise HTTPException(500, str(exc)) from exc
+
+    cfg = SmtpConfig(
+        host=doc["host"],
+        port=doc.get("port", 587),
+        username=doc.get("username") or "",
+        password=password,
+        from_email=doc["from_email"],
+        use_tls=doc.get("use_tls", True),
+    )
+
+    now = datetime.now(UTC)
+    try:
+        await asyncio.to_thread(
+            deliver_email,
+            body.to,
+            "Correo de prueba — Vivero El Cristo",
+            "<p>¡Funciona! Esta es una prueba de tu configuración SMTP.</p>",
+            cfg,
+            "¡Funciona! Esta es una prueba de tu configuración SMTP.",
+        )
+        result = {"ok": True, "message": f"Correo de prueba enviado a {body.to}"}
+    except EmailError as exc:
+        result = {"ok": False, "message": str(exc)}
+
+    await db.tenant_integrations.update_one(
+        {"tenant_id": tid, "provider": "email"},
+        {"$set": {
+            "last_verified_ok": result["ok"],
+            "last_verified_message": result["message"],
+            "last_verified_at": now,
+        }},
+    )
+    return result

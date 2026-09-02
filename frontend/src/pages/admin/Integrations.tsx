@@ -2,15 +2,19 @@ import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { AdminLayout } from "../../components/admin/AdminLayout";
 import { integrationsService } from "../../services/integrations.service";
+import { EmailIntegrationCard } from "./integrations/EmailIntegrationCard";
 import type { GetnetEnvironment, GetnetIntegration } from "../../types/integration";
 
 /* ─── Secciones de integración ──────────────────────────────────
  * Mismo patrón extensible que Settings.tsx: para sumar otro proveedor de
  * pago (o cualquier otra integración) alcanza con agregar una entrada acá
  * y su bloque correspondiente en el render de abajo. */
-type SectionId = "getnet";
+type SectionId = "getnet" | "email";
 
-const SECTIONS: { id: SectionId; label: string }[] = [{ id: "getnet", label: "Getnet" }];
+const SECTIONS: { id: SectionId; label: string }[] = [
+  { id: "getnet", label: "Getnet" },
+  { id: "email", label: "Correo" },
+];
 
 const ENV_TABS: { id: GetnetEnvironment; label: string }[] = [
   { id: "sandbox", label: "Sandbox (pruebas)" },
@@ -170,15 +174,17 @@ export function Integrations() {
 
   return (
     <AdminLayout>
-      <div className="sm:hidden sticky top-0 z-10 bg-white border-b border-[#E8E2D8] px-4 py-3">
-        <button
-          onClick={handleSave}
-          disabled={saving || loading}
-          className="w-full bg-[#1A2B1C] text-white text-xs font-semibold uppercase tracking-widest px-5 py-2.5 rounded-lg hover:bg-[#253824] transition-colors disabled:opacity-50"
-        >
-          {saving ? "Guardando…" : "Guardar cambios"}
-        </button>
-      </div>
+      {section === "getnet" && (
+        <div className="sm:hidden sticky top-0 z-10 bg-white border-b border-[#E8E2D8] px-4 py-3">
+          <button
+            onClick={handleSave}
+            disabled={saving || loading}
+            className="w-full bg-[#1A2B1C] text-white text-xs font-semibold uppercase tracking-widest px-5 py-2.5 rounded-lg hover:bg-[#253824] transition-colors disabled:opacity-50"
+          >
+            {saving ? "Guardando…" : "Guardar cambios"}
+          </button>
+        </div>
+      )}
 
       <div className="px-4 sm:px-8 py-6 min-h-full max-w-2xl">
         <div className="mb-6 flex items-start justify-between gap-4">
@@ -190,13 +196,15 @@ export function Integrations() {
               Conectá servicios externos a tu tienda, como pasarelas de pago
             </p>
           </div>
-          <button
-            onClick={handleSave}
-            disabled={saving || loading}
-            className="hidden sm:block bg-[#1A2B1C] text-white text-xs font-semibold uppercase tracking-widest px-5 py-2.5 rounded-lg hover:bg-[#253824] transition-colors disabled:opacity-50 shrink-0"
-          >
-            {saving ? "Guardando…" : "Guardar cambios"}
-          </button>
+          {section === "getnet" && (
+            <button
+              onClick={handleSave}
+              disabled={saving || loading}
+              className="hidden sm:block bg-[#1A2B1C] text-white text-xs font-semibold uppercase tracking-widest px-5 py-2.5 rounded-lg hover:bg-[#253824] transition-colors disabled:opacity-50 shrink-0"
+            >
+              {saving ? "Guardando…" : "Guardar cambios"}
+            </button>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-2 mb-6">
@@ -215,11 +223,13 @@ export function Integrations() {
           ))}
         </div>
 
-        {loading ? (
+        {section === "email" ? (
+          <EmailIntegrationCard />
+        ) : loading ? (
           <div className="bg-white border border-[#E8E2D8] rounded-lg p-12 text-center">
             <p className="font-serif text-lg text-[#8A8A8A]">Cargando…</p>
           </div>
-        ) : section === "getnet" ? (
+        ) : (
           <div className="bg-white border border-[#E8E2D8] rounded-lg p-5 sm:p-6 flex flex-col gap-5">
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -353,7 +363,7 @@ export function Integrations() {
               )}
             </div>
           </div>
-        ) : null}
+        )}
       </div>
     </AdminLayout>
   );

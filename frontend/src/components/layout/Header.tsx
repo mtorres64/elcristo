@@ -127,6 +127,14 @@ export function Header() {
                     <p className="text-xs font-semibold text-[#1A1A1A] truncate">{user.name}</p>
                     <p className="text-[10px] text-[#8A8A8A] truncate">{user.email}</p>
                   </div>
+                  <Link
+                    to="/mis-pedidos"
+                    onClick={() => setUserMenuOpen(false)}
+                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-[#1A1A1A] hover:bg-[#F5F5F3] transition-colors border-b border-[#F0EDE8]"
+                  >
+                    <OrdersIcon />
+                    Mis pedidos
+                  </Link>
                   {(user.role === "seller" || user.role === "platform_admin") && (
                     <Link
                       to="/seller"
@@ -240,6 +248,13 @@ export function Header() {
           ))}
           {user ? (
             <>
+              <Link
+                to="/mis-pedidos"
+                onClick={() => setMenuOpen(false)}
+                className="text-sm text-left py-2 text-[#1A1A1A] tracking-wide"
+              >
+                Mis pedidos
+              </Link>
               {(user.role === "seller" || user.role === "platform_admin") && (
                 <Link
                   to="/seller"
@@ -344,6 +359,16 @@ function UserIcon() {
     <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
       <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
       <circle cx="12" cy="7" r="4" />
+    </svg>
+  );
+}
+
+function OrdersIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
+      <line x1="3" y1="6" x2="21" y2="6" />
+      <path d="M16 10a4 4 0 0 1-8 0" />
     </svg>
   );
 }

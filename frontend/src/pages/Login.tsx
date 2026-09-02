@@ -4,6 +4,7 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import { useGoogleLogin } from "@react-oauth/google";
 import { useAuth } from "../hooks/useAuth";
+import { authService } from "../services/auth.service";
 
 const GOOGLE_CONFIGURED = !!import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
@@ -80,6 +81,8 @@ export function Login() {
   const from = (location.state as { from?: string })?.from ?? "/";
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
+  const [resending, setResending] = useState(false);
 
   const {
     register,
@@ -97,14 +100,37 @@ export function Login() {
 
   async function onSubmit(data: FormData) {
     setLoading(true);
+    setUnverifiedEmail(null);
     try {
       const user = await login(data.email, data.password);
       toast.success("¡Bienvenido de nuevo!");
       redirectAfterLogin(user.role);
-    } catch {
-      toast.error("Email o contraseña incorrectos");
+    } catch (err: unknown) {
+      const res =
+        err && typeof err === "object" && "response" in err
+          ? (err as { response?: { status?: number; data?: { detail?: string } } }).response
+          : undefined;
+      if (res?.status === 403 && typeof res.data?.detail === "string") {
+        setUnverifiedEmail(data.email);
+        toast.error(res.data.detail);
+      } else {
+        toast.error("Email o contraseña incorrectos");
+      }
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleResendVerification() {
+    if (!unverifiedEmail) return;
+    setResending(true);
+    try {
+      const res = await authService.resendVerification(unverifiedEmail);
+      toast.success(res.message);
+    } catch {
+      toast.error("No se pudo reenviar el correo. Intentá de nuevo.");
+    } finally {
+      setResending(false);
     }
   }
 
@@ -195,6 +221,23 @@ export function Login() {
             <span className="text-[10px] text-[#ABABAB] uppercase tracking-widest">o con email</span>
             <hr className="flex-1 border-[#E8E2D8]" />
           </div>
+
+          {unverifiedEmail && (
+            <div className="mb-4 border border-[#E8D9B0] bg-[#FBF6E7] px-4 py-3 text-xs text-[#6B5B1F] leading-relaxed rounded-lg">
+              Tu correo aún no está confirmado. Revisá tu casilla{" "}
+              <span className="font-medium">{unverifiedEmail}</span>{" "}
+              o{" "}
+              <button
+                type="button"
+                onClick={handleResendVerification}
+                disabled={resending}
+                className="underline font-medium hover:text-forest-deep disabled:opacity-50"
+              >
+                {resending ? "reenviando…" : "reenviá el enlace"}
+              </button>
+              .
+            </div>
+          )}
 
           {/* Formulario */}
           <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">

@@ -108,7 +108,7 @@ export function ProductDetail() {
         </div>
       </section>
 
-      <RelatedProducts />
+      <RelatedProducts currentId={product?.product_id} categoryId={product?.category_id} />
       <ServicesSection />
       <TrustStrip />
     </Layout>

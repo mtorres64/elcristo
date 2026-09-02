@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import { authService } from "../services/auth.service";
 
@@ -9,7 +9,6 @@ interface FormData {
   email: string;
   password: string;
   confirmPassword: string;
-  role: "buyer" | "seller";
 }
 
 function GoogleIcon() {
@@ -32,16 +31,17 @@ function FacebookIcon() {
 }
 
 export function Register() {
-  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [sentTo, setSentTo] = useState<string | null>(null);
+  const [resending, setResending] = useState(false);
 
   const {
     register,
     handleSubmit,
     watch,
     formState: { errors },
-  } = useForm<FormData>({ defaultValues: { role: "buyer" } });
+  } = useForm<FormData>();
 
   const password = watch("password");
 
@@ -52,10 +52,8 @@ export function Register() {
         name: data.name,
         email: data.email,
         password: data.password,
-        role: data.role,
       });
-      toast.success("¡Cuenta creada! Ya puedes iniciar sesión.");
-      navigate("/login");
+      setSentTo(data.email);
     } catch (err: unknown) {
       const msg =
         err &&
@@ -65,6 +63,19 @@ export function Register() {
       toast.error(typeof msg === "string" ? msg : "No se pudo crear la cuenta");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleResend() {
+    if (!sentTo) return;
+    setResending(true);
+    try {
+      const res = await authService.resendVerification(sentTo);
+      toast.success(res.message);
+    } catch {
+      toast.error("No se pudo reenviar el correo. Intentá de nuevo.");
+    } finally {
+      setResending(false);
     }
   }
 
@@ -117,6 +128,42 @@ export function Register() {
             ← Volver
           </Link>
 
+          {sentTo ? (
+            <div className="text-center py-4">
+              <div className="w-16 h-16 bg-[#E6F4EA] rounded-full flex items-center justify-center mx-auto mb-6">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#2D6A4F" strokeWidth="2">
+                  <rect x="2" y="4" width="20" height="16" rx="2" />
+                  <path d="M2 7l10 7 10-7" />
+                </svg>
+              </div>
+              <h1 className="font-serif text-2xl text-[#1A1A1A] mb-3">Revisá tu correo</h1>
+              <p className="text-sm text-[#6B6B6B] leading-relaxed mb-1">
+                Te enviamos un enlace de confirmación a
+              </p>
+              <p className="text-sm font-medium text-[#1A1A1A] mb-6">{sentTo}</p>
+              <p className="text-xs text-[#ABABAB] leading-relaxed mb-8">
+                Hacé clic en el enlace del correo para activar tu cuenta. Si no lo ves, revisá la
+                carpeta de spam. El enlace vence en 24 horas.
+              </p>
+              <button
+                type="button"
+                onClick={handleResend}
+                disabled={resending}
+                className="btn-outline text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {resending ? "Reenviando…" : "Reenviar correo"}
+              </button>
+              <div className="mt-6">
+                <Link
+                  to="/login"
+                  className="text-xs text-[#6B6B6B] hover:text-forest-deep transition-colors uppercase tracking-widest"
+                >
+                  Ir a iniciar sesión
+                </Link>
+              </div>
+            </div>
+          ) : (
+          <>
           <h1 className="font-serif text-3xl text-[#1A1A1A] mb-1">Crear cuenta</h1>
           <p className="text-sm text-[#6B6B6B] mb-8">
             ¿Ya tienes cuenta?{" "}
@@ -194,11 +241,11 @@ export function Register() {
                 <input
                   type={showPassword ? "text" : "password"}
                   autoComplete="new-password"
-                  placeholder="Mínimo 6 caracteres"
+                  placeholder="Mínimo 8 caracteres"
                   className={`w-full border ${errors.password ? "border-red-400" : "border-[#E8E2D8]"} bg-white px-4 py-3 pr-11 text-sm text-[#1A1A1A] placeholder-[#ABABAB] focus:outline-none focus:border-forest-deep transition-colors`}
                   {...register("password", {
                     required: "La contraseña es obligatoria",
-                    minLength: { value: 6, message: "Mínimo 6 caracteres" },
+                    minLength: { value: 8, message: "Mínimo 8 caracteres" },
                   })}
                 />
                 <button
@@ -244,33 +291,6 @@ export function Register() {
               )}
             </div>
 
-            {/* Tipo de cuenta */}
-            <div>
-              <label className="block text-[10px] uppercase tracking-widest text-[#1A1A1A] mb-2">
-                Tipo de cuenta
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                {[
-                  { value: "buyer", label: "Comprador", desc: "Quiero comprar plantas" },
-                  { value: "seller", label: "Vendedor", desc: "Quiero vender en la tienda" },
-                ].map(({ value, label, desc }) => (
-                  <label
-                    key={value}
-                    className="relative flex flex-col gap-1 border border-[#E8E2D8] p-3 cursor-pointer has-[:checked]:border-forest-deep has-[:checked]:bg-forest-light transition-colors"
-                  >
-                    <input
-                      type="radio"
-                      value={value}
-                      className="sr-only"
-                      {...register("role")}
-                    />
-                    <span className="text-xs font-medium text-[#1A1A1A]">{label}</span>
-                    <span className="text-[10px] text-[#8A8A8A] leading-tight">{desc}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
             <button
               type="submit"
               disabled={loading}
@@ -286,6 +306,8 @@ export function Register() {
             y{" "}
             <span className="underline cursor-pointer hover:text-[#6B6B6B]">Política de privacidad</span>.
           </p>
+          </>
+          )}
         </div>
       </div>
     </div>

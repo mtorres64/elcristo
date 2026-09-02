@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 
 Environment = Literal["sandbox", "production"]
 
@@ -41,6 +41,43 @@ class GetnetIntegrationUpdate(BaseModel):
 
 
 class GetnetTestConnectionResult(BaseModel):
+    ok: bool
+    message: str
+
+
+class EmailIntegrationOut(BaseModel):
+    """Estado de la integración SMTP para el panel. Nunca incluye la
+    contraseña: sólo informa si hay una guardada (`password_set`)."""
+
+    enabled: bool = False
+    host: str | None = None
+    port: int = 587
+    username: str | None = None
+    from_email: str | None = None
+    use_tls: bool = True
+    password_set: bool = False
+    last_verified_at: datetime | None = None
+    last_verified_ok: bool | None = None
+    last_verified_message: str | None = None
+    updated_at: datetime | None = None
+
+
+class EmailIntegrationUpdate(BaseModel):
+    enabled: bool
+    host: str
+    port: int = 587
+    username: str = ""
+    from_email: str
+    use_tls: bool = True
+    # None = mantener la contraseña ya guardada (no se reenvía en cada save).
+    password: str | None = None
+
+
+class EmailTestRequest(BaseModel):
+    to: EmailStr
+
+
+class IntegrationTestResult(BaseModel):
     ok: bool
     message: str
 

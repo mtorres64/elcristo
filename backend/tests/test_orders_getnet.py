@@ -16,7 +16,7 @@ from types import SimpleNamespace
 import pytest
 from bson import ObjectId
 from cryptography.fernet import Fernet
-from fastapi import HTTPException
+from fastapi import BackgroundTasks, HTTPException
 
 from app.config import settings
 from app.routers import orders as orders_router
@@ -106,7 +106,9 @@ async def test_mock_checkout_unchanged_without_getnet(db):
     product_id = await _seed_product(db, tenant_id=tenant_id, price=5000, stock=3)
 
     body = _order_body(product_id=product_id, price=5000, security_code=None)
-    result = await orders_router.create_order(body, _FakeRequest(user_id=user_id))
+    result = await orders_router.create_order(
+        body, _FakeRequest(user_id=user_id), BackgroundTasks()
+    )
 
     assert result["status"] == "pending_payment"
 
@@ -131,7 +133,9 @@ async def test_getnet_approved_creates_paid_order_and_decrements_stock(db, monke
     ))
 
     body = _order_body(product_id=product_id, price=5000)
-    result = await orders_router.create_order(body, _FakeRequest(user_id=user_id))
+    result = await orders_router.create_order(
+        body, _FakeRequest(user_id=user_id), BackgroundTasks()
+    )
 
     assert result["status"] == "paid"
 
@@ -161,7 +165,7 @@ async def test_getnet_rejected_creates_no_order(db, monkeypatch):
     body = _order_body(product_id=product_id, price=5000)
 
     with pytest.raises(HTTPException) as exc_info:
-        await orders_router.create_order(body, _FakeRequest(user_id=user_id))
+        await orders_router.create_order(body, _FakeRequest(user_id=user_id), BackgroundTasks())
     assert exc_info.value.status_code == 402
 
     after_count = await db.orders.count_documents({})
@@ -187,7 +191,7 @@ async def test_getnet_tokenize_error_creates_no_order(db, monkeypatch):
     body = _order_body(product_id=product_id, price=5000)
 
     with pytest.raises(HTTPException) as exc_info:
-        await orders_router.create_order(body, _FakeRequest(user_id=user_id))
+        await orders_router.create_order(body, _FakeRequest(user_id=user_id), BackgroundTasks())
     assert exc_info.value.status_code == 502
 
     after_count = await db.orders.count_documents({})
@@ -214,7 +218,7 @@ async def test_getnet_gateway_error_creates_no_order(db, monkeypatch):
     body = _order_body(product_id=product_id, price=5000)
 
     with pytest.raises(HTTPException) as exc_info:
-        await orders_router.create_order(body, _FakeRequest(user_id=user_id))
+        await orders_router.create_order(body, _FakeRequest(user_id=user_id), BackgroundTasks())
     assert exc_info.value.status_code == 502
 
     after_count = await db.orders.count_documents({})
@@ -232,7 +236,7 @@ async def test_missing_security_code_when_getnet_enabled(db):
     body = _order_body(product_id=product_id, price=5000, security_code=None)
 
     with pytest.raises(HTTPException) as exc_info:
-        await orders_router.create_order(body, _FakeRequest(user_id=user_id))
+        await orders_router.create_order(body, _FakeRequest(user_id=user_id), BackgroundTasks())
     assert exc_info.value.status_code == 400
 
 
@@ -257,5 +261,5 @@ async def test_saved_mock_card_rejected_when_getnet_enabled(db):
     )
 
     with pytest.raises(HTTPException) as exc_info:
-        await orders_router.create_order(body, _FakeRequest(user_id=user_id))
+        await orders_router.create_order(body, _FakeRequest(user_id=user_id), BackgroundTasks())
     assert exc_info.value.status_code == 400

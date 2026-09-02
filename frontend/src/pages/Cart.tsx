@@ -430,7 +430,7 @@ function CartStep({
   return (
     <div className="rounded-lg border border-[#E8E2D8] bg-white divide-y divide-[#F0EDE8]">
       {items.map((item) => (
-        <div key={item.product_id} className="flex items-center gap-4 p-4">
+        <div key={item.product_id} className="flex items-start sm:items-center gap-4 p-4">
           <div className="w-16 h-16 rounded-md overflow-hidden bg-[#F0EDE8] shrink-0">
             {item.image_url && (
               <img
@@ -440,41 +440,45 @@ function CartStep({
               />
             )}
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-[#1A1A1A] truncate">{item.title}</p>
-            <p className="text-xs text-[#8A8A8A] mt-0.5">{formatARS(item.price_snapshot)} c/u</p>
+          <div className="flex-1 min-w-0 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-[#1A1A1A] truncate">{item.title}</p>
+              <p className="text-xs text-[#8A8A8A] mt-0.5">{formatARS(item.price_snapshot)} c/u</p>
+            </div>
+            <div className="flex items-center justify-between gap-3 sm:justify-start sm:gap-4">
+              <div className="flex items-center border border-[#E8E2D8] rounded-lg shrink-0">
+                <button
+                  onClick={() => onUpdateQuantity(item.product_id, item.quantity - 1)}
+                  className="w-8 h-8 flex items-center justify-center text-[#1A1A1A] hover:bg-[#F8F4EE] transition-colors"
+                  aria-label="Reducir cantidad"
+                >
+                  −
+                </button>
+                <span className="w-8 h-8 flex items-center justify-center text-sm font-medium text-[#1A1A1A]">
+                  {item.quantity}
+                </span>
+                <button
+                  onClick={() => onUpdateQuantity(item.product_id, item.quantity + 1)}
+                  className="w-8 h-8 flex items-center justify-center text-[#1A1A1A] hover:bg-[#F8F4EE] transition-colors"
+                  aria-label="Aumentar cantidad"
+                >
+                  +
+                </button>
+              </div>
+              <p className="text-sm font-semibold text-[#1A1A1A] sm:w-20 text-right shrink-0">
+                {formatARS(item.price_snapshot * item.quantity)}
+              </p>
+              <button
+                onClick={() => onRemove(item.product_id)}
+                className="text-[#ABABAB] hover:text-[#DC2626] transition-colors shrink-0"
+                aria-label="Quitar del carrito"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14z" />
+                </svg>
+              </button>
+            </div>
           </div>
-          <div className="flex items-center border border-[#E8E2D8] rounded-lg shrink-0">
-            <button
-              onClick={() => onUpdateQuantity(item.product_id, item.quantity - 1)}
-              className="w-8 h-8 flex items-center justify-center text-[#1A1A1A] hover:bg-[#F8F4EE] transition-colors"
-              aria-label="Reducir cantidad"
-            >
-              −
-            </button>
-            <span className="w-8 h-8 flex items-center justify-center text-sm font-medium text-[#1A1A1A]">
-              {item.quantity}
-            </span>
-            <button
-              onClick={() => onUpdateQuantity(item.product_id, item.quantity + 1)}
-              className="w-8 h-8 flex items-center justify-center text-[#1A1A1A] hover:bg-[#F8F4EE] transition-colors"
-              aria-label="Aumentar cantidad"
-            >
-              +
-            </button>
-          </div>
-          <p className="text-sm font-semibold text-[#1A1A1A] w-20 text-right shrink-0">
-            {formatARS(item.price_snapshot * item.quantity)}
-          </p>
-          <button
-            onClick={() => onRemove(item.product_id)}
-            className="text-[#ABABAB] hover:text-[#DC2626] transition-colors shrink-0"
-            aria-label="Quitar del carrito"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14z" />
-            </svg>
-          </button>
         </div>
       ))}
     </div>

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link } from "react-router-dom";
 import { toast } from "react-hot-toast";
+import { authService } from "../services/auth.service";
 
 interface FormData {
   email: string;
@@ -21,8 +22,7 @@ export function ForgotPassword() {
   async function onSubmit(data: FormData) {
     setLoading(true);
     try {
-      // TODO: conectar con POST /auth/forgot-password cuando el backend lo implemente
-      await new Promise((r) => setTimeout(r, 800));
+      await authService.forgotPassword(data.email);
       setSentEmail(data.email);
       setSubmitted(true);
     } catch {

@@ -105,6 +105,44 @@ Backend:
 Si refresh_token expirado o inválido → 401 → cliente hace logout
 ```
 
+### Verificación de email
+
+```
+Cliente → POST /auth/register { name, email, password }
+Backend:
+  1. Crea el user con email_verified: false, role: "buyer"
+  2. Genera un token JWT { sub: user_id, type: "email_verify", exp: +24h }
+  3. Envía email con link {FRONTEND_URL}/verify-email?token=<token>
+     - Config SMTP: panel Integraciones → Correo (por tenant, en Mongo) >
+       variables de entorno SMTP_* > ninguna (el link se escribe en el log)
+Cliente abre el link → POST /auth/verify-email { token }
+Backend:
+  1. Decodifica el token (verifica firma, exp y type == "email_verify")
+  2. Marca email_verified: true (idempotente)
+
+- Login con email/contraseña exige email_verified: true → si no, 403.
+- POST /auth/resend-verification { email } reenvía el link (respuesta
+  genérica: no revela si el email existe).
+- Altas manuales desde el panel admin (POST /users) y logins con Google
+  quedan verificados automáticamente, sin pasar por este circuito.
+```
+
+### Recupero de contraseña
+
+```
+Cliente → POST /auth/forgot-password { email }
+Backend:
+  1. Busca user con hashed_password (las cuentas de Google no aplican) y activo
+  2. Genera token JWT { sub: user_id, type: "password_reset", exp: +1h }
+  3. Envía email con link {FRONTEND_URL}/reset-password?token=<token>
+     (misma cadena de config SMTP que la verificación de email)
+  4. Responde SIEMPRE con mensaje genérico (no revela si el email existe)
+Cliente abre el link → POST /auth/reset-password { token, password }
+Backend:
+  1. Decodifica el token (firma, exp y type == "password_reset")
+  2. Setea hashed_password nuevo + email_verified: true (abrir el mail lo prueba)
+```
+
 ### Logout
 
 ```
@@ -176,5 +214,6 @@ Colección: `refresh_tokens`
 - Rate limiting: máximo 5 intentos de login fallidos por IP en 15 minutos.
   (Implementado via middleware de rate limiting, pendiente en Fase 1.)
 - El JWT no contiene datos sensibles (no hay hashed_password ni datos personales).
-- Validación de email: se envía link de verificación al registrarse
-  (implementado en Fase 2, por ahora se marca `email_verified: false`).
+- Validación de email: al auto-registrarse se envía un link de verificación
+  (JWT `type: "email_verify"`, expira en 24 h). El login con contraseña
+  requiere `email_verified: true`. Ver "Verificación de email" arriba.

@@ -113,7 +113,7 @@ export function AddressForm({ initial, onCancel, onSave, hasExistingAddresses }:
         </label>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className={LABEL}>Provincia</label>
           <select
@@ -144,7 +144,7 @@ export function AddressForm({ initial, onCancel, onSave, hasExistingAddresses }:
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className={LABEL}>Código Postal</label>
           <div className="flex items-center gap-2">

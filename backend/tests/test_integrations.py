@@ -19,7 +19,12 @@ from fastapi import HTTPException
 
 from app.config import settings
 from app.routers import integrations as integrations_router
-from app.schemas.integration import GetnetEnvCredentialsUpdate, GetnetIntegrationUpdate
+from app.schemas.integration import (
+    EmailIntegrationUpdate,
+    EmailTestRequest,
+    GetnetEnvCredentialsUpdate,
+    GetnetIntegrationUpdate,
+)
 
 
 class _FakeRequest:
@@ -188,3 +193,100 @@ async def test_tenants_are_isolated(db):
     out_b = await integrations_router.get_getnet_integration(_FakeRequest(tenant_id="tienda-b"))
     assert out_b["enabled"] is False
     assert out_b["sandbox"]["client_secret_set"] is False
+
+
+# ─── Email (SMTP) ────────────────────────────────────────────────────────────
+
+
+def _email_body(**over) -> EmailIntegrationUpdate:
+    base = dict(
+        enabled=False, host="smtp.test", port=587, username="u",
+        from_email="from@test.com", use_tls=True, password=None,
+    )
+    base.update(over)
+    return EmailIntegrationUpdate(**base)
+
+
+@pytest.mark.asyncio
+async def test_email_get_without_config_returns_defaults():
+    out = await integrations_router.get_email_integration(_FakeRequest())
+    assert out["enabled"] is False
+    assert out["password_set"] is False
+    assert out["port"] == 587
+
+
+@pytest.mark.asyncio
+async def test_email_enable_requires_password():
+    with pytest.raises(HTTPException) as exc_info:
+        await integrations_router.update_email_integration(
+            _email_body(enabled=True), _FakeRequest()
+        )
+    assert exc_info.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_email_save_encrypts_password_and_never_returns_it(db):
+    out = await integrations_router.update_email_integration(
+        _email_body(enabled=True, password="s3cr3t"), _FakeRequest()
+    )
+    assert out["enabled"] is True
+    assert out["password_set"] is True
+    assert "password" not in out and "password_encrypted" not in out
+
+    doc = await db.tenant_integrations.find_one({"tenant_id": "default", "provider": "email"})
+    from app.utils.crypto import decrypt_secret
+
+    assert decrypt_secret(doc["password_encrypted"]) == "s3cr3t"
+
+
+@pytest.mark.asyncio
+async def test_email_password_kept_when_not_resent(db):
+    await integrations_router.update_email_integration(
+        _email_body(enabled=True, password="pw1"), _FakeRequest()
+    )
+    out = await integrations_router.update_email_integration(
+        _email_body(enabled=True, host="smtp.new", password=None), _FakeRequest()
+    )
+    assert out["password_set"] is True
+    assert out["host"] == "smtp.new"
+
+
+@pytest.mark.asyncio
+async def test_email_save_resets_verification(db):
+    await integrations_router.update_email_integration(
+        _email_body(enabled=True, password="pw"), _FakeRequest()
+    )
+    await db.tenant_integrations.update_one(
+        {"tenant_id": "default", "provider": "email"},
+        {"$set": {"last_verified_ok": True, "last_verified_message": "ok"}},
+    )
+    out = await integrations_router.update_email_integration(
+        _email_body(enabled=True, host="smtp.changed", password=None), _FakeRequest()
+    )
+    assert out["last_verified_ok"] is None
+
+
+@pytest.mark.asyncio
+async def test_email_test_requires_saved_config():
+    with pytest.raises(HTTPException) as exc_info:
+        await integrations_router.test_email_integration(
+            EmailTestRequest(to="dest@test.com"), _FakeRequest()
+        )
+    assert exc_info.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_email_get_requires_seller_or_admin_role():
+    with pytest.raises(HTTPException) as exc_info:
+        await integrations_router.get_email_integration(_FakeRequest(role="buyer"))
+    assert exc_info.value.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_email_is_isolated_per_tenant(db):
+    await integrations_router.update_email_integration(
+        _email_body(enabled=True, password="pw-a"), _FakeRequest(tenant_id="tienda-a")
+    )
+    out_b = await integrations_router.get_email_integration(_FakeRequest(tenant_id="tienda-b"))
+    assert out_b["enabled"] is False
+    assert out_b["password_set"] is False

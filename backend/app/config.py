@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     platform_domain: str = "tienda.com"
     upload_dir: str = "./uploads"
 
+    # URL pública del frontend — se usa para armar los links de los emails
+    # (confirmación de cuenta, recupero de contraseña, etc.)
+    frontend_url: str = "http://localhost:5173"
+
     # CORS — string separado por comas, se parsea en la property
     cors_origins_raw: str = "http://localhost:5173"
 
@@ -40,11 +44,13 @@ class Settings(BaseSettings):
     cloudinary_api_key: str = ""
     cloudinary_api_secret: str = ""
 
-    # SMTP (Fase 2)
+    # SMTP — envío de emails transaccionales. Si smtp_user/smtp_password quedan
+    # vacíos, el envío se omite y el contenido (con el link) se escribe al log.
     smtp_host: str = "smtp.mailtrap.io"
     smtp_port: int = 587
     smtp_user: str = ""
     smtp_password: str = ""
+    smtp_from: str = "Vivero El Cristo <no-reply@tienda.com>"
 
     @property
     def is_development(self) -> bool:

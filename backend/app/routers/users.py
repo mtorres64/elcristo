@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 
 from bson import ObjectId
 from fastapi import APIRouter, HTTPException, Query
+from pymongo.errors import DuplicateKeyError
 
 from app.database import get_db
 from app.schemas.common import PaginatedResponse
@@ -76,7 +77,9 @@ async def list_users(
 async def create_user(body: UserCreate):
     db = get_db()
 
-    existing = await db.users.find_one({"email": body.email, "deleted_at": None})
+    # El índice único de `email` es global (no filtra por deleted_at): un
+    # usuario borrado con ese email también bloquea el alta.
+    existing = await db.users.find_one({"email": body.email})
     if existing:
         raise HTTPException(400, f"Ya existe un usuario con el email '{body.email}'")
 
@@ -87,14 +90,21 @@ async def create_user(body: UserCreate):
         "name": body.name,
         "role": body.role,
         "is_active": body.is_active,
-        "email_verified": body.role == "platform_admin",
+        # Alta manual desde el panel: el admin da fe del correo, no requiere
+        # el circuito de confirmación por email de la auto-registración.
+        "email_verified": True,
         "avatar_url": None,
         "phone": None,
         "created_at": now,
         "updated_at": now,
         "deleted_at": None,
     }
-    result = await db.users.insert_one(doc)
+    try:
+        result = await db.users.insert_one(doc)
+    except DuplicateKeyError:
+        raise HTTPException(
+            400, f"Ya existe un usuario con el email '{body.email}'"
+        ) from None
     created = await db.users.find_one({"_id": result.inserted_id})
     return _to_out(created)
 

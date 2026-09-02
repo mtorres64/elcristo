@@ -8,6 +8,7 @@ interface User {
   role: string;
   avatar_url: string | null;
   tenant_id: string | null;
+  email_verified?: boolean;
 }
 
 interface AuthContextValue {

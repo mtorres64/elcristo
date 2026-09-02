@@ -2,8 +2,9 @@ import math
 from datetime import UTC, datetime
 
 from bson import ObjectId
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
 
+from app.config import settings
 from app.database import get_db
 from app.schemas.common import PaginatedResponse
 from app.schemas.order import (
@@ -18,8 +19,24 @@ from app.utils import getnet_client
 from app.utils.auth_deps import require_user
 from app.utils.card import detect_brand, luhn_is_valid
 from app.utils.crypto import CryptoConfigError, decrypt_secret
+from app.utils.email import resolve_smtp_config, send_email
 
 router = APIRouter()
+
+ORDER_STATUS_LABEL_ES: dict[str, str] = {
+    "pending_payment": "Pendiente de pago",
+    "paid": "Pagado",
+    "preparing": "Preparando",
+    "shipped": "Enviado",
+    "delivered": "Entregado",
+    "cancelled": "Cancelado",
+    "refunded": "Reembolsado",
+    "disputed": "En disputa",
+}
+
+
+def _ars(cents: int) -> str:
+    return "$" + f"{cents / 100:,.0f}".replace(",", ".")
 
 # Transiciones permitidas por estado actual. Una lista vacía = estado terminal.
 ALLOWED_TRANSITIONS: dict[str, set[str]] = {
@@ -66,6 +83,93 @@ def _to_detail(doc: dict) -> dict:
         "updated_at": doc["updated_at"],
     })
     return result
+
+
+async def _queue_order_confirmation_email(
+    bg: BackgroundTasks, tenant_id: str, order_doc: dict
+) -> None:
+    """Encola el email con el detalle del pedido al comprador. Best-effort:
+    si el SMTP del tenant no está configurado, sólo se loguea (ver utils/email)."""
+    order_id = str(order_doc["_id"])
+    number = order_doc["order_number"]
+    status_label = ORDER_STATUS_LABEL_ES.get(order_doc["status"], order_doc["status"])
+    link = f"{settings.frontend_url}/mis-pedidos/{order_id}"
+    addr = order_doc["shipping_address"]
+    greeting = f"Hola {order_doc['buyer_name']}," if order_doc.get("buyer_name") else "Hola,"
+
+    rows_html = "".join(
+        f'<tr><td style="padding:6px 0">{i["title"]} '
+        f'<span style="color:#8A8A8A">× {i["quantity"]}</span></td>'
+        f'<td style="padding:6px 0;text-align:right;white-space:nowrap">'
+        f'{_ars(i["price"] * i["quantity"])}</td></tr>'
+        for i in order_doc["items"]
+    )
+    totals_html = (
+        f'<tr><td>Subtotal</td><td style="text-align:right">{_ars(order_doc["subtotal"])}</td></tr>'
+        f'<tr><td>Envío</td><td style="text-align:right">'
+        f'{_ars(order_doc.get("shipping_cost", 0)) if order_doc.get("shipping_cost") else "Gratis"}'
+        "</td></tr>"
+    )
+    if order_doc.get("discount"):
+        totals_html += (
+            f'<tr><td>Descuento</td><td style="text-align:right">'
+            f'-{_ars(order_doc["discount"])}</td></tr>'
+        )
+    totals_html += (
+        f'<tr><td style="padding-top:6px;font-weight:bold">Total</td>'
+        f'<td style="padding-top:6px;text-align:right;font-weight:bold">'
+        f'{_ars(order_doc["total"])}</td></tr>'
+    )
+
+    html = (
+        '<div style="font-family:Arial,Helvetica,sans-serif;color:#1A1A1A;line-height:1.6;'
+        'max-width:560px">'
+        f"<p>{greeting}</p>"
+        f"<p>Recibimos tu pedido <strong>{number}</strong>. "
+        f"Estado actual: <strong>{status_label}</strong>.</p>"
+        '<table style="width:100%;border-collapse:collapse;font-size:14px;margin:16px 0">'
+        f"{rows_html}"
+        '<tr><td colspan="2"><hr style="border:none;border-top:1px solid #E8E2D8;margin:8px 0">'
+        "</td></tr>"
+        f"{totals_html}"
+        "</table>"
+        f'<p style="font-size:13px;color:#6B6B6B">Envío a: {addr["street"]}'
+        f'{" (sin número)" if addr.get("no_number") else ""}, {addr["locality"]}, '
+        f'{addr["province"]}<br>{addr["full_name"]} · '
+        f'{addr.get("phone_country_code", "")} {addr["phone"]}</p>'
+        '<p style="margin:24px 0">'
+        f'<a href="{link}" style="background:#253824;color:#fff;text-decoration:none;'
+        'padding:12px 24px;border-radius:8px;display:inline-block">Ver mi pedido</a></p>'
+        '<p style="font-size:13px;color:#6B6B6B">Gracias por tu compra en Vivero El Cristo.</p>'
+        "</div>"
+    )
+
+    text_lines = [
+        greeting,
+        "",
+        f"Recibimos tu pedido {number}. Estado actual: {status_label}.",
+        "",
+    ]
+    text_lines += [f"- {i['title']} x{i['quantity']}: {_ars(i['price'] * i['quantity'])}"
+                   for i in order_doc["items"]]
+    text_lines += [
+        "",
+        f"Total: {_ars(order_doc['total'])}",
+        "",
+        f"Ver el detalle: {link}",
+        "",
+        "Gracias por tu compra en Vivero El Cristo.",
+    ]
+
+    config = await resolve_smtp_config(tenant_id)
+    bg.add_task(
+        send_email,
+        order_doc["buyer_email"],
+        f"Tu pedido {number} — Vivero El Cristo",
+        html,
+        "\n".join(text_lines),
+        config,
+    )
 
 
 async def _resolve_address(db, user_id: str, body: OrderCreate) -> dict:
@@ -286,7 +390,7 @@ async def _resolve_payment(
 
 
 @router.post("", response_model=OrderCreateResponse, status_code=201)
-async def create_order(body: OrderCreate, request: Request):
+async def create_order(body: OrderCreate, request: Request, background: BackgroundTasks):
     db = get_db()
     user = require_user(request)
     user_id = user["sub"]
@@ -396,6 +500,8 @@ async def create_order(body: OrderCreate, request: Request):
         stock_updates = await _mark_stock_decremented(db, order_doc)
         if stock_updates:
             await db.orders.update_one({"_id": result.inserted_id}, {"$set": stock_updates})
+
+    await _queue_order_confirmation_email(background, tenant_id, order_doc)
 
     return {
         "order_id": str(result.inserted_id),

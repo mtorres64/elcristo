@@ -43,3 +43,34 @@ export interface GetnetPublicConfig {
   environment: GetnetEnvironment;
   seller_id: string | null;
 }
+
+export interface IntegrationTestResult {
+  ok: boolean;
+  message: string;
+}
+
+export interface EmailIntegration {
+  enabled: boolean;
+  host: string | null;
+  port: number;
+  username: string | null;
+  from_email: string | null;
+  use_tls: boolean;
+  // El backend nunca devuelve la contraseña: sólo informa si hay una guardada.
+  password_set: boolean;
+  last_verified_at: string | null;
+  last_verified_ok: boolean | null;
+  last_verified_message: string | null;
+  updated_at: string | null;
+}
+
+export interface EmailIntegrationInput {
+  enabled: boolean;
+  host: string;
+  port: number;
+  username: string;
+  from_email: string;
+  use_tls: boolean;
+  // undefined = mantener la contraseña ya guardada.
+  password?: string;
+}

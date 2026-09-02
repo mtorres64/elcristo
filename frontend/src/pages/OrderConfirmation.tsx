@@ -84,6 +84,12 @@ export function OrderConfirmation() {
           <Link to="/products" className="btn-primary w-full text-center">
             Seguir comprando
           </Link>
+          <Link
+            to={`/mis-pedidos/${order.order_id}`}
+            className="text-center text-xs uppercase tracking-widest text-[#6B6B6B] hover:text-forest-deep transition-colors"
+          >
+            Ver el estado de mi pedido
+          </Link>
         </div>
       </div>
     </Layout>
