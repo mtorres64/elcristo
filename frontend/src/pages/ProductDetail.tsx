@@ -34,13 +34,13 @@ export function ProductDetail() {
             </Link>
             <ChevronRight />
             <Link to="/products" className="hover:text-[#3D6040] transition-colors">
-              Plantas
+              Productos
             </Link>
-            {product?.category_name && (
+            {product?.category_name && product?.category_slug && (
               <>
                 <ChevronRight />
                 <Link
-                  to={`/products?category=${product.category_id ?? ""}`}
+                  to={`/products?category=${product.category_slug}`}
                   className="hover:text-[#3D6040] transition-colors"
                 >
                   {product.category_name}

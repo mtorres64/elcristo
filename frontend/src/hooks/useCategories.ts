@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { categoryService } from "../services/category.service";
-import type { Category } from "../types/category";
+import type { Category, CategoryGroup } from "../types/category";
 
-export function useCategories(limit = 20) {
+export function useCategories(limit = 20, group?: CategoryGroup) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -13,7 +13,7 @@ export function useCategories(limit = 20) {
     setError(false);
 
     categoryService
-      .list({ is_active: true, sort: "sort_order", page_size: limit })
+      .list({ is_active: true, group, sort: "sort_order", page_size: limit })
       .then((data) => {
         if (!cancelled) {
           setCategories(data.items);
@@ -30,7 +30,7 @@ export function useCategories(limit = 20) {
     return () => {
       cancelled = true;
     };
-  }, [limit]);
+  }, [limit, group]);
 
   return { categories, loading, error };
 }

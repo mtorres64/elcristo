@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { useCategories } from "../../hooks/useCategories";
+import { CATEGORY_GROUPS } from "../../types/category";
 import { CategoryCard } from "../categories/CategoryCard";
 
 function SkeletonCard() {
@@ -24,7 +25,7 @@ function ArrowRight() {
 }
 
 export function CategoriesSection() {
-  const { categories, loading } = useCategories(5);
+  const { categories, loading } = useCategories(100);
 
   if (!loading && categories.length === 0) return null;
 
@@ -40,14 +41,34 @@ export function CategoriesSection() {
           </Link>
         </div>
 
-        {/* Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          {loading
-            ? Array.from({ length: 5 }).map((_, i) => <SkeletonCard key={i} />)
-            : categories.map((cat, i) => (
-                <CategoryCard key={cat.category_id} category={cat} index={i} />
-              ))}
-        </div>
+        {loading ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            {Array.from({ length: 5 }).map((_, i) => <SkeletonCard key={i} />)}
+          </div>
+        ) : (
+          <div className="flex flex-col gap-10">
+            {CATEGORY_GROUPS.map((g) => {
+              const items = categories.filter((c) => c.group === g.value);
+              if (items.length === 0) return null;
+              return (
+                <div key={g.value}>
+                  <Link
+                    to={`/products?group=${g.value}`}
+                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#1A2B1C] hover:text-forest-accent transition-colors mb-4"
+                  >
+                    {g.label}
+                    <ArrowRight />
+                  </Link>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                    {items.map((cat, i) => (
+                      <CategoryCard key={cat.category_id} category={cat} index={i} />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </section>
   );

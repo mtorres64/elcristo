@@ -13,6 +13,7 @@ interface ListProductsParams {
   q?: string;
   status?: string;
   category_id?: string;
+  category_group?: string;
   min_price?: number;
   max_price?: number;
   on_sale?: boolean;

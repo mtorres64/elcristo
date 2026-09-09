@@ -64,6 +64,7 @@ export interface ProductDetail extends ProductSummary {
   variants: ProductVariant[];
   category_id: string | null;
   category_name: string | null;
+  category_slug: string | null;
   sold_count: number;
   sku: string | null;
   tags: string[];

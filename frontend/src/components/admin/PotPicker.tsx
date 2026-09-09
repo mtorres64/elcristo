@@ -19,7 +19,9 @@ export function PotPicker({
   onChange: (ids: string[]) => void;
   excludeProductId?: string;
 }) {
-  const { categories } = useCategories(50);
+  // El picker sirve para elegir macetas / accesorios, así que el filtro de
+  // categoría se acota a esa sección del nav.
+  const { categories } = useCategories(50, "macetas");
   const [query, setQuery] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [results, setResults] = useState<ProductSummary[]>([]);
@@ -57,6 +59,9 @@ export function PotPicker({
         .list({
           q: query.trim() || undefined,
           category_id: categoryId || undefined,
+          // Sin categoría puntual elegida, se acota a la sección "Macetas &
+          // Accesorios" en vez de buscar en todo el catálogo.
+          category_group: categoryId ? undefined : "macetas",
           page_size: 8,
           sort: "title_asc",
         })
@@ -110,7 +115,7 @@ export function PotPicker({
             onChange={(e) => setCategoryId(e.target.value)}
             className="w-full border border-[#E8E2D8] rounded-lg px-3 py-2 text-sm text-[#1A1A1A] bg-white focus:outline-none focus:border-[#1A2B1C] transition-colors appearance-none cursor-pointer pr-8"
           >
-            <option value="">Todas las categorías</option>
+            <option value="">Todas las de Macetas &amp; Accesorios</option>
             {categories.map((c) => (
               <option key={c.category_id} value={c.category_id}>{c.name}</option>
             ))}

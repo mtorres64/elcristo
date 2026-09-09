@@ -18,6 +18,7 @@ from fastapi import APIRouter, BackgroundTasks, File, HTTPException, Request, Up
 from fastapi.responses import StreamingResponse
 
 from app.database import get_db
+from app.schemas.category import CATEGORY_GROUP_LABELS, CATEGORY_GROUP_ORDER
 from app.schemas.product_import import ImportJobOut, ImportStartResponse
 from app.utils.auth_deps import require_user_id
 from app.utils.slugify import slugify
@@ -137,8 +138,8 @@ INSTRUCTIONS = [
     ("nombre", "Obligatorio. Nombre del producto."),
     ("descripcion_corta", "Opcional. Máximo 160 caracteres."),
     ("descripcion", "Opcional. Descripción completa."),
-    ("categoria", "Opcional. Nombre de una categoría existente (ver lista abajo). "
-                  "Si no coincide, el producto se importa sin categoría."),
+    ("categoria", "Opcional. Nombre de una categoría existente (ver lista abajo, agrupada "
+                  "por sección del menú). Si no coincide, el producto se importa sin categoría."),
     ("precio", "Obligatorio. Precio de venta en pesos (ej. 6800), medida mediana."),
     ("precio_promocional", "Opcional. Precio tachado / de comparación, en pesos."),
     ("precio_costo", "Opcional. Precio de costo en pesos."),
@@ -492,10 +493,24 @@ async def download_template():
 
     db = get_db()
     try:
-        cats = await db.categories.find({}).sort("name", 1).to_list(None)
+        cats = await db.categories.find({}).to_list(None)
     except Exception:
         cats = []
-    cat_names = [c["name"] for c in cats if c.get("name")]
+
+    # Ordenadas por sección del nav (Plantas → Macetas → Químicos) y dentro de
+    # cada una por sort_order y nombre, para que el desplegable y la lista de
+    # ayuda queden agrupados.
+    def _cat_sort_key(c: dict) -> tuple:
+        group = c.get("group", "plantas")
+        rank = (
+            CATEGORY_GROUP_ORDER.index(group)
+            if group in CATEGORY_GROUP_ORDER
+            else len(CATEGORY_GROUP_ORDER)
+        )
+        return (rank, c.get("sort_order", 0), (c.get("name") or "").lower())
+
+    cats = sorted((c for c in cats if c.get("name")), key=_cat_sort_key)
+    cat_names = [c["name"] for c in cats]
 
     # Hoja auxiliar oculta que alimenta los desplegables con opciones largas
     # (categorías y cuidados, cuyos textos tienen comas).
@@ -524,11 +539,16 @@ async def download_template():
         _add_list_column(col, care_header, care_values)
         col += 1
 
-    if cat_names:
+    if cats:
         info.append([])
-        info.append(["Categorías disponibles"])
-        for name in cat_names:
-            info.append(["", name])
+        info.append(["Categorías disponibles (por sección del menú)"])
+        current_group = None
+        for c in cats:
+            group = c.get("group", "plantas")
+            if group != current_group:
+                current_group = group
+                info.append([CATEGORY_GROUP_LABELS.get(group, group), ""])
+            info.append(["", c["name"]])
 
     buf = io.BytesIO()
     wb.save(buf)

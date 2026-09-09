@@ -85,17 +85,19 @@ El documento de la tienda (un seller puede tener una tienda).
 | `_id` | ObjectId | sí | auto |
 | `name` | string | sí | ej. "Electrónica" |
 | `slug` | string | sí | único |
-| `parent_id` | ObjectId | no | null = categoría raíz |
-| `icon_url` | string | no | |
-| `order` | int | sí | orden de display, default 0 |
+| `group` | string | sí | sección del nav: `"plantas"` \| `"macetas"` \| `"quimicos"`. default `"plantas"` |
+| `parent_id` | ObjectId | no | null = categoría raíz (reservado, sin uso) |
+| `image_url` | string | no | |
+| `sort_order` | int | sí | orden de display, default 0 |
 | `is_active` | bool | sí | default: true |
 | `created_at` | datetime | sí | UTC |
 | `updated_at` | datetime | sí | UTC |
 
 Índices:
 ```
-{ slug: 1 }         unique: true
+{ slug: 1 }              unique: true
 { parent_id: 1, order: 1 }
+{ group: 1, sort_order: 1 }
 ```
 
 ---

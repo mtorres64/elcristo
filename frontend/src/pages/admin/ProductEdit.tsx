@@ -5,6 +5,7 @@ import { PotPicker } from "../../components/admin/PotPicker";
 import { productService } from "../../services/product.service";
 import { storeSettingsService } from "../../services/storeSettings.service";
 import { useCategories } from "../../hooks/useCategories";
+import { CATEGORY_GROUPS } from "../../types/category";
 import { formatPct, markupPct, suggestedPrice } from "../../utils/pricing";
 import toast from "react-hot-toast";
 
@@ -512,11 +513,19 @@ export function ProductEdit() {
                             className={SELECT}
                           >
                             <option value="">Sin categoría</option>
-                            {categoryList.map((cat) => (
-                              <option key={cat.category_id} value={cat.category_id}>
-                                {cat.name}
-                              </option>
-                            ))}
+                            {CATEGORY_GROUPS.map((g) => {
+                              const cats = categoryList.filter((c) => c.group === g.value);
+                              if (cats.length === 0) return null;
+                              return (
+                                <optgroup key={g.value} label={g.label}>
+                                  {cats.map((cat) => (
+                                    <option key={cat.category_id} value={cat.category_id}>
+                                      {cat.name}
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              );
+                            })}
                           </select>
                           <ChevronSelectIcon />
                         </div>

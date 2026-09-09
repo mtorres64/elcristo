@@ -23,13 +23,14 @@ async def seed():
 
     now = datetime.now(UTC)
 
-    # Categorías
+    # Categorías. `group` = sección del nav superior (plantas / macetas / quimicos).
     categories = [
-        {"name": "Plantas de Interior",  "slug": "plantas-interior",  "description": "Plantas perfectas para decorar y purificar los ambientes de tu hogar.",  "image_url": None, "parent_id": None, "sort_order": 1, "is_active": True, "created_at": now, "updated_at": now},
-        {"name": "Plantas de Exterior",  "slug": "plantas-exterior",  "description": "Resistentes al sol y la lluvia, ideales para balcones, terrazas y jardines.", "image_url": None, "parent_id": None, "sort_order": 2, "is_active": True, "created_at": now, "updated_at": now},
-        {"name": "Árboles y Arbustos",   "slug": "arboles-arbustos",  "description": "Desde olivos enanos hasta ficus de porte, árboles para interior y exterior.",  "image_url": None, "parent_id": None, "sort_order": 3, "is_active": True, "created_at": now, "updated_at": now},
-        {"name": "Suculentas y Cactus",  "slug": "suculentas-cactus", "description": "Bajo mantenimiento, alto impacto visual. Perfectas para cualquier espacio.", "image_url": None, "parent_id": None, "sort_order": 4, "is_active": True, "created_at": now, "updated_at": now},
-        {"name": "Macetas y Accesorios", "slug": "macetas-accesorios","description": "Macetas, sustratos, fertilizantes y todo lo que tu planta necesita.",       "image_url": None, "parent_id": None, "sort_order": 5, "is_active": True, "created_at": now, "updated_at": now},
+        {"name": "Plantas de Interior",  "slug": "plantas-interior",  "description": "Plantas perfectas para decorar y purificar los ambientes de tu hogar.",  "image_url": None, "group": "plantas",  "parent_id": None, "sort_order": 1, "is_active": True, "created_at": now, "updated_at": now},
+        {"name": "Plantas de Exterior",  "slug": "plantas-exterior",  "description": "Resistentes al sol y la lluvia, ideales para balcones, terrazas y jardines.", "image_url": None, "group": "plantas",  "parent_id": None, "sort_order": 2, "is_active": True, "created_at": now, "updated_at": now},
+        {"name": "Árboles y Arbustos",   "slug": "arboles-arbustos",  "description": "Desde olivos enanos hasta ficus de porte, árboles para interior y exterior.",  "image_url": None, "group": "plantas",  "parent_id": None, "sort_order": 3, "is_active": True, "created_at": now, "updated_at": now},
+        {"name": "Suculentas y Cactus",  "slug": "suculentas-cactus", "description": "Bajo mantenimiento, alto impacto visual. Perfectas para cualquier espacio.", "image_url": None, "group": "plantas",  "parent_id": None, "sort_order": 4, "is_active": True, "created_at": now, "updated_at": now},
+        {"name": "Macetas y Accesorios", "slug": "macetas-accesorios","description": "Macetas, sustratos y todo lo que tu planta necesita para crecer.",           "image_url": None, "group": "macetas",  "parent_id": None, "sort_order": 5, "is_active": True, "created_at": now, "updated_at": now},
+        {"name": "Productos Químicos",   "slug": "productos-quimicos","description": "Fertilizantes, fungicidas e insecticidas para el cuidado de tus plantas.",       "image_url": None, "group": "quimicos", "parent_id": None, "sort_order": 6, "is_active": True, "created_at": now, "updated_at": now},
     ]
     await db.categories.delete_many({})
     cat_result = await db.categories.insert_many(categories)
@@ -38,7 +39,8 @@ async def seed():
     cat_arboles    = str(cat_result.inserted_ids[2])
     cat_suculentas = str(cat_result.inserted_ids[3])
     cat_macetas    = str(cat_result.inserted_ids[4])
-    print("✓ Categorías (interior, exterior, árboles y arbustos, suculentas y cactus, macetas y accesorios)")
+    cat_quimicos   = str(cat_result.inserted_ids[5])
+    print("✓ Categorías (interior, exterior, árboles y arbustos, suculentas y cactus, macetas y accesorios, productos químicos)")
 
     # Seller
     await db.users.delete_many({"email": {"$in": ["seller@tienda.com", "buyer@tienda.com"]}})
@@ -490,10 +492,132 @@ async def seed():
             "updated_at": now,
             "deleted_at": None,
         },
+        # ─── Macetas y Accesorios ───────────────────────────────────
+        {
+            "tenant_id": "vivero-el-cristo",
+            "title": "Maceta de Terracota 20 cm",
+            "short_description": "Maceta clásica de barro cocido con plato incluido. Porosa, ideal para cactus y suculentas.",
+            "description": "Maceta de terracota natural de 20 cm de diámetro con plato a juego. El barro cocido deja respirar la tierra y evita el encharcamiento, por lo que es la mejor opción para cactus, suculentas y aromáticas.\n\nFabricación nacional. Cada pieza tiene pequeñas variaciones de tono propias del material.",
+            "price": 850000,
+            "compare_at_price": None,
+            "currency": "ARS",
+            "tax": "iva-21",
+            "category_id": cat_macetas,
+            "images": [],
+            "stock": 60,
+            "sku": "ACC-MAC-TER-20",
+            "status": "active",
+            "is_featured": False,
+            "publish_at": now,
+            "variants": [
+                {"key": "medida", "value": "16 cm", "stock": 40, "price_override": 620000, "sku_override": "ACC-MAC-TER-16"},
+                {"key": "medida", "value": "20 cm", "stock": 60, "price_override": 850000, "sku_override": "ACC-MAC-TER-20"},
+                {"key": "medida", "value": "25 cm", "stock": 25, "price_override": 1180000, "sku_override": "ACC-MAC-TER-25"},
+            ],
+            "tags": ["maceta", "terracota", "barro", "con plato"],
+            "weight_grams": 1400,
+            "height_cm": 18,
+            "care": {},
+            "attributes": {"material": "Terracota", "pot_diameter": "20 cm", "drainage": "Con orificio y plato"},
+            "rating_avg": 4.6,
+            "rating_count": 54,
+            "sold_count": 312,
+            "created_at": now,
+            "updated_at": now,
+            "deleted_at": None,
+        },
+        {
+            "tenant_id": "vivero-el-cristo",
+            "title": "Sustrato Universal 5 L",
+            "short_description": "Mezcla lista para usar con turba, perlita y humus. Sirve para la mayoría de las plantas de interior.",
+            "description": "Sustrato universal de 5 litros, listo para trasplantar. Combina turba rubia, perlita y humus de lombriz para lograr buena retención de humedad sin perder aireación.\n\nApto para plantas de interior de follaje, palmeras y trepadoras. Para cactus y suculentas recomendamos mezclarlo con arena.",
+            "price": 690000,
+            "compare_at_price": 890000,
+            "currency": "ARS",
+            "tax": "iva-21",
+            "category_id": cat_macetas,
+            "images": [],
+            "stock": 80,
+            "sku": "ACC-SUS-UNI-5L",
+            "status": "active",
+            "is_featured": False,
+            "publish_at": now,
+            "variants": [],
+            "tags": ["sustrato", "tierra", "trasplante", "interior"],
+            "weight_grams": 2500,
+            "height_cm": 35,
+            "care": {},
+            "attributes": {"volume": "5 L", "composition": "Turba, perlita y humus"},
+            "rating_avg": 4.7,
+            "rating_count": 61,
+            "sold_count": 240,
+            "created_at": now,
+            "updated_at": now,
+            "deleted_at": None,
+        },
+        # ─── Productos Químicos ─────────────────────────────────────
+        {
+            "tenant_id": "vivero-el-cristo",
+            "title": "Fertilizante Líquido Universal 250 ml",
+            "short_description": "Abono NPK equilibrado para riego. Fortalece follaje, raíces y floración.",
+            "description": "Fertilizante líquido concentrado con macro y micronutrientes (NPK 7-5-6 + hierro y magnesio). Se diluye en el agua de riego cada 15 días durante primavera y verano.\n\nApto para plantas de interior, verdes y con flor. Rinde hasta 50 litros de solución.",
+            "price": 780000,
+            "compare_at_price": None,
+            "currency": "ARS",
+            "tax": "iva-21",
+            "category_id": cat_quimicos,
+            "images": [],
+            "stock": 45,
+            "sku": "QUI-FER-UNI-250",
+            "status": "active",
+            "is_featured": False,
+            "publish_at": now,
+            "variants": [],
+            "tags": ["fertilizante", "abono", "npk", "riego"],
+            "weight_grams": 320,
+            "height_cm": 16,
+            "care": {},
+            "attributes": {"volume": "250 ml", "npk": "7-5-6", "usage": "Cada 15 días diluido en riego"},
+            "rating_avg": 4.8,
+            "rating_count": 73,
+            "sold_count": 198,
+            "created_at": now,
+            "updated_at": now,
+            "deleted_at": None,
+        },
+        {
+            "tenant_id": "vivero-el-cristo",
+            "title": "Fungicida Sistémico 100 ml",
+            "short_description": "Previene y frena hongos como oídio, roya y manchas foliares en plantas de interior y exterior.",
+            "description": "Fungicida sistémico de amplio espectro para el control de oídio, roya, botritis y manchas foliares. Se absorbe por la planta y protege desde adentro.\n\nAplicar con pulverizador cada 10-14 días ante los primeros síntomas. Uso según etiqueta; mantener fuera del alcance de niños y mascotas.",
+            "price": 950000,
+            "compare_at_price": None,
+            "currency": "ARS",
+            "tax": "iva-21",
+            "category_id": cat_quimicos,
+            "images": [],
+            "stock": 30,
+            "sku": "QUI-FUN-SIS-100",
+            "status": "active",
+            "is_featured": False,
+            "publish_at": now,
+            "variants": [],
+            "tags": ["fungicida", "hongos", "oídio", "fitosanitario"],
+            "weight_grams": 180,
+            "height_cm": 14,
+            "care": {},
+            "attributes": {"volume": "100 ml", "action": "Sistémico", "usage": "Cada 10-14 días con pulverizador"},
+            "rating_avg": 4.5,
+            "rating_count": 38,
+            "sold_count": 96,
+            "created_at": now,
+            "updated_at": now,
+            "deleted_at": None,
+        },
     ]
 
     await db.products.insert_many(plants)
-    print(f"✓ Productos ({len(plants)} plantas para vivero-el-cristo)")
+    print(f"✓ Productos ({len(plants)} para vivero-el-cristo)")
 
     client.close()
     print("\n✅ Seed completado")

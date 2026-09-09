@@ -96,6 +96,7 @@ class ProductDetail(ProductSummary):
     variants: list[VariantSchema]
     category_id: str | None = None
     category_name: str | None = None
+    category_slug: str | None = None
     sold_count: int
     sku: str | None = None
     tags: list[str]

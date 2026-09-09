@@ -5,6 +5,7 @@ import { ProductsCarousel } from "../components/home/ProductsCarousel";
 import { productService } from "../services/product.service";
 import { useCategories } from "../hooks/useCategories";
 import { useCart } from "../hooks/useCart";
+import { CATEGORY_GROUPS, CATEGORY_GROUP_LABEL, type CategoryGroup } from "../types/category";
 import type { ProductSummary } from "../types/product";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
@@ -35,9 +36,13 @@ export function Products() {
   const [searchParams, setSearchParams] = useSearchParams();
   const qParam = searchParams.get("q") ?? "";
   const categorySlug = searchParams.get("category") ?? "";
+  const groupParam = searchParams.get("group") ?? "";
   const onSaleParam = searchParams.get("on_sale") === "true";
   const sortParam = searchParams.get("sort") ?? "featured";
   const pageParam = Number(searchParams.get("page") ?? "1");
+
+  const validGroup: CategoryGroup | null =
+    CATEGORY_GROUPS.find((g) => g.value === groupParam)?.value ?? null;
 
   const { categories, loading: catsLoading } = useCategories(100);
   const [products, setProducts] = useState<ProductSummary[]>([]);
@@ -53,6 +58,20 @@ export function Products() {
   const activeCat = categories.find((c) => c.slug === categorySlug);
   const categoryId = activeCat?.category_id;
 
+  // Sección del nav en la que está parado el listado: la de la categoría activa
+  // si hay una, si no la del ?group= de la URL. Null = vitrina completa (sin
+  // sección), p. ej. /products a secas o una búsqueda global.
+  const resolvedGroup: CategoryGroup | null = activeCat?.group ?? validGroup;
+
+  // Categorías del rail lateral: acotadas a la sección si hay una, si no todas.
+  const railCategories = resolvedGroup
+    ? categories.filter((c) => c.group === resolvedGroup)
+    : categories;
+
+  // Filtro por sección para la query de productos: solo cuando no hay una
+  // categoría puntual (esa es más específica) y el ?group= es válido.
+  const categoryGroupFilter = !categoryId && validGroup ? validGroup : undefined;
+
   useEffect(() => {
     // Wait for categories to resolve when filtering by slug
     if (categorySlug && catsLoading) return;
@@ -62,6 +81,7 @@ export function Products() {
       .list({
         q: qParam || undefined,
         category_id: categoryId,
+        category_group: categoryGroupFilter,
         on_sale: onSaleParam || undefined,
         sort: sortParam,
         page: pageParam,
@@ -74,12 +94,13 @@ export function Products() {
         setPages(data.pages);
       })
       .finally(() => setLoading(false));
-  }, [qParam, categoryId, onSaleParam, sortParam, pageParam, categorySlug, catsLoading]);
+  }, [qParam, categoryId, categoryGroupFilter, onSaleParam, sortParam, pageParam, categorySlug, catsLoading]);
 
-  let pageTitle = "Todas las Plantas";
+  let pageTitle = "Todos los productos";
   if (qParam) pageTitle = `Resultados para "${qParam}"`;
   else if (activeCat) pageTitle = activeCat.name;
   else if (onSaleParam) pageTitle = "Ofertas";
+  else if (validGroup) pageTitle = CATEGORY_GROUP_LABEL[validGroup];
 
   function setSort(v: string) {
     setSearchParams((prev) => {
@@ -120,8 +141,16 @@ export function Products() {
 
   function setCategoryFilter(slug: string) {
     setSearchParams((prev) => {
-      if (slug) prev.set("category", slug);
-      else prev.delete("category");
+      if (slug) {
+        // Una categoría puntual implica su sección; el ?group= sobra.
+        prev.set("category", slug);
+        prev.delete("group");
+      } else {
+        // "Todas": vuelve a la sección actual (si la hay), no a la vitrina.
+        prev.delete("category");
+        if (resolvedGroup) prev.set("group", resolvedGroup);
+        else prev.delete("group");
+      }
       prev.delete("page");
       return prev;
     });
@@ -196,7 +225,7 @@ export function Products() {
             {/* Sidebar — desktop */}
             <aside className="hidden lg:block w-52 shrink-0">
               <p className="text-xs font-semibold uppercase tracking-widest text-[#6B6B6B] mb-4">
-                Categorías
+                {resolvedGroup ? CATEGORY_GROUP_LABEL[resolvedGroup] : "Categorías"}
               </p>
               <ul className="flex flex-col gap-0.5">
                 <li>
@@ -211,7 +240,7 @@ export function Products() {
                     Todas
                   </button>
                 </li>
-                {categories.map((cat) => (
+                {railCategories.map((cat) => (
                   <li key={cat.category_id}>
                     <button
                       onClick={() => setCategoryFilter(cat.slug)}
@@ -231,7 +260,7 @@ export function Products() {
             {/* Main content */}
             <div className="flex-1 min-w-0">
               {/* Category pills — mobile */}
-              {categories.length > 0 && (
+              {railCategories.length > 0 && (
                 <div className="flex lg:hidden gap-2 overflow-x-auto pb-3 mb-5">
                   <button
                     onClick={() => setCategoryFilter("")}
@@ -243,7 +272,7 @@ export function Products() {
                   >
                     Todas
                   </button>
-                  {categories.map((cat) => (
+                  {railCategories.map((cat) => (
                     <button
                       key={cat.category_id}
                       onClick={() => setCategoryFilter(cat.slug)}

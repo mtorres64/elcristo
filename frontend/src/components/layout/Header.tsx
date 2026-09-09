@@ -3,10 +3,12 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useCart } from "../../hooks/useCart";
 import { useAuth } from "../../hooks/useAuth";
 import { useCategories } from "../../hooks/useCategories";
+import type { Category, CategoryGroup } from "../../types/category";
 
 export function Header() {
   const { itemCount } = useCart();
   const { user, logout } = useAuth();
+  const { categories } = useCategories(100);
   const navigate = useNavigate();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -66,10 +68,11 @@ export function Header() {
         </Link>
 
         {/* Nav desktop */}
-        <nav className="hidden lg:flex items-center gap-7">
-          <PlantsMenu />
+        <nav className="hidden lg:flex items-center gap-6">
+          <SectionMenu group="plantas" label="Plantas" categories={categories} />
           <NavLink to="/diseno">Diseño & Paisajismo</NavLink>
-          <NavLink to="/products?category=macetas-accesorios">Macetas & Accesorios</NavLink>
+          <SectionMenu group="macetas" label="Macetas & Accesorios" categories={categories} />
+          <SectionMenu group="quimicos" label="Productos Químicos" categories={categories} />
           <NavLink to="/inspiracion">Inspiración</NavLink>
           <NavLink to="/nosotros">Sobre Nosotros</NavLink>
         </nav>
@@ -236,16 +239,46 @@ export function Header() {
 
       {/* Mobile menu */}
       {menuOpen && (
-        <div className="lg:hidden bg-white border-t border-[#E8E2D8] px-6 py-4 flex flex-col gap-3">
-          {["Plantas", "Diseño & Paisajismo", "Macetas & Accesorios", "Inspiración", "Sobre Nosotros"].map((item) => (
-            <button
-              key={item}
-              className="text-sm text-left py-2 border-b border-[#F0EBE3] text-[#1A1A1A] tracking-wide"
-              onClick={() => setMenuOpen(false)}
-            >
-              {item}
-            </button>
-          ))}
+        <div className="lg:hidden bg-white border-t border-[#E8E2D8] px-6 py-4 flex flex-col gap-1">
+          <MobileNavSection
+            group="plantas"
+            label="Plantas"
+            categories={categories}
+            onNavigate={() => setMenuOpen(false)}
+          />
+          <Link
+            to="/diseno"
+            onClick={() => setMenuOpen(false)}
+            className="text-sm text-left py-2.5 border-b border-[#F0EBE3] text-[#1A1A1A] tracking-wide"
+          >
+            Diseño & Paisajismo
+          </Link>
+          <MobileNavSection
+            group="macetas"
+            label="Macetas & Accesorios"
+            categories={categories}
+            onNavigate={() => setMenuOpen(false)}
+          />
+          <MobileNavSection
+            group="quimicos"
+            label="Productos Químicos"
+            categories={categories}
+            onNavigate={() => setMenuOpen(false)}
+          />
+          <Link
+            to="/inspiracion"
+            onClick={() => setMenuOpen(false)}
+            className="text-sm text-left py-2.5 border-b border-[#F0EBE3] text-[#1A1A1A] tracking-wide"
+          >
+            Inspiración
+          </Link>
+          <Link
+            to="/nosotros"
+            onClick={() => setMenuOpen(false)}
+            className="text-sm text-left py-2.5 border-b border-[#F0EBE3] text-[#1A1A1A] tracking-wide"
+          >
+            Sobre Nosotros
+          </Link>
           {user ? (
             <>
               <Link
@@ -287,20 +320,32 @@ export function Header() {
   );
 }
 
-/** "Plantas" del nav desktop: despliega un submenú con todas las categorías
- * activas al pasar el mouse. Sin gap entre el link y el panel (top-full, sin
- * margin) para que el hover no se pierda al bajar el cursor del texto al
- * panel — con margin quedaría una franja "muerta" que corta el :hover. */
-function PlantsMenu() {
-  const { categories } = useCategories(20);
+/** Ítem del nav desktop con desplegable (Plantas / Macetas & Accesorios /
+ * Productos Químicos): al pasar el mouse muestra las categorías de esa sección.
+ * Sin gap entre el link y el panel (top-full, sin margin) para que el hover no
+ * se pierda al bajar el cursor del texto al panel — con margin quedaría una
+ * franja "muerta" que corta el :hover.
+ * `categories` llega ya cargado del Header (una sola request) y se filtra por
+ * grupo acá. */
+function SectionMenu({
+  group,
+  label,
+  categories,
+}: {
+  group: CategoryGroup;
+  label: string;
+  categories: Category[];
+}) {
+  const items = categories.filter((c) => c.group === group);
+  const allHref = `/products?group=${group}`;
 
   return (
     <div className="relative group">
       <Link
-        to="/products"
-        className="text-[11px] uppercase tracking-widest text-[#1A1A1A] font-medium hover:text-forest-accent transition-colors flex items-center gap-1"
+        to={allHref}
+        className="text-[11px] uppercase tracking-widest text-[#1A1A1A] font-medium hover:text-forest-accent transition-colors flex items-center gap-1 whitespace-nowrap"
       >
-        Plantas
+        {label}
         <svg
           width="10" height="10" viewBox="0 0 24 24" fill="none"
           stroke="currentColor" strokeWidth="2.5"
@@ -313,13 +358,13 @@ function PlantsMenu() {
       <div className="hidden group-hover:block absolute left-0 top-full pt-3 z-50">
         <div className="w-56 bg-white border border-[#E8E2D8] shadow-lg py-1.5">
           <Link
-            to="/products"
+            to={allHref}
             className="block px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[#1A2B1C] hover:bg-[#F5F5F3] transition-colors"
           >
             Todas
           </Link>
-          {categories.length > 0 && <div className="border-t border-[#F0EDE8] my-1" />}
-          {categories.map((cat) => (
+          {items.length > 0 && <div className="border-t border-[#F0EDE8] my-1" />}
+          {items.map((cat) => (
             <Link
               key={cat.category_id}
               to={`/products?category=${cat.slug}`}
@@ -330,6 +375,63 @@ function PlantsMenu() {
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Sección colapsable del menú mobile: mismo contenido que SectionMenu pero
+ * expandible con tap en vez de hover. */
+function MobileNavSection({
+  group,
+  label,
+  categories,
+  onNavigate,
+}: {
+  group: CategoryGroup;
+  label: string;
+  categories: Category[];
+  onNavigate: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const items = categories.filter((c) => c.group === group);
+
+  return (
+    <div className="border-b border-[#F0EBE3]">
+      <button
+        className="w-full flex items-center justify-between py-2.5 text-sm text-[#1A1A1A] tracking-wide"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+      >
+        {label}
+        <svg
+          width="14" height="14" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" strokeWidth="2"
+          className={`text-[#8A8A8A] transition-transform ${open ? "rotate-180" : ""}`}
+        >
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+      {open && (
+        <div className="flex flex-col pb-2">
+          <Link
+            to={`/products?group=${group}`}
+            onClick={onNavigate}
+            className="py-1.5 pl-3 text-sm text-[#1A2B1C] font-medium"
+          >
+            Ver todo
+          </Link>
+          {items.map((cat) => (
+            <Link
+              key={cat.category_id}
+              to={`/products?category=${cat.slug}`}
+              onClick={onNavigate}
+              className="py-1.5 pl-3 text-sm text-[#4A4A4A]"
+            >
+              {cat.name}
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

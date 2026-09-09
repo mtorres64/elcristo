@@ -2,7 +2,12 @@ import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { AdminLayout } from "../../components/admin/AdminLayout";
 import { categoryService } from "../../services/category.service";
-import type { Category } from "../../types/category";
+import {
+  CATEGORY_GROUPS,
+  CATEGORY_GROUP_LABEL,
+  type Category,
+  type CategoryGroup,
+} from "../../types/category";
 import toast from "react-hot-toast";
 
 // ─── Constants ────────────────────────────────────────────────────
@@ -236,6 +241,11 @@ function CategoryRow({
           <span className="text-[#ABABAB]">—</span>
         )}
       </td>
+      <td className="px-4 py-3">
+        <span className="inline-flex items-center px-2.5 py-0.5 text-xs font-medium rounded-full bg-[#F0EDE8] text-[#4A4A4A]">
+          {CATEGORY_GROUP_LABEL[category.group]}
+        </span>
+      </td>
       <td className="px-4 py-3 text-center">
         {category.product_count > 0 ? (
           <span className="text-sm font-medium text-[#1A1A1A] tabular-nums">
@@ -352,6 +362,10 @@ function CategoryCardMobile({
           {category.description && (
             <p className="text-xs text-[#6B6B6B] leading-relaxed">{category.description}</p>
           )}
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-[#8A8A8A]">Sección</span>
+            <span className="text-[#4A4A4A]">{CATEGORY_GROUP_LABEL[category.group]}</span>
+          </div>
           <div className="flex items-center justify-between text-xs">
             <span className="text-[#8A8A8A]">Productos</span>
             <span className="text-[#4A4A4A]">{category.product_count || "—"}</span>
@@ -528,6 +542,7 @@ export function CategoryList() {
   const [q, setQ] = useState("");
   const [debouncedQ, setDebouncedQ] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [groupFilter, setGroupFilter] = useState<"" | CategoryGroup>("");
   const [sort, setSort] = useState("newest");
   const [page, setPage] = useState(1);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -551,7 +566,7 @@ export function CategoryList() {
     setPage(1);
     setSelected(new Set());
     setConfirmBulk(false);
-  }, [debouncedQ, statusFilter, sort]);
+  }, [debouncedQ, statusFilter, groupFilter, sort]);
 
   useEffect(() => {
     let cancelled = false;
@@ -566,6 +581,7 @@ export function CategoryList() {
     };
     if (statusFilter === "active") params.is_active = true;
     if (statusFilter === "inactive") params.is_active = false;
+    if (groupFilter) params.group = groupFilter;
 
     categoryService
       .list(params)
@@ -587,14 +603,15 @@ export function CategoryList() {
     return () => {
       cancelled = true;
     };
-  }, [debouncedQ, statusFilter, sort, page]);
+  }, [debouncedQ, statusFilter, groupFilter, sort, page]);
 
-  const hasFilters = !!(q || statusFilter || sort !== "newest");
-  const activeFilterCount = [q, statusFilter, sort !== "newest" ? sort : ""].filter(Boolean).length;
+  const hasFilters = !!(q || statusFilter || groupFilter || sort !== "newest");
+  const activeFilterCount = [q, statusFilter, groupFilter, sort !== "newest" ? sort : ""].filter(Boolean).length;
 
   function handleReset() {
     setQ("");
     setStatusFilter("");
+    setGroupFilter("");
     setSort("newest");
     setPage(1);
   }
@@ -760,6 +777,22 @@ export function CategoryList() {
 
             <div className="relative w-full sm:w-auto">
               <select
+                value={groupFilter}
+                onChange={(e) => setGroupFilter(e.target.value as "" | CategoryGroup)}
+                className={`${SELECT} w-full sm:w-[190px]`}
+              >
+                <option value="">Todas las secciones</option>
+                {CATEGORY_GROUPS.map((g) => (
+                  <option key={g.value} value={g.value}>
+                    {g.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown />
+            </div>
+
+            <div className="relative w-full sm:w-auto">
+              <select
                 value={sort}
                 onChange={(e) => setSort(e.target.value)}
                 className={`${SELECT} w-full sm:w-[180px]`}
@@ -864,6 +897,9 @@ export function CategoryList() {
                     </th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-[#6B6B6B] uppercase tracking-wider">
                       Descripción
+                    </th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-[#6B6B6B] uppercase tracking-wider w-[150px]">
+                      Sección
                     </th>
                     <th className="text-center px-4 py-3 text-xs font-semibold text-[#6B6B6B] uppercase tracking-wider w-[100px]">
                       Productos

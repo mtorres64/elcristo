@@ -200,6 +200,7 @@ Listar productos. Sin X-Tenant-ID = cross-tenant (búsqueda global). Con X-Tenan
 **Query params:**
 - `q`: búsqueda full-text
 - `category_id`: filtrar por categoría
+- `category_group`: filtrar por sección del nav (`plantas` | `macetas` | `quimicos`); ignorado si viene `category_id`
 - `min_price`: centavos
 - `max_price`: centavos
 - `status`: `active` (default para público)
@@ -635,21 +636,30 @@ Webhook de MercadoPago para notificaciones de pago.
 ## Categorías
 
 ### GET /categories
-Árbol completo de categorías.
+Listado paginado de categorías.
 
 **Auth:** ninguna
 
-**Response 200:**
+**Query params:**
+- `q`: texto libre (nombre / slug)
+- `is_active`: bool
+- `group`: filtrar por sección del nav (`plantas` | `macetas` | `quimicos`)
+- `sort`: `sort_order` (default) | `name_asc` | `newest`
+- `page`, `page_size`
+
+**Response 200:** paginado, cada ítem:
 ```json
-[
-  {
-    "category_id": "string",
-    "name": "string",
-    "slug": "string",
-    "icon_url": "string | null",
-    "children": [...]
-  }
-]
+{
+  "category_id": "string",
+  "name": "string",
+  "slug": "string",
+  "description": "string | null",
+  "image_url": "string | null",
+  "group": "plantas | macetas | quimicos",
+  "product_count": "int",
+  "is_active": "bool",
+  "sort_order": "int"
+}
 ```
 
 ---

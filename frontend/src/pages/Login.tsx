@@ -206,14 +206,7 @@ export function Login() {
                 Continuar con Google
               </button>
             )}
-            <button
-              type="button"
-              onClick={() => toast("Inicio de sesión con Facebook próximamente", { icon: "🚧" })}
-              className="w-full flex items-center justify-center gap-3 border border-[#E8E2D8] bg-white py-3 px-4 text-sm text-[#1A1A1A] hover:bg-[#F8F7F5] transition-colors rounded-lg"
-            >
-              <FacebookIcon />
-              Continuar con Facebook
-            </button>
+
           </div>
 
           <div className="flex items-center gap-4 mb-6">

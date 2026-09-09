@@ -1,5 +1,5 @@
 import { api } from "./api";
-import type { Category } from "../types/category";
+import type { Category, CategoryGroup } from "../types/category";
 
 interface PaginatedCategories {
   items: Category[];
@@ -12,6 +12,7 @@ interface PaginatedCategories {
 interface ListCategoriesParams {
   q?: string;
   is_active?: boolean;
+  group?: CategoryGroup;
   sort?: string;
   page?: number;
   page_size?: number;
@@ -21,6 +22,7 @@ interface CategoryPayload {
   name?: string;
   slug?: string;
   description?: string | null;
+  group?: CategoryGroup;
   is_active?: boolean;
   sort_order?: number;
 }

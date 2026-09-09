@@ -18,6 +18,7 @@ def _to_out(doc: dict, product_count: int = 0) -> dict:
         "slug": doc["slug"],
         "description": doc.get("description"),
         "image_url": doc.get("image_url"),
+        "group": doc.get("group", "plantas"),
         "product_count": product_count,
         "is_active": doc.get("is_active", True),
         "sort_order": doc.get("sort_order", 0),
@@ -40,6 +41,7 @@ async def _get_product_counts(db) -> dict[str, int]:
 async def list_categories(
     q: str | None = None,
     is_active: bool | None = Query(None),
+    group: str | None = Query(None),
     sort: str = "sort_order",
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
@@ -49,6 +51,8 @@ async def list_categories(
     f: dict = {}
     if is_active is not None:
         f["is_active"] = is_active
+    if group:
+        f["group"] = group
     if q:
         f["$or"] = [
             {"name": {"$regex": q, "$options": "i"}},
@@ -107,6 +111,7 @@ async def create_category(body: CategoryCreate):
         "slug": body.slug,
         "description": body.description,
         "image_url": None,
+        "group": body.group,
         "parent_id": None,
         "sort_order": body.sort_order,
         "is_active": body.is_active,

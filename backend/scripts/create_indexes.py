@@ -40,6 +40,7 @@ async def create_indexes():
     # categories
     await db.categories.create_index([("slug", 1)], unique=True)
     await db.categories.create_index([("parent_id", 1), ("order", 1)])
+    await db.categories.create_index([("group", 1), ("sort_order", 1)])
     print("✓ categories")
 
     # orders — per-tenant

@@ -33,7 +33,7 @@ def _to_summary(doc: dict) -> dict:
     }
 
 
-def _to_detail(doc: dict) -> dict:
+def _to_detail(doc: dict, category: dict | None = None) -> dict:
     result = _to_summary(doc)
     result.update({
         "description": doc.get("description"),
@@ -42,7 +42,8 @@ def _to_detail(doc: dict) -> dict:
         "stock": doc.get("stock", 0),
         "variants": doc.get("variants", []),
         "category_id": doc.get("category_id"),
-        "category_name": None,
+        "category_name": category["name"] if category else None,
+        "category_slug": category["slug"] if category else None,
         "sold_count": doc.get("sold_count", 0),
         "sku": doc.get("sku"),
         "tags": doc.get("tags", []),
@@ -62,6 +63,7 @@ async def list_products(
     q: str | None = None,
     tenant_id: str | None = None,
     category_id: str | None = None,
+    category_group: str | None = None,
     status: str | None = None,
     min_price: int | None = None,
     max_price: int | None = None,
@@ -84,6 +86,14 @@ async def list_products(
 
     if category_id:
         f["category_id"] = category_id
+    elif category_group:
+        # Filtra por sección del nav (plantas / macetas / quimicos): resuelve
+        # el grupo a la lista de category_id que le pertenecen. Un category_id
+        # explícito tiene prioridad sobre el grupo.
+        cat_ids = await db.categories.find(
+            {"group": category_group}, {"_id": 1}
+        ).to_list(None)
+        f["category_id"] = {"$in": [str(c["_id"]) for c in cat_ids]}
 
     if ids:
         oids = []
@@ -156,7 +166,14 @@ async def get_product(product_id: str):
     if not doc:
         raise HTTPException(404, "Producto no encontrado")
 
-    return _to_detail(doc)
+    category = None
+    if doc.get("category_id"):
+        try:
+            category = await db.categories.find_one({"_id": ObjectId(doc["category_id"])})
+        except Exception:
+            category = None
+
+    return _to_detail(doc, category)
 
 
 @router.post("", response_model=ProductDetail, status_code=201)

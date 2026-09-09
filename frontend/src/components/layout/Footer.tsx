@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { contentService } from "../../services/content.service";
+import { useCategories } from "../../hooks/useCategories";
+import { CATEGORY_GROUPS } from "../../types/category";
 import { SOCIAL_PLATFORMS, SocialIcon } from "../social/socialPlatforms";
 import type { SocialLink as SocialLinkItem } from "../../types/content";
 
 export function Footer() {
   const [social, setSocial] = useState<SocialLinkItem[]>([]);
+  const { categories } = useCategories(100);
 
   useEffect(() => {
     contentService
@@ -48,22 +51,40 @@ export function Footer() {
         {/* Tienda */}
         <div>
           <h4 className="text-[10px] uppercase tracking-widest text-white font-semibold mb-5">Tienda</h4>
-          <ul className="flex flex-col gap-3">
-            {[
-              { label: "Plantas de Interior", to: "/products?category=plantas-interior" },
-              { label: "Plantas de Exterior", to: "/products?category=plantas-exterior" },
-              { label: "Árboles y Arbustos", to: "/products?category=arboles-arbustos" },
-              { label: "Suculentas y Cactus", to: "/products?category=suculentas-cactus" },
-              { label: "Macetas y Accesorios", to: "/products?category=macetas-accesorios" },
-              { label: "Ofertas", to: "/products?on_sale=true" },
-            ].map((item) => (
-              <li key={item.to}>
-                <Link to={item.to} className="text-xs text-[#7A8A7B] hover:text-[#A8B5A9] transition-colors">
-                  {item.label}
-                </Link>
-              </li>
-            ))}
-          </ul>
+          <div className="flex flex-col gap-5">
+            {CATEGORY_GROUPS.map((g) => {
+              const items = categories.filter((c) => c.group === g.value);
+              if (items.length === 0) return null;
+              return (
+                <div key={g.value}>
+                  <Link
+                    to={`/products?group=${g.value}`}
+                    className="block text-[11px] font-semibold text-[#A8B5A9] hover:text-white transition-colors mb-2.5"
+                  >
+                    {g.label}
+                  </Link>
+                  <ul className="flex flex-col gap-2.5">
+                    {items.map((cat) => (
+                      <li key={cat.category_id}>
+                        <Link
+                          to={`/products?category=${cat.slug}`}
+                          className="text-xs text-[#7A8A7B] hover:text-[#A8B5A9] transition-colors"
+                        >
+                          {cat.name}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })}
+            <Link
+              to="/products?on_sale=true"
+              className="text-xs text-[#7A8A7B] hover:text-[#A8B5A9] transition-colors"
+            >
+              Ofertas
+            </Link>
+          </div>
         </div>
 
         {/* Información */}

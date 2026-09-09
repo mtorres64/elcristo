@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { contentService } from "../../services/content.service";
 import type { HeroSlide } from "../../types/content";
@@ -15,6 +15,8 @@ export function HeroSection() {
   const [loading, setLoading] = useState(true);
   const [current, setCurrent] = useState(0);
   const [paused, setPaused] = useState(false);
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const swiped = useRef(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -37,7 +39,29 @@ export function HeroSection() {
     return () => clearInterval(timer);
   }, [paused, slides.length]);
 
+  function handleTouchStart(e: React.TouchEvent) {
+    const t = e.touches[0];
+    touchStart.current = { x: t.clientX, y: t.clientY };
+    swiped.current = false;
+  }
+
+  function handleTouchEnd(e: React.TouchEvent) {
+    if (!touchStart.current || slides.length <= 1) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchStart.current.x;
+    const dy = t.clientY - touchStart.current.y;
+    touchStart.current = null;
+    if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      swiped.current = true;
+      setCurrent((c) => (c + (dx < 0 ? 1 : -1) + slides.length) % slides.length);
+    }
+  }
+
   function handleSlideClick(e: React.MouseEvent | React.KeyboardEvent, slide: HeroSlide) {
+    if (swiped.current) {
+      swiped.current = false;
+      return;
+    }
     if (!slide.link_url) return;
     if ((e.target as HTMLElement).closest("a,button")) return;
     if (slide.link_url.startsWith("/")) navigate(slide.link_url);
@@ -55,9 +79,11 @@ export function HeroSection() {
   return (
     <section className="overflow-hidden">
       <div
-        className="relative min-h-[630px] overflow-hidden"
+        className="relative min-h-[630px] overflow-hidden touch-pan-y"
         onMouseEnter={() => setPaused(true)}
         onMouseLeave={() => setPaused(false)}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
       >
         {slides.map((slide, i) => {
           const clickable = !!slide.link_url;

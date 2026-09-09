@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { AdminLayout } from "../../components/admin/AdminLayout";
 import { categoryService } from "../../services/category.service";
+import { CATEGORY_GROUPS, type CategoryGroup } from "../../types/category";
 import toast from "react-hot-toast";
 
 // ─── Helpers ──────────────────────────────────────────────────────
@@ -100,6 +101,7 @@ export function CategoryEdit() {
   const [slug, setSlug] = useState("");
   const [slugManual, setSlugManual] = useState(false);
   const [description, setDescription] = useState("");
+  const [group, setGroup] = useState<CategoryGroup>("plantas");
   const [isActive, setIsActive] = useState(true);
   const [sortOrder, setSortOrder] = useState(0);
   const [productCount, setProductCount] = useState(0);
@@ -123,6 +125,7 @@ export function CategoryEdit() {
         setSlug(cat.slug);
         setSlugManual(true);
         setDescription(cat.description ?? "");
+        setGroup(cat.group);
         setIsActive(cat.is_active);
         setSortOrder(cat.sort_order);
         setProductCount(cat.product_count);
@@ -173,6 +176,7 @@ export function CategoryEdit() {
         name: name.trim(),
         slug: slug.trim() || toSlug(name),
         description: description.trim() || null,
+        group,
         is_active: isActive,
         sort_order: sortOrder,
       });
@@ -339,6 +343,25 @@ export function CategoryEdit() {
                     {description.length}/500
                   </span>
                 </div>
+              </FormField>
+
+              {/* Sección */}
+              <FormField
+                label="Sección"
+                required
+                hint="Define en qué desplegable del menú superior aparece la categoría."
+              >
+                <select
+                  value={group}
+                  onChange={(e) => setGroup(e.target.value as CategoryGroup)}
+                  className={INPUT}
+                >
+                  {CATEGORY_GROUPS.map((g) => (
+                    <option key={g.value} value={g.value}>
+                      {g.label}
+                    </option>
+                  ))}
+                </select>
               </FormField>
 
               {/* Status + Sort order */}
