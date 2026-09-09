@@ -67,14 +67,13 @@ export function Header() {
           </div>
         </Link>
 
-        {/* Nav desktop */}
-        <nav className="hidden lg:flex items-center gap-6">
+        {/* Nav desktop — solo secciones de compra. Diseño & Paisajismo,
+            Inspiración y Sobre Nosotros viven en la barra superior (TopBanner). */}
+        <nav className="hidden lg:flex items-center gap-8">
           <SectionMenu group="plantas" label="Plantas" categories={categories} />
-          <NavLink to="/diseno">Diseño & Paisajismo</NavLink>
           <SectionMenu group="macetas" label="Macetas & Accesorios" categories={categories} />
           <SectionMenu group="quimicos" label="Productos Químicos" categories={categories} />
-          <NavLink to="/inspiracion">Inspiración</NavLink>
-          <NavLink to="/nosotros">Sobre Nosotros</NavLink>
+          <NavLink to="/products?on_sale=true">Ofertas</NavLink>
         </nav>
 
         {/* Actions */}
@@ -246,13 +245,6 @@ export function Header() {
             categories={categories}
             onNavigate={() => setMenuOpen(false)}
           />
-          <Link
-            to="/diseno"
-            onClick={() => setMenuOpen(false)}
-            className="text-sm text-left py-2.5 border-b border-[#F0EBE3] text-[#1A1A1A] tracking-wide"
-          >
-            Diseño & Paisajismo
-          </Link>
           <MobileNavSection
             group="macetas"
             label="Macetas & Accesorios"
@@ -265,6 +257,20 @@ export function Header() {
             categories={categories}
             onNavigate={() => setMenuOpen(false)}
           />
+          <Link
+            to="/products?on_sale=true"
+            onClick={() => setMenuOpen(false)}
+            className="text-sm text-left py-2.5 border-b border-[#F0EBE3] text-[#1A1A1A] tracking-wide"
+          >
+            Ofertas
+          </Link>
+          <Link
+            to="/diseno"
+            onClick={() => setMenuOpen(false)}
+            className="text-sm text-left py-2.5 border-b border-[#F0EBE3] text-[#1A1A1A] tracking-wide"
+          >
+            Diseño & Paisajismo
+          </Link>
           <Link
             to="/inspiracion"
             onClick={() => setMenuOpen(false)}

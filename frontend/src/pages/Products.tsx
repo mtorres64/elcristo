@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useSearchParams, Link } from "react-router-dom";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { Layout } from "../components/layout/Layout";
 import { ProductsCarousel } from "../components/home/ProductsCarousel";
 import { productService } from "../services/product.service";
@@ -39,18 +40,14 @@ export function Products() {
   const groupParam = searchParams.get("group") ?? "";
   const onSaleParam = searchParams.get("on_sale") === "true";
   const sortParam = searchParams.get("sort") ?? "featured";
-  const pageParam = Number(searchParams.get("page") ?? "1");
 
   const validGroup: CategoryGroup | null =
     CATEGORY_GROUPS.find((g) => g.value === groupParam)?.value ?? null;
 
   const { categories, loading: catsLoading } = useCategories(100);
-  const [products, setProducts] = useState<ProductSummary[]>([]);
-  const [total, setTotal] = useState(0);
-  const [pages, setPages] = useState(1);
-  const [loading, setLoading] = useState(true);
   const [searchInput, setSearchInput] = useState(qParam);
   const searchRef = useRef<HTMLInputElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
   // Sync input when qParam changes from outside (e.g. header search)
   useEffect(() => { setSearchInput(qParam); }, [qParam]);
@@ -72,29 +69,48 @@ export function Products() {
   // categoría puntual (esa es más específica) y el ?group= es válido.
   const categoryGroupFilter = !categoryId && validGroup ? validGroup : undefined;
 
-  useEffect(() => {
-    // Wait for categories to resolve when filtering by slug
-    if (categorySlug && catsLoading) return;
+  const listParams = {
+    q: qParam || undefined,
+    category_id: categoryId,
+    category_group: categoryGroupFilter,
+    on_sale: onSaleParam || undefined,
+    sort: sortParam,
+    page_size: PAGE_SIZE,
+    status: "active",
+  };
 
-    setLoading(true);
-    productService
-      .list({
-        q: qParam || undefined,
-        category_id: categoryId,
-        category_group: categoryGroupFilter,
-        on_sale: onSaleParam || undefined,
-        sort: sortParam,
-        page: pageParam,
-        page_size: PAGE_SIZE,
-        status: "active",
-      })
-      .then((data) => {
-        setProducts(data.items);
-        setTotal(data.total);
-        setPages(data.pages);
-      })
-      .finally(() => setLoading(false));
-  }, [qParam, categoryId, categoryGroupFilter, onSaleParam, sortParam, pageParam, categorySlug, catsLoading]);
+  const {
+    data,
+    isLoading: queryLoading,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
+  } = useInfiniteQuery({
+    queryKey: ["products", listParams],
+    queryFn: ({ pageParam }) => productService.list({ ...listParams, page: pageParam }),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) =>
+      lastPage.page < lastPage.pages ? lastPage.page + 1 : undefined,
+    // Wait for categories to resolve when filtering by slug
+    enabled: !(categorySlug && catsLoading),
+  });
+
+  const products: ProductSummary[] = data?.pages.flatMap((p) => p.items) ?? [];
+  const total = data?.pages[0]?.total ?? 0;
+
+  // Infinite scroll: load the next page when the sentinel enters the viewport
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || !hasNextPage) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !isFetchingNextPage) fetchNextPage();
+      },
+      { rootMargin: "600px" }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage, products.length]);
 
   let pageTitle = "Todos los productos";
   if (qParam) pageTitle = `Resultados para "${qParam}"`;
@@ -105,17 +121,8 @@ export function Products() {
   function setSort(v: string) {
     setSearchParams((prev) => {
       prev.set("sort", v);
-      prev.delete("page");
       return prev;
     });
-  }
-
-  function setPage(p: number) {
-    setSearchParams((prev) => {
-      prev.set("page", String(p));
-      return prev;
-    });
-    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function submitSearch(e: React.FormEvent | React.KeyboardEvent) {
@@ -124,7 +131,6 @@ export function Products() {
     setSearchParams((prev) => {
       if (q) prev.set("q", q);
       else prev.delete("q");
-      prev.delete("page");
       return prev;
     });
   }
@@ -133,7 +139,6 @@ export function Products() {
     setSearchInput("");
     setSearchParams((prev) => {
       prev.delete("q");
-      prev.delete("page");
       return prev;
     });
     searchRef.current?.focus();
@@ -151,12 +156,11 @@ export function Products() {
         if (resolvedGroup) prev.set("group", resolvedGroup);
         else prev.delete("group");
       }
-      prev.delete("page");
       return prev;
     });
   }
 
-  const isLoading = loading || (!!categorySlug && catsLoading);
+  const isLoading = queryLoading || (!!categorySlug && catsLoading);
 
   return (
     <Layout>
@@ -331,31 +335,23 @@ export function Products() {
                     ))}
                   </div>
 
-                  {/* Pagination */}
-                  {pages > 1 && (
-                    <div className="flex justify-center gap-1.5 mt-10">
-                      <PaginationBtn
-                        onClick={() => setPage(pageParam - 1)}
-                        disabled={pageParam <= 1}
-                      >
-                        ‹
-                      </PaginationBtn>
-                      {Array.from({ length: pages }, (_, i) => i + 1).map((p) => (
-                        <PaginationBtn
-                          key={p}
-                          onClick={() => setPage(p)}
-                          active={p === pageParam}
-                        >
-                          {p}
-                        </PaginationBtn>
+                  {/* Infinite scroll sentinel + loader */}
+                  <div ref={sentinelRef} className="h-px" />
+                  {isFetchingNextPage && (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4 mt-4">
+                      {Array.from({ length: 4 }).map((_, i) => (
+                        <div key={i} className="animate-pulse">
+                          <div className="aspect-square bg-[#E8E2D8] rounded-lg mb-3" />
+                          <div className="h-4 bg-[#E8E2D8] rounded mb-2 w-3/4" />
+                          <div className="h-5 bg-[#E8E2D8] rounded w-1/2" />
+                        </div>
                       ))}
-                      <PaginationBtn
-                        onClick={() => setPage(pageParam + 1)}
-                        disabled={pageParam >= pages}
-                      >
-                        ›
-                      </PaginationBtn>
                     </div>
+                  )}
+                  {!hasNextPage && (
+                    <p className="text-center text-xs text-[#ABABAB] mt-10">
+                      Viste los {total} {total === 1 ? "producto" : "productos"}
+                    </p>
                   )}
                 </>
               )}
@@ -443,32 +439,6 @@ function ProductCard({ product, colorIndex }: { product: ProductSummary; colorIn
 }
 
 /* ─── Small components ────────────────────────────────────────── */
-
-function PaginationBtn({
-  children,
-  onClick,
-  disabled,
-  active,
-}: {
-  children: React.ReactNode;
-  onClick: () => void;
-  disabled?: boolean;
-  active?: boolean;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={`w-9 h-9 border rounded-lg text-sm transition-colors ${
-        active
-          ? "bg-[#1A2B1C] text-white border-[#1A2B1C]"
-          : "border-[#E8E2D8] text-[#4A4A4A] hover:border-[#1A2B1C] disabled:opacity-30 disabled:cursor-not-allowed"
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
 
 function ChevronIcon() {
   return (

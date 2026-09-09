@@ -113,9 +113,8 @@ export function Footer() {
           <ul className="flex flex-col gap-3">
             {[
               { label: "Sobre Nosotros", to: "/nosotros" },
-              { label: "Nuestro equipo", to: "#" },
-              { label: "Proyectos", to: "/inspiracion" },
-              { label: "Blog", to: "#" },
+              { label: "Diseño & Paisajismo", to: "/diseno" },
+              { label: "Inspiración", to: "/inspiracion" },
               { label: "Contacto", to: "/contacto" },
             ].map((item) => (
               <li key={item.label}>

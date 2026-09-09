@@ -1,14 +1,36 @@
+import { Link } from "react-router-dom";
+
 export function TopBanner() {
   return (
     <div className="bg-[#111810] text-white py-2.5">
-      <div className="max-w-screen-xl mx-auto px-4 flex items-center justify-center gap-3 md:gap-12">
-        <Item icon={<TruckIcon />} mobileText="Envíos" text="Envíos a todo el país" />
-        <Divider />
-        <Item icon={<ChatIcon />} mobileText="Diseño y paisajismo" text="Asesoramiento en diseño y paisajismo" />
-        <Divider />
-        <Item icon={<PhoneIcon />} mobileText="Atención" text="Atención personalizada" />
+      <div className="max-w-screen-xl mx-auto px-4 flex items-center justify-center xl:justify-between gap-3">
+        <div className="flex items-center gap-3 md:gap-12">
+          <Item icon={<TruckIcon />} mobileText="Envíos" text="Envíos a todo el país" />
+          <Divider />
+          <Item icon={<ChatIcon />} mobileText="Diseño y paisajismo" text="Asesoramiento en diseño y paisajismo" />
+          <Divider />
+          <Item icon={<PhoneIcon />} mobileText="Atención" text="Atención personalizada" />
+        </div>
+
+        {/* Enlaces editoriales — fuera del nav principal para no saturarlo */}
+        <nav className="hidden xl:flex items-center gap-6 shrink-0">
+          <TopLink to="/diseno">Diseño & Paisajismo</TopLink>
+          <TopLink to="/inspiracion">Inspiración</TopLink>
+          <TopLink to="/nosotros">Sobre Nosotros</TopLink>
+        </nav>
       </div>
     </div>
+  );
+}
+
+function TopLink({ to, children }: { to: string; children: React.ReactNode }) {
+  return (
+    <Link
+      to={to}
+      className="text-xs tracking-wide text-[#D5D9D4] hover:text-white transition-colors"
+    >
+      {children}
+    </Link>
   );
 }
 
