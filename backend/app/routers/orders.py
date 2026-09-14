@@ -15,6 +15,7 @@ from app.schemas.order import (
     OrderSummary,
     PaymentCardIn,
 )
+from app.schemas.store_settings import ShippingSettings
 from app.utils import getnet_client
 from app.utils.auth_deps import require_user
 from app.utils.card import detect_brand, luhn_is_valid
@@ -213,6 +214,30 @@ async def _resolve_address(db, user_id: str, body: OrderCreate) -> dict:
         )
     doc["_id"] = result.inserted_id
     return doc
+
+
+async def _resolve_shipping(db, tenant_id: str, subtotal: int, body: OrderCreate) -> tuple[int, int]:
+    """Recalcula costo de envío y descuento en el server a partir de
+    Configuración > Envíos — nunca se confía en un monto que mande el
+    cliente. Devuelve (shipping_cost, discount), ambos en centavos."""
+    doc = await db.store_settings.find_one({"tenant_id": tenant_id})
+    shipping_cfg = ShippingSettings(**(doc or {}).get("shipping", {}))
+
+    if body.pickup:
+        discount = round(subtotal * shipping_cfg.pickup_discount_pct / 100)
+        return 0, discount
+
+    if body.shipping_zone_id:
+        zone = next((z for z in shipping_cfg.zones if z.id == body.shipping_zone_id), None)
+        if not zone:
+            raise HTTPException(400, "La zona de envío elegida ya no está disponible")
+        if zone.free_from is not None and subtotal >= zone.free_from:
+            return 0, 0
+        return zone.cost, 0
+
+    # Ni retiro ni zona: localidad fuera de las zonas configuradas — el envío
+    # queda en 0 y se coordina a mano con el vendedor (ver ShippingRatesCard).
+    return 0, 0
 
 
 async def _mark_stock_decremented(db, doc: dict) -> dict:
@@ -441,8 +466,7 @@ async def create_order(body: OrderCreate, request: Request, background: Backgrou
         raise HTTPException(404, "Usuario no encontrado")
 
     subtotal = sum(i["price"] * i["quantity"] for i in order_items)
-    shipping_cost = 0
-    discount = 0
+    shipping_cost, discount = await _resolve_shipping(db, tenant_id, subtotal, body)
     total = subtotal + shipping_cost - discount
 
     now = datetime.now(UTC)

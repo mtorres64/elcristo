@@ -59,8 +59,8 @@ class OrderDocument(BaseModel):
     status: OrderStatus = "pending_payment"
     items: list[OrderItem]
     subtotal: int                  # centavos
-    shipping_cost: int = 0         # centavos, fijo en 0 por ahora
-    discount: int = 0              # centavos
+    shipping_cost: int = 0         # centavos, calculado en base a Configuración > Envíos
+    discount: int = 0              # centavos (ej: descuento por retiro en el local)
     total: int                     # centavos
     shipping_address: OrderAddress
     payment: OrderPayment

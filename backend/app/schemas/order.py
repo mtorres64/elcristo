@@ -37,6 +37,16 @@ class OrderCreate(BaseModel):
     address_id: str | None = None
     shipping_address: AddressCreate | None = None
 
+    # Envío: o retira en el local (pickup=True, aplica el % de descuento de
+    # Configuración > Envíos sobre el subtotal) o eligió una de las zonas a
+    # costo fijo configuradas (shipping_zone_id). El costo/descuento real se
+    # recalcula siempre en el server (ver create_order) — nunca se confía en
+    # un monto de envío mandado por el cliente. Si no manda ninguno de los
+    # dos (localidad fuera de las zonas configuradas) el envío queda en 0
+    # para coordinarlo a mano con el vendedor.
+    shipping_zone_id: str | None = None
+    pickup: bool = False
+
     payment_method_id: str | None = None
     payment_card: PaymentCardIn | None = None
     save_card: bool = False

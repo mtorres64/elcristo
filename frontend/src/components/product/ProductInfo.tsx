@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useCart } from "../../hooks/useCart";
 import { productService } from "../../services/product.service";
+import { storeSettingsService } from "../../services/storeSettings.service";
 import type { ProductDetail } from "../../types/product";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
@@ -23,6 +24,12 @@ export function ProductInfo({ product }: { product: ProductDetail }) {
   const [pot, setPot] = useState<string | null>(null);
   const [qty, setQty] = useState(1);
   const { addItem } = useCart();
+
+  const { data: shipping } = useQuery({
+    queryKey: ["shipping-settings"],
+    queryFn: () => storeSettingsService.getShipping(),
+    staleTime: 5 * 60 * 1000,
+  });
 
   const offeredSizes = SIZES.filter((s) => {
     const v = product.variants?.find((vv) => vv.key === "size" && vv.value === s.id);
@@ -281,6 +288,13 @@ export function ProductInfo({ product }: { product: ProductDetail }) {
           </p>
         </div>
       </div>
+
+      {/* Cartel de stock por mayor — opcional, configurable en Configuración > Envíos */}
+      {shipping?.low_stock_note && (
+        <p className="text-xs text-[#6B6B6B] bg-[#F9F8F5] border border-[#E8E2D8] rounded-lg px-3.5 py-2.5 leading-relaxed">
+          {shipping.low_stock_note}
+        </p>
+      )}
     </div>
   );
 }

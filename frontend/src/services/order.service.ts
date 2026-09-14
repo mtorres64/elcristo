@@ -22,6 +22,11 @@ interface CreateOrderData {
   items: CreateOrderItem[];
   address_id?: string;
   shipping_address?: AddressInput;
+  // Zona a costo fijo elegida en el checkout, o `pickup: true` si retira por
+  // el local — el server recalcula el costo/descuento real a partir de
+  // Configuración > Envíos, esto sólo indica la elección.
+  shipping_zone_id?: string;
+  pickup?: boolean;
   payment_method_id?: string;
   payment_card?: {
     card_number: string;

@@ -13,12 +13,18 @@ export function OrderSummary({
   items,
   subtotal,
   shippingCost,
+  shippingChosen = shippingCost > 0,
   discount,
   total,
 }: {
   items: SummaryItem[];
   subtotal: number;
   shippingCost: number;
+  /** Si ya se eligió una opción de envío (aunque salga $0 por ser gratis o
+   * retiro): sin esto, un envío gratis se vería igual que uno sin elegir
+   * todavía ("A calcular"). Por defecto asume que sí se eligió cuando el
+   * costo es mayor a 0. */
+  shippingChosen?: boolean;
   discount: number;
   total: number;
 }) {
@@ -51,7 +57,7 @@ export function OrderSummary({
 
       <div className="border-t border-[#F0EDE8] pt-4 flex flex-col gap-2">
         <Row label="Subtotal" value={formatARS(subtotal)} />
-        <Row label="Envío" value={shippingCost > 0 ? formatARS(shippingCost) : "A calcular"} />
+        <Row label="Envío" value={shippingChosen ? (shippingCost > 0 ? formatARS(shippingCost) : "Gratis") : "A calcular"} />
         {discount > 0 && <Row label="Descuento" value={`-${formatARS(discount)}`} />}
         <div className="flex items-center justify-between pt-2 border-t border-[#F0EDE8]">
           <span className="text-sm font-semibold text-[#1A1A1A]">Total</span>

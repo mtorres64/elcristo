@@ -1,22 +1,31 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { ARGENTINE_PROVINCES } from "../../types/address";
 import type { AddressInput } from "../../types/address";
 import { geolocateAddress } from "../../utils/geolocation";
+import { normalizeText } from "../../utils/text";
+import { georefService } from "../../services/georef.service";
 
 const INPUT =
   "w-full rounded-lg border border-[#E8E2D8] px-3.5 py-2.5 text-sm text-[#1A1A1A] bg-white placeholder-[#ABABAB] focus:outline-none focus:border-[#1A2B1C] transition-colors disabled:opacity-50 disabled:bg-[#F9F8F5]";
 
 const LABEL = "block text-xs font-medium text-[#4A4A4A] mb-1.5";
 
+const OTHER_LOCALITY = "__other__";
+
 interface Props {
   initial?: Partial<AddressInput>;
   onCancel: () => void;
   onSave: (data: AddressInput) => Promise<void>;
   hasExistingAddresses: boolean;
+  /** Se llama con la localidad en cada cambio (tipeada o autocompletada por
+   * "Usar mi ubicación") — así el checkout puede sugerir la zona de envío
+   * mientras el formulario todavía no se guardó. */
+  onLocalityChange?: (locality: string) => void;
 }
 
-export function AddressForm({ initial, onCancel, onSave, hasExistingAddresses }: Props) {
+export function AddressForm({ initial, onCancel, onSave, hasExistingAddresses, onLocalityChange }: Props) {
   const [fullName, setFullName] = useState(initial?.full_name ?? "");
   const [phone, setPhone] = useState(initial?.phone ?? "");
   const [street, setStreet] = useState(initial?.street ?? "");
@@ -30,19 +39,67 @@ export function AddressForm({ initial, onCancel, onSave, hasExistingAddresses }:
   const [locating, setLocating] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // Localidades oficiales (Georef, datos.gob.ar) de la provincia elegida —
+  // se recargan cada vez que cambia `province`. Caché larga: esta lista no
+  // cambia de un día para el otro.
+  const { data: municipios, isLoading: loadingMunicipios } = useQuery({
+    queryKey: ["georef-municipios", province],
+    queryFn: () => georefService.getMunicipios(province),
+    enabled: !!province,
+    staleTime: Infinity,
+    // Si la API externa no responde, mejor caer rápido a texto libre que
+    // dejar el combo "Cargando..." reintentando varias veces.
+    retry: 1,
+    retryDelay: 500,
+  });
+  const localityOptions = municipios ?? [];
+  // true = la localidad no está en la lista (o no hay lista/falló la API) y se escribe a mano.
+  const [customLocality, setCustomLocality] = useState(false);
+
+  function applyLocality(value: string, options: string[]) {
+    setLocality(value);
+    setCustomLocality(!options.some((l) => normalizeText(l) === normalizeText(value)));
+  }
+
+  // Al cambiar de provincia, la localidad elegida ya no aplica.
+  function handleProvinceChange(value: string) {
+    setProvince(value);
+    setLocality("");
+    setCustomLocality(false);
+  }
+
+  useEffect(() => {
+    onLocalityChange?.(locality);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locality]);
+
   async function handleUseLocation() {
     setLocating(true);
     try {
       const result = await geolocateAddress();
       setStreet(result.street);
       setNoNumber(!result.hasNumber);
-      if (result.locality) setLocality(result.locality);
       if (result.province) setProvince(result.province);
+      if (result.locality) {
+        // No alcanza con `localityOptions`: todavía tiene la lista de la
+        // provincia anterior en este mismo render — se pide la de la
+        // provincia recién detectada para clasificar bien de una.
+        const options = result.province
+          ? await georefService.getMunicipios(result.province).catch(() => [])
+          : [];
+        applyLocality(result.locality, options);
+      }
       if (result.zip) {
         setZip(result.zip);
         setZipUnknown(false);
       }
-      toast.success("Dirección completada. Revisala antes de guardar.");
+      if (result.street) {
+        toast.success("Dirección completada. Revisala antes de guardar.");
+      } else {
+        // Zona sin el nombre de calle cargado en OpenStreetMap: completamos
+        // lo que se pudo (localidad, provincia, CP) y avisamos que falta la calle.
+        toast("Completamos localidad y provincia. Escribí la calle a mano.", { icon: "📍" });
+      }
     } catch (err) {
       const message = err instanceof GeolocationPositionError
         ? "No pudimos acceder a tu ubicación. Revisá los permisos del navegador."
@@ -53,9 +110,12 @@ export function AddressForm({ initial, onCancel, onSave, hasExistingAddresses }:
     }
   }
 
+  const missingRequired =
+    !fullName.trim() || !phone.trim() || !street.trim() || !province || !locality.trim();
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!fullName.trim() || !phone.trim() || !street.trim() || !province || !locality.trim()) {
+    if (missingRequired) {
       toast.error("Completá los campos obligatorios");
       return;
     }
@@ -118,7 +178,7 @@ export function AddressForm({ initial, onCancel, onSave, hasExistingAddresses }:
           <label className={LABEL}>Provincia</label>
           <select
             value={province}
-            onChange={(e) => setProvince(e.target.value)}
+            onChange={(e) => handleProvinceChange(e.target.value)}
             className={`${INPUT} appearance-none cursor-pointer`}
             required
           >
@@ -133,14 +193,58 @@ export function AddressForm({ initial, onCancel, onSave, hasExistingAddresses }:
           </select>
         </div>
         <div>
-          <label className={LABEL}>Localidad / Barrio</label>
-          <input
-            value={locality}
-            onChange={(e) => setLocality(e.target.value)}
-            placeholder="Ej: San Miguel de Tucumán"
-            className={INPUT}
-            required
-          />
+          <label className={LABEL}>Localidad</label>
+          {!province ? (
+            <input disabled value="" placeholder="Elegí la provincia primero" className={INPUT} />
+          ) : loadingMunicipios ? (
+            <input disabled value="" placeholder="Cargando localidades..." className={INPUT} />
+          ) : localityOptions.length > 0 && !customLocality ? (
+            <select
+              value={locality}
+              onChange={(e) => {
+                if (e.target.value === OTHER_LOCALITY) {
+                  setCustomLocality(true);
+                  setLocality("");
+                } else {
+                  setLocality(e.target.value);
+                }
+              }}
+              className={`${INPUT} appearance-none cursor-pointer`}
+              required
+            >
+              <option value="" disabled>
+                Seleccioná tu localidad
+              </option>
+              {localityOptions.map((l) => (
+                <option key={l} value={l}>
+                  {l}
+                </option>
+              ))}
+              <option value={OTHER_LOCALITY}>Otra localidad</option>
+            </select>
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              <input
+                value={locality}
+                onChange={(e) => setLocality(e.target.value)}
+                placeholder="Ej: San Miguel de Tucumán"
+                className={INPUT}
+                required
+              />
+              {localityOptions.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustomLocality(false);
+                    setLocality("");
+                  }}
+                  className="text-[11px] text-[#1A2B1C] hover:underline self-start"
+                >
+                  Elegir de la lista
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -239,7 +343,8 @@ export function AddressForm({ initial, onCancel, onSave, hasExistingAddresses }:
         </button>
         <button
           type="submit"
-          disabled={saving}
+          disabled={saving || missingRequired}
+          title={missingRequired ? "Completá dirección, localidad y teléfono para guardar" : undefined}
           className="rounded-lg bg-[#1A2B1C] text-white text-sm font-semibold px-6 py-2.5 hover:bg-[#253824] transition-colors disabled:opacity-50"
         >
           {saving ? "Guardando..." : "Guardar"}

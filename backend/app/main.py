@@ -15,6 +15,7 @@ from app.routers import (
     cart,
     categories,
     content,
+    geocode,
     integrations,
     orders,
     payment_methods,
@@ -71,6 +72,7 @@ app.include_router(search.router, prefix="/search", tags=["search"])
 app.include_router(users.router, prefix="/users", tags=["users"])
 app.include_router(content.router, prefix="/content", tags=["content"])
 app.include_router(integrations.router, prefix="/integrations", tags=["integrations"])
+app.include_router(geocode.router, prefix="/geocode", tags=["geocode"])
 
 _uploads_dir = Path("./uploads")
 _uploads_dir.mkdir(exist_ok=True)

@@ -10,7 +10,17 @@ export interface InfoSection {
  * devoluciones, Preguntas frecuentes, Términos y condiciones): breadcrumb +
  * título, y una lista de secciones cortas con un título chico y un párrafo
  * cada una. Sin fotos ni contenido editable desde el admin — es texto fijo. */
-export function InfoPage({ title, sections }: { title: string; sections: InfoSection[] }) {
+export function InfoPage({
+  title,
+  sections,
+  children,
+}: {
+  title: string;
+  sections: InfoSection[];
+  /** Contenido estructurado (ej: zonas de envío) que va antes del texto
+   * libre cargado desde el admin — sólo lo usa la página de Envíos. */
+  children?: React.ReactNode;
+}) {
   return (
     <Layout>
       {/* Breadcrumb */}
@@ -31,6 +41,7 @@ export function InfoPage({ title, sections }: { title: string; sections: InfoSec
           <h1 className="font-serif text-3xl md:text-4xl text-[#1A1A1A] font-normal mb-10 md:mb-12">
             {title}
           </h1>
+          {children && <div className="mb-10 md:mb-12">{children}</div>}
           <div className="flex flex-col gap-8 md:gap-10">
             {sections.map((s) => (
               <div key={s.title}>

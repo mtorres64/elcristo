@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { Layout } from "../components/layout/Layout";
 import { Stepper } from "../components/checkout/Stepper";
@@ -9,16 +10,38 @@ import { PaymentMethodCard } from "../components/checkout/PaymentMethodCard";
 import { PaymentMethodForm } from "../components/checkout/PaymentMethodForm";
 import { GetnetPaymentForm } from "../components/checkout/GetnetPaymentForm";
 import { OrderSummary } from "../components/checkout/OrderSummary";
+import { ShippingZoneSelector } from "../components/checkout/ShippingZoneSelector";
+import type { ShippingChoice } from "../components/checkout/ShippingZoneSelector";
 import { useCart } from "../hooks/useCart";
 import { useAuth } from "../hooks/useAuth";
 import { addressService } from "../services/address.service";
 import { paymentService } from "../services/payment.service";
 import { orderService } from "../services/order.service";
 import { integrationsService } from "../services/integrations.service";
+import { storeSettingsService } from "../services/storeSettings.service";
 import type { Address, AddressInput } from "../types/address";
 import type { PaymentCardInput, PaymentMethod } from "../types/payment";
 import type { GetnetPublicConfig } from "../types/integration";
+import type { ShippingZone } from "../services/storeSettings.service";
 import { formatARS } from "../utils/currency";
+import { normalizeText } from "../utils/text";
+
+/** Sugiere la zona cuyo listado de localidades matchea la de la dirección
+ * (ver el campo "Localidades/barrios que incluye" en Configuración >
+ * Envíos) — sólo sugiere, nunca decide sola: el cliente siempre puede
+ * elegir otra cosa en el selector. */
+function matchZoneByLocality(zones: ShippingZone[], locality: string): ShippingZone | null {
+  const n = normalizeText(locality);
+  if (!n) return null;
+  return (
+    zones.find((z) =>
+      z.localities.some((loc) => {
+        const zn = normalizeText(loc);
+        return !!zn && (zn === n || zn.includes(n) || n.includes(zn));
+      })
+    ) ?? null
+  );
+}
 
 type Step = "cart" | "address" | "payment" | "review";
 
@@ -40,6 +63,15 @@ export function Cart() {
   const [loadingAddresses, setLoadingAddresses] = useState(false);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [showAddressForm, setShowAddressForm] = useState(false);
+  // Localidad tipeada/autocompletada en el formulario todavía no guardado —
+  // permite sugerir la zona de envío antes de apretar "Guardar dirección".
+  const [draftLocality, setDraftLocality] = useState("");
+  const [shippingChoice, setShippingChoice] = useState<ShippingChoice>(null);
+  // Distingue una elección hecha a mano de una sugerida automáticamente por
+  // la dirección (una zona real, o "other" si la localidad no matchea
+  // ninguna), para no pisar la elección manual si el cliente después
+  // cambia de dirección (ver el efecto de auto-match más abajo).
+  const [autoSuggestedChoice, setAutoSuggestedChoice] = useState<ShippingChoice>(null);
 
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [loadingPayments, setLoadingPayments] = useState(false);
@@ -58,6 +90,75 @@ export function Cart() {
 
   const [notes, setNotes] = useState("");
   const [placingOrder, setPlacingOrder] = useState(false);
+
+  const { data: shipping } = useQuery({
+    queryKey: ["shipping-settings"],
+    queryFn: () => storeSettingsService.getShipping(),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Si el vendedor todavía no configuró ninguna zona, el checkout se
+  // comporta como antes (envío "a calcular", sin exigir que se elija nada acá).
+  const hasShippingOptions = !!shipping?.zones.length;
+
+  // Costo/descuento mostrados acá son sólo para el resumen — el server
+  // recalcula lo mismo a partir de shippingChoice antes de cobrar (ver
+  // create_order/_resolve_shipping), nunca confía en este número.
+  const selectedZone = shipping?.zones.find((z) => z.id === shippingChoice) ?? null;
+  const shippingCost = selectedZone
+    ? selectedZone.free_from != null && total >= selectedZone.free_from
+      ? 0
+      : selectedZone.cost
+    : 0;
+  const discount =
+    shippingChoice === "pickup" && shipping ? Math.round((total * shipping.pickup_discount_pct) / 100) : 0;
+  const orderTotal = total + shippingCost - discount;
+
+  // Preselecciona (o corrige) la zona según la localidad de la dirección.
+  // Una zona con costo fijo representa una promesa geográfica concreta, así
+  // que a diferencia de "pickup" u "other" NUNCA queda pegada si deja de
+  // corresponder — ni siquiera si se había elegido a mano: si el cliente
+  // cambia la localidad a algo fuera de esa zona, se corrige sola (a la
+  // zona correcta, o a "other" si ninguna aplica) en vez de dejar
+  // seleccionado un costo que ya no es el real.
+  useEffect(() => {
+    if (!hasShippingOptions || !shipping) return;
+
+    const locality = showAddressForm
+      ? draftLocality
+      : addresses.find((a) => a.address_id === selectedAddressId)?.locality ?? "";
+    const match = locality ? matchZoneByLocality(shipping.zones, locality) : null;
+    const currentIsZone = shipping.zones.some((z) => z.id === shippingChoice);
+
+    if (currentIsZone) {
+      if (match?.id !== shippingChoice) {
+        const next: ShippingChoice = match ? match.id : locality ? "other" : null;
+        setShippingChoice(next);
+        setAutoSuggestedChoice(next);
+      }
+      return;
+    }
+
+    // "pickup" no depende de la dirección — nunca se toca.
+    if (shippingChoice === "pickup") return;
+
+    // shippingChoice es null u "other": sólo autosugerimos si la elección
+    // actual ya era una sugerencia previa (no pisamos un "other" que el
+    // cliente haya marcado él mismo a propósito).
+    if (shippingChoice && shippingChoice !== autoSuggestedChoice) return;
+    if (!locality) return;
+    const suggestion: ShippingChoice = match ? match.id : "other";
+    if (suggestion !== shippingChoice) {
+      setShippingChoice(suggestion);
+      setAutoSuggestedChoice(suggestion);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedAddressId, addresses, showAddressForm, draftLocality, shipping, hasShippingOptions, shippingChoice]);
+
+  function handleShippingChoiceChange(choice: ShippingChoice) {
+    setAutoSuggestedChoice(null);
+    setShippingChoice(choice);
+  }
 
   useEffect(() => {
     if (step !== "address" || !isAuthenticated) return;
@@ -156,6 +257,11 @@ export function Cart() {
       toast.error("Elegí una dirección de envío");
       return;
     }
+    if (hasShippingOptions && (!shippingChoice || shippingChoice === "other")) {
+      toast.error("Elegí una opción de envío válida");
+      setStep("address");
+      return;
+    }
     if (!selectedPaymentId && !pendingCard) {
       toast.error("Elegí un método de pago");
       return;
@@ -172,6 +278,8 @@ export function Cart() {
           image_url: i.image_url,
         })),
         address_id: selectedAddressId,
+        shipping_zone_id: shippingChoice && shippingChoice !== "pickup" ? shippingChoice : undefined,
+        pickup: shippingChoice === "pickup",
         payment_method_id: selectedPaymentId ?? undefined,
         payment_card: pendingCard ?? undefined,
         save_card: false,
@@ -216,11 +324,18 @@ export function Cart() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2">
             {step === "cart" && (
-              <CartStep
-                items={items}
-                onUpdateQuantity={updateQuantity}
-                onRemove={removeItem}
-              />
+              <>
+                {shipping?.low_stock_note && (
+                  <p className="text-xs text-[#6B6B6B] bg-[#F9F8F5] border border-[#E8E2D8] rounded-lg px-3.5 py-2.5 leading-relaxed mb-4">
+                    {shipping.low_stock_note}
+                  </p>
+                )}
+                <CartStep
+                  items={items}
+                  onUpdateQuantity={updateQuantity}
+                  onRemove={removeItem}
+                />
+              </>
             )}
 
             {step === "address" && (
@@ -229,7 +344,10 @@ export function Cart() {
                   <h2 className="text-sm font-semibold text-[#1A1A1A]">Elegí una dirección de envío</h2>
                   {!showAddressForm && (
                     <button
-                      onClick={() => setShowAddressForm(true)}
+                      onClick={() => {
+                        setDraftLocality("");
+                        setShowAddressForm(true);
+                      }}
                       className="text-xs font-semibold text-[#1A2B1C] hover:underline"
                     >
                       + Agregar nueva dirección
@@ -244,6 +362,7 @@ export function Cart() {
                     hasExistingAddresses={addresses.length > 0}
                     onCancel={() => setShowAddressForm(false)}
                     onSave={handleSaveAddress}
+                    onLocalityChange={setDraftLocality}
                   />
                 ) : (
                   <div className="flex flex-col gap-3">
@@ -258,6 +377,21 @@ export function Cart() {
                     ))}
                   </div>
                 )}
+              </div>
+            )}
+
+            {step === "address" && hasShippingOptions && (
+              <div className="rounded-lg border border-[#E8E2D8] bg-white p-5 mt-4">
+                <h2 className="text-sm font-semibold text-[#1A1A1A] mb-4">¿Cómo recibís tu pedido?</h2>
+                <ShippingZoneSelector
+                  zones={shipping.zones}
+                  pickupDiscountPct={shipping.pickup_discount_pct}
+                  otherNote={shipping.other_zones_note}
+                  subtotal={total}
+                  value={shippingChoice}
+                  onChange={handleShippingChoiceChange}
+                  suggestedZoneId={autoSuggestedChoice}
+                />
               </div>
             )}
 
@@ -347,6 +481,18 @@ export function Cart() {
                   </ReviewBlock>
                 )}
 
+                {hasShippingOptions && (
+                  <ReviewBlock title="Envío" onEdit={() => setStep("address")}>
+                    <p className="text-sm text-[#4A4A4A]">
+                      {shippingChoice === "pickup"
+                        ? `Retiro por el local (${shipping?.pickup_discount_pct}% de descuento)`
+                        : selectedZone
+                          ? `${selectedZone.name} · ${shippingCost > 0 ? formatARS(shippingCost) : "Gratis"}`
+                          : "Sin elegir"}
+                    </p>
+                  </ReviewBlock>
+                )}
+
                 <ReviewBlock title="Método de pago" onEdit={() => setStep("payment")}>
                   {selectedPaymentId ? (
                     <p className="text-sm text-[#4A4A4A]">
@@ -385,9 +531,10 @@ export function Cart() {
                 image_url: i.image_url,
               }))}
               subtotal={total}
-              shippingCost={0}
-              discount={0}
-              total={total}
+              shippingCost={shippingCost}
+              shippingChosen={!!shippingChoice && shippingChoice !== "other"}
+              discount={discount}
+              total={orderTotal}
             />
 
             <StepActions
@@ -401,6 +548,8 @@ export function Cart() {
                 if (step === "cart") goToAddress();
                 else if (step === "address") {
                   if (!selectedAddressId) { toast.error("Elegí una dirección"); return; }
+                  if (hasShippingOptions && !shippingChoice) { toast.error("Elegí una opción de envío"); return; }
+                  if (shippingChoice === "other") { toast.error("Coordiná el envío por WhatsApp antes de continuar"); return; }
                   setStep("payment");
                 } else if (step === "payment") {
                   if (!selectedPaymentId && !pendingCard) { toast.error("Elegí un método de pago"); return; }

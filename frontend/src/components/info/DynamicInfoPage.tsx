@@ -12,9 +12,11 @@ import type { InfoPageSettings, InfoPageSlug } from "../../types/content";
 export function DynamicInfoPage({
   slug,
   fallbackTitle,
+  children,
 }: {
   slug: InfoPageSlug;
   fallbackTitle: string;
+  children?: React.ReactNode;
 }) {
   const [data, setData] = useState<InfoPageSettings | null>(null);
   const [loading, setLoading] = useState(true);
@@ -45,9 +47,8 @@ export function DynamicInfoPage({
   }
 
   return (
-    <InfoPage
-      title={data?.title || fallbackTitle}
-      sections={data?.sections ?? []}
-    />
+    <InfoPage title={data?.title || fallbackTitle} sections={data?.sections ?? []}>
+      {children}
+    </InfoPage>
   );
 }
