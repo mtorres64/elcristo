@@ -1,7 +1,6 @@
-import { useEffect, useState } from "react";
-import { contentService } from "../../services/content.service";
 import type { ShippingZone } from "../../services/storeSettings.service";
 import { formatARS } from "../../utils/currency";
+import { useWhatsappBase, withWhatsappMessage } from "../../hooks/useWhatsappBase";
 
 export type ShippingChoice = string | null; // id de zona, "pickup", "other" o null (sin elegir)
 
@@ -14,6 +13,7 @@ export function ShippingZoneSelector({
   zones,
   pickupDiscountPct,
   otherNote,
+  whatsappNumber,
   subtotal,
   value,
   onChange,
@@ -22,6 +22,8 @@ export function ShippingZoneSelector({
   zones: ShippingZone[];
   pickupDiscountPct: number;
   otherNote: string;
+  /** Número de Configuración > Envíos; si no hay, cae al de Redes sociales. */
+  whatsappNumber?: string;
   subtotal: number;
   value: ShippingChoice;
   onChange: (value: ShippingChoice) => void;
@@ -30,26 +32,9 @@ export function ShippingZoneSelector({
    * la selección real sigue siendo la que ya viene en `value`. */
   suggestedZoneId?: string | null;
 }) {
-  const [whatsappUrl, setWhatsappUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    contentService
-      .getSocial()
-      .then((s) => {
-        const link = s.links.find((l) => l.platform === "whatsapp");
-        if (alive && link) setWhatsappUrl(link.url);
-      })
-      .catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  const waHref = whatsappUrl
-    ? `${whatsappUrl}${whatsappUrl.includes("?") ? "&" : "?"}text=${encodeURIComponent(
-        "Hola! Quiero coordinar el envío a mi localidad."
-      )}`
+  const whatsappBase = useWhatsappBase(whatsappNumber);
+  const waHref = whatsappBase
+    ? withWhatsappMessage(whatsappBase, "Hola! Quiero coordinar el envío a mi localidad.")
     : null;
 
   return (
@@ -116,6 +101,19 @@ export function ShippingZoneSelector({
       {value === "other" && (
         <p className="text-xs text-[#8A6D3B] bg-[#FBF3E5] border border-[#EAD9B4] rounded-lg px-3.5 py-2.5">
           Coordiná el envío por WhatsApp antes de continuar — todavía no podemos calcular ese costo solos.
+          {waHref && (
+            <>
+              {" "}
+              <a
+                href={waHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold underline hover:no-underline"
+              >
+                Abrir WhatsApp
+              </a>
+            </>
+          )}
         </p>
       )}
     </div>

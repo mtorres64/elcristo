@@ -41,5 +41,9 @@ class ShippingSettings(BaseModel):
     zones: list[ShippingZone] = []
     # Cartel para localidades sin zona de costo fijo (interior del país).
     other_zones_note: str = ""
+    # Número de WhatsApp para coordinar envíos fuera de zona (sólo dígitos,
+    # con código de país — ej: "5493811234567"). Si está vacío, el storefront
+    # usa como respaldo el link de WhatsApp cargado en Redes sociales.
+    whatsapp_number: str = ""
     # Cartel opcional sobre disponibilidad de stock para compras grandes.
     low_stock_note: str = ""

@@ -12,6 +12,7 @@ import { GetnetPaymentForm } from "../components/checkout/GetnetPaymentForm";
 import { OrderSummary } from "../components/checkout/OrderSummary";
 import { ShippingZoneSelector } from "../components/checkout/ShippingZoneSelector";
 import type { ShippingChoice } from "../components/checkout/ShippingZoneSelector";
+import { LowStockNotice } from "../components/shared/LowStockNotice";
 import { useCart } from "../hooks/useCart";
 import { useAuth } from "../hooks/useAuth";
 import { addressService } from "../services/address.service";
@@ -326,9 +327,11 @@ export function Cart() {
             {step === "cart" && (
               <>
                 {shipping?.low_stock_note && (
-                  <p className="text-xs text-[#6B6B6B] bg-[#F9F8F5] border border-[#E8E2D8] rounded-lg px-3.5 py-2.5 leading-relaxed mb-4">
-                    {shipping.low_stock_note}
-                  </p>
+                  <LowStockNotice
+                    note={shipping.low_stock_note}
+                    whatsappNumber={shipping.whatsapp_number}
+                    className="mb-4"
+                  />
                 )}
                 <CartStep
                   items={items}
@@ -387,6 +390,7 @@ export function Cart() {
                   zones={shipping.zones}
                   pickupDiscountPct={shipping.pickup_discount_pct}
                   otherNote={shipping.other_zones_note}
+                  whatsappNumber={shipping.whatsapp_number}
                   subtotal={total}
                   value={shippingChoice}
                   onChange={handleShippingChoiceChange}

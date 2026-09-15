@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { storeSettingsService } from "../../services/storeSettings.service";
-import { contentService } from "../../services/content.service";
 import type { ShippingSettings } from "../../services/storeSettings.service";
 import { formatARS } from "../../utils/currency";
+import { useWhatsappBase, withWhatsappMessage } from "../../hooks/useWhatsappBase";
 
 /** Bloque estructurado que se muestra arriba del texto libre de la página
  * de Envíos: zonas a costo fijo, descuento por retiro, y para el resto de
@@ -12,20 +12,13 @@ import { formatARS } from "../../utils/currency";
  * cálculo automático que no existe. */
 export function ShippingRatesCard() {
   const [data, setData] = useState<ShippingSettings | null>(null);
-  const [whatsappUrl, setWhatsappUrl] = useState<string | null>(null);
+  const whatsappBase = useWhatsappBase(data?.whatsapp_number);
 
   useEffect(() => {
     let alive = true;
     storeSettingsService
       .getShipping()
       .then((d) => alive && setData(d))
-      .catch(() => {});
-    contentService
-      .getSocial()
-      .then((s) => {
-        const link = s.links.find((l) => l.platform === "whatsapp");
-        if (alive && link) setWhatsappUrl(link.url);
-      })
       .catch(() => {});
     return () => {
       alive = false;
@@ -38,10 +31,8 @@ export function ShippingRatesCard() {
   const hasOtherNote = data.other_zones_note.trim().length > 0;
   if (!hasZones && !hasOtherNote && !data.pickup_discount_pct) return null;
 
-  const waHref = whatsappUrl
-    ? `${whatsappUrl}${whatsappUrl.includes("?") ? "&" : "?"}text=${encodeURIComponent(
-        "Hola! Quiero consultar por el envío a mi localidad."
-      )}`
+  const waHref = whatsappBase
+    ? withWhatsappMessage(whatsappBase, "Hola! Quiero consultar por el envío a mi localidad.")
     : null;
 
   return (

@@ -306,7 +306,7 @@ export function ShippingSettings() {
         {/* Otras localidades */}
         <Card
           title="Otras localidades"
-          hint="Se muestra cuando la localidad del cliente no está en ninguna zona de arriba, junto a un botón de WhatsApp (usa el número cargado en Redes sociales)."
+          hint="Se muestra cuando la localidad del cliente no está en ninguna zona de arriba, junto a un botón de WhatsApp."
         >
           <textarea
             value={data.other_zones_note}
@@ -315,6 +315,20 @@ export function ShippingSettings() {
             placeholder="Ej: Para otras localidades del interior, escribinos por WhatsApp y coordinamos el envío."
             className={`${INPUT} w-full resize-none`}
           />
+          <label className="block mt-3">
+            <span className="text-xs font-medium text-[#4A4A4A]">Número de WhatsApp para envíos</span>
+            <input
+              value={data.whatsapp_number}
+              onChange={(e) => patch({ whatsapp_number: e.target.value.replace(/[^\d]/g, "") })}
+              placeholder="5493811234567"
+              className={`${INPUT} w-full mt-1`}
+              inputMode="numeric"
+            />
+            <span className="text-[11px] text-[#8A8A8A] mt-1 block">
+              Con código de país y de área, sin espacios ni el "+" (ej: 549 3811 234567). Si lo dejás vacío, se
+              usa el WhatsApp cargado en Redes sociales.
+            </span>
+          </label>
         </Card>
 
         {/* Aviso de stock */}

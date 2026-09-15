@@ -27,6 +27,9 @@ export interface ShippingSettings {
   pickup_discount_pct: number;
   zones: ShippingZone[];
   other_zones_note: string;
+  /** Sólo dígitos con código de país (ej: "5493811234567"); "" = sin definir,
+   * el storefront cae al WhatsApp de Redes sociales si existe. */
+  whatsapp_number: string;
   low_stock_note: string;
 }
 
