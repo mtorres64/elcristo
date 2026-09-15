@@ -101,9 +101,15 @@ export function AddressForm({ initial, onCancel, onSave, hasExistingAddresses, o
         toast("Completamos localidad y provincia. Escribí la calle a mano.", { icon: "📍" });
       }
     } catch (err) {
-      const message = err instanceof GeolocationPositionError
-        ? "No pudimos acceder a tu ubicación. Revisá los permisos del navegador."
-        : "No pudimos completar la dirección automáticamente. Cargala a mano.";
+      // Los errores propios (país incorrecto, sin datos útiles) traen un
+      // mensaje específico y más útil que el genérico de abajo — se muestra
+      // tal cual en vez de taparlo.
+      const message =
+        err instanceof GeolocationPositionError
+          ? "No pudimos acceder a tu ubicación. Revisá los permisos del navegador."
+          : err instanceof Error && err.message
+            ? err.message
+            : "No pudimos completar la dirección automáticamente. Cargala a mano.";
       toast.error(message);
     } finally {
       setLocating(false);

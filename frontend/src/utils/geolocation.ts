@@ -43,6 +43,17 @@ export async function geolocateAddress(): Promise<GeocodedAddress> {
   const res = await api.get("/geocode/reverse", { params: { lat: latitude, lng: longitude } });
   const addr = res.data ?? {};
 
+  // La ubicación del navegador puede venir mal (sin GPS, cae a estimarla por
+  // IP/red — muy impreciso en notebooks/PC de escritorio, o con VPN) y caer
+  // directamente en otro país. `country_code` es la señal más confiable
+  // (más que el nombre de provincia, que sólo detecta el desvío si el
+  // estado/provincia extranjero no matchea ninguno argentino): sólo servimos
+  // Argentina, así que si no da "ar" no tiene sentido completar nada — ni
+  // siquiera la calle/CP, que quedarían siendo datos de otro país.
+  if (addr.country_code && addr.country_code.toLowerCase() !== "ar") {
+    throw new Error("Tu ubicación no parece estar en Argentina. Cargá la dirección a mano.");
+  }
+
   // Fuera de las zonas más céntricas, OSM suele tener la calle sin nombre
   // cargado (way sin tag `name`) — Nominatim no puede inventarlo. En vez de
   // tirar todo el resultado, devolvemos lo que sí conseguimos (localidad,
