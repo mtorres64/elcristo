@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import toast from "react-hot-toast";
 import { useSearchParams, Link } from "react-router-dom";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { Layout } from "../components/layout/Layout";
@@ -379,6 +380,7 @@ function ProductCard({ product, colorIndex }: { product: ProductSummary; colorIn
       price_snapshot: product.price,
       image_url: product.image_url,
     });
+    toast.success("Agregado al carrito");
   }
 
   return (

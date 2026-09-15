@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import toast from "react-hot-toast";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useCart } from "../../hooks/useCart";
@@ -165,6 +166,7 @@ function RelatedCard({ product, colorIndex }: { product: ProductSummary; colorIn
       price_snapshot: product.price,
       image_url: product.image_url,
     });
+    toast.success("Agregado al carrito");
   }
 
   return (

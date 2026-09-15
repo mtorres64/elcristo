@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import toast from "react-hot-toast";
 import { useCart } from "../../hooks/useCart";
 import { productService } from "../../services/product.service";
 import { storeSettingsService } from "../../services/storeSettings.service";
@@ -109,6 +110,7 @@ export function ProductInfo({ product }: { product: ProductDetail }) {
         });
       }
     }
+    toast.success("Agregado al carrito");
   }
 
   return (
