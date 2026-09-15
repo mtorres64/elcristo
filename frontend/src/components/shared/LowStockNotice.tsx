@@ -1,4 +1,5 @@
 import { useWhatsappBase, withWhatsappMessage } from "../../hooks/useWhatsappBase";
+import { SocialIcon } from "../social/socialPlatforms";
 
 /** Cartel de "consultá antes de comprar cantidades grandes" — se muestra en
  * la ficha de producto y en el carrito, con el mismo link de WhatsApp que
@@ -32,8 +33,9 @@ export function LowStockNotice({
             href={waHref}
             target="_blank"
             rel="noopener noreferrer"
-            className="font-semibold text-[#1A2B1C] underline hover:no-underline"
+            className="inline-flex items-center gap-1 font-semibold text-[#1A2B1C] underline hover:no-underline align-middle"
           >
+            <SocialIcon platform="whatsapp" size={12} />
             Consultar por WhatsApp
           </a>
         </>

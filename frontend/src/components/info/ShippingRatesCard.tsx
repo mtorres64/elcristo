@@ -3,6 +3,7 @@ import { storeSettingsService } from "../../services/storeSettings.service";
 import type { ShippingSettings } from "../../services/storeSettings.service";
 import { formatARS } from "../../utils/currency";
 import { useWhatsappBase, withWhatsappMessage } from "../../hooks/useWhatsappBase";
+import { SocialIcon } from "../social/socialPlatforms";
 
 /** Bloque estructurado que se muestra arriba del texto libre de la página
  * de Envíos: zonas a costo fijo, descuento por retiro, y para el resto de
@@ -71,10 +72,8 @@ export function ShippingRatesCard() {
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 mt-3 text-xs font-semibold uppercase tracking-widest text-[#1A2B1C] hover:underline"
             >
+              <SocialIcon platform="whatsapp" size={14} />
               Consultar por WhatsApp
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-              </svg>
             </a>
           )}
         </div>

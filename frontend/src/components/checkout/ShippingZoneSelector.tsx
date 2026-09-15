@@ -1,6 +1,7 @@
 import type { ShippingZone } from "../../services/storeSettings.service";
 import { formatARS } from "../../utils/currency";
 import { useWhatsappBase, withWhatsappMessage } from "../../hooks/useWhatsappBase";
+import { SocialIcon } from "../social/socialPlatforms";
 
 export type ShippingChoice = string | null; // id de zona, "pickup", "other" o null (sin elegir)
 
@@ -93,6 +94,7 @@ export function ShippingZoneSelector({
             }}
             className="inline-flex items-center gap-1.5 mt-2 text-xs font-semibold uppercase tracking-widest text-[#1A2B1C] hover:underline"
           >
+            <SocialIcon platform="whatsapp" size={13} />
             Consultar por WhatsApp
           </a>
         )}
@@ -108,8 +110,9 @@ export function ShippingZoneSelector({
                 href={waHref}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="font-semibold underline hover:no-underline"
+                className="inline-flex items-center gap-1 font-semibold underline hover:no-underline align-middle"
               >
+                <SocialIcon platform="whatsapp" size={12} />
                 Abrir WhatsApp
               </a>
             </>
