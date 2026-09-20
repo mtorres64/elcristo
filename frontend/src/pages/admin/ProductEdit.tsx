@@ -6,6 +6,8 @@ import { productService } from "../../services/product.service";
 import { storeSettingsService } from "../../services/storeSettings.service";
 import { useCategories } from "../../hooks/useCategories";
 import { CATEGORY_GROUPS } from "../../types/category";
+import type { CategoryGroup } from "../../types/category";
+import { POT_COLORS } from "../../constants/potColors";
 import { formatPct, markupPct, suggestedPrice } from "../../utils/pricing";
 import toast from "react-hot-toast";
 
@@ -49,12 +51,25 @@ const CARE_OPTIONS: Record<string, string[]> = {
 /* ─── Page ───────────────────────────────────────────────────── */
 export function ProductEdit() {
   const { productId } = useParams<{ productId: string }>();
-  const { categories: categoryList } = useCategories(100);
+  const { categories: categoryList, loading: categoriesLoading } = useCategories(100);
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [tab, setTab] = useState<Tab>("general");
+  // Plantas, Macetas y Accesorios y Productos Químicos no comparten
+  // propiedades (cuidados y atributos de planta sólo tienen sentido para
+  // plantas; color sólo para macetas) — este selector decide qué secciones
+  // del formulario se muestran. Al editar un producto existente se infiere
+  // del group de su categoría (ver efecto más abajo); para uno nuevo el
+  // vendedor lo elige de entrada.
+  const [productType, setProductType] = useState<CategoryGroup>("plantas");
+  const productTypeInitialized = useRef(false);
+  // Stock por color (sólo Macetas y Accesorios) — mismo patrón que las
+  // variantes de tamaño, pero sin precio/peso/altura por color: el pedido
+  // fue "el stock de las macetas por color", no un precio distinto por color.
+  const [colorActive, setColorActive] = useState<Record<string, boolean>>({});
+  const [colorStock, setColorStock] = useState<Record<string, number>>({});
   const [name, setName] = useState("");
   const [sku, setSku] = useState("");
   const [category, setCategory] = useState("");
@@ -162,9 +177,49 @@ export function ProductEdit() {
         setGrowth(p.attributes?.growth ?? p.attributes?.crecimiento ?? "Medio");
         setRecommendedPotIds(p.recommended_pot_ids ?? []);
         setImages(p.images ?? []);
+        const nextColorActive: Record<string, boolean> = {};
+        const nextColorStock: Record<string, number> = {};
+        for (const v of p.variants ?? []) {
+          if (v.key !== "color") continue;
+          nextColorActive[v.value] = v.active;
+          nextColorStock[v.value] = v.stock;
+        }
+        setColorActive(nextColorActive);
+        setColorStock(nextColorStock);
       })
       .finally(() => setLoading(false));
   }, [productId]);
+
+  // Infiere el tipo de producto a partir del group de la categoría ya
+  // asignada — sólo una vez, cuando terminaron de cargar tanto el producto
+  // como la lista de categorías (si no, con la lista todavía vacía siempre
+  // "encontraría" nada y se quedaría en el default "plantas"). Para un
+  // producto nuevo (sin productId) no hay nada que inferir: el vendedor
+  // elige el tipo de entrada y esto no lo pisa.
+  useEffect(() => {
+    if (!productId || productTypeInitialized.current) return;
+    if (loading || categoriesLoading) return;
+    const cat = categoryList.find((c) => c.category_id === category);
+    setProductType(cat?.group ?? "plantas");
+    productTypeInitialized.current = true;
+  }, [productId, loading, categoriesLoading, categoryList, category]);
+
+  function handleProductTypeChange(next: CategoryGroup) {
+    if (next === productType) return;
+    setProductType(next);
+    setCategory(""); // la categoría elegida seguramente era de otro tipo
+  }
+
+  // El stock total de una maceta no se tipea a mano: es la suma del stock de
+  // los colores activos (ver ColorStockEditor más abajo).
+  useEffect(() => {
+    if (productType !== "macetas") return;
+    const total = POT_COLORS.reduce(
+      (sum, color) => sum + (colorActive[color] ? colorStock[color] ?? 0 : 0),
+      0
+    );
+    setStock(total);
+  }, [productType, colorActive, colorStock]);
 
   function addTag(value: string) {
     const v = value.trim();
@@ -229,7 +284,25 @@ export function ProductEdit() {
     { id: "seo", label: "SEO y visibilidad" },
   ];
 
-  function buildSizeVariants() {
+  /** Variantes según el tipo de producto — tamaño para plantas, color (sólo
+   * stock) para macetas, ninguna para químicos. No comparten forma: por eso
+   * el tipo de producto decide acá, no una sola función genérica. */
+  function buildVariants() {
+    if (productType === "macetas") {
+      return POT_COLORS.map((color) => ({
+        key: "color",
+        value: color,
+        stock: colorStock[color] ?? 0,
+        price_override: null,
+        compare_at_price_override: null,
+        cost_price_override: null,
+        weight_grams_override: null,
+        height_cm_override: null,
+        active: colorActive[color] ?? false,
+        recommended_pot_ids: [],
+      }));
+    }
+    if (productType === "quimicos") return [];
     return [
       {
         key: "size",
@@ -258,9 +331,36 @@ export function ProductEdit() {
     ];
   }
 
+  function buildCare(): Record<string, string> {
+    if (productType !== "plantas") return {};
+    return {
+      ...(careLight && { light: careLight }),
+      ...(careWater && { water: careWater }),
+      ...(careEnv && { environment: careEnv }),
+      ...(careTemp && { temperature: careTemp }),
+    };
+  }
+
+  function buildAttributes(): Record<string, string> {
+    if (productType === "quimicos") return {};
+    if (productType === "macetas") {
+      return {
+        ...(dimPot && { pot_diameter: dimPot }),
+        ...(dimHeight && { height_with_pot: dimHeight }),
+      };
+    }
+    return {
+      ...(dimPot && { pot_diameter: dimPot }),
+      ...(dimHeight && { height_with_pot: dimHeight }),
+      ...(plantType && { plant_type: plantType }),
+      ...(growth && { growth }),
+    };
+  }
+
   async function handleCreate(publish: boolean) {
     if (!name.trim()) { toast.error("El nombre del producto es obligatorio"); return; }
     if (!price || Number(price) <= 0) { toast.error("El precio debe ser mayor a 0"); return; }
+    if (!category) { toast.error("Elegí una categoría"); return; }
     setSaving(true);
     try {
       const product = await productService.create({
@@ -280,19 +380,9 @@ export function ProductEdit() {
         weight_grams: weight ? Math.round(Number(weight) * 1000) : null,
         height_cm: height ? Number(height) : null,
         tags,
-        care: {
-          ...(careLight && { light: careLight }),
-          ...(careWater && { water: careWater }),
-          ...(careEnv && { environment: careEnv }),
-          ...(careTemp && { temperature: careTemp }),
-        },
-        attributes: {
-          ...(dimPot && { pot_diameter: dimPot }),
-          ...(dimHeight && { height_with_pot: dimHeight }),
-          ...(plantType && { plant_type: plantType }),
-          ...(growth && { growth }),
-        },
-        variants: buildSizeVariants(),
+        care: buildCare(),
+        attributes: buildAttributes(),
+        variants: buildVariants(),
         recommended_pot_ids: recommendedPotIds,
       });
       const newId = product.product_id;
@@ -319,6 +409,7 @@ export function ProductEdit() {
 
   async function handleSave(newStatus?: string) {
     if (!productId) return;
+    if (!category) { toast.error("Elegí una categoría"); return; }
     setSaving(true);
     try {
       await productService.updateById(productId, {
@@ -342,19 +433,9 @@ export function ProductEdit() {
         images: coverIndex === 0
           ? images
           : [images[coverIndex], ...images.filter((_, i) => i !== coverIndex)],
-        care: {
-          light: careLight,
-          water: careWater,
-          environment: careEnv,
-          temperature: careTemp,
-        },
-        attributes: {
-          pot_diameter: dimPot,
-          height_with_pot: dimHeight,
-          plant_type: plantType,
-          growth,
-        },
-        variants: buildSizeVariants(),
+        care: buildCare(),
+        attributes: buildAttributes(),
+        variants: buildVariants(),
         recommended_pot_ids: recommendedPotIds,
       });
       if (coverIndex !== 0) {
@@ -477,6 +558,29 @@ export function ProductEdit() {
               <div className="p-6">
                 {tab === "general" && (
                   <div className="flex flex-col gap-6">
+                    {/* Tipo de producto — decide qué secciones de abajo aplican */}
+                    <div>
+                      <p className={LABEL}>
+                        Tipo de producto<span className="text-[#DC2626] ml-0.5">*</span>
+                      </p>
+                      <div className="flex gap-2 mt-1.5">
+                        {CATEGORY_GROUPS.map((g) => (
+                          <button
+                            key={g.value}
+                            type="button"
+                            onClick={() => handleProductTypeChange(g.value)}
+                            className={`flex-1 px-3 py-2 rounded-lg text-xs font-semibold uppercase tracking-wide border transition-colors ${
+                              productType === g.value
+                                ? "bg-[#1A2B1C] text-white border-[#1A2B1C]"
+                                : "bg-white text-[#4A4A4A] border-[#E8E2D8] hover:border-[#1A2B1C]"
+                            }`}
+                          >
+                            {g.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
                     {/* Row 1: Name + SKU */}
                     <div className="grid grid-cols-1 sm:grid-cols-[2fr_1fr] gap-4">
                       <FormField label="Nombre del producto" required>
@@ -506,29 +610,33 @@ export function ProductEdit() {
                     {/* Row 2: Category + Tags */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <FormField label="Categoría" required>
-                        <div className="relative">
-                          <select
-                            value={category}
-                            onChange={(e) => setCategory(e.target.value)}
-                            className={SELECT}
-                          >
-                            <option value="">Sin categoría</option>
-                            {CATEGORY_GROUPS.map((g) => {
-                              const cats = categoryList.filter((c) => c.group === g.value);
-                              if (cats.length === 0) return null;
-                              return (
-                                <optgroup key={g.value} label={g.label}>
-                                  {cats.map((cat) => (
+                        {(() => {
+                          const catsForType = categoryList.filter((c) => c.group === productType);
+                          return (
+                            <>
+                              <div className="relative">
+                                <select
+                                  value={category}
+                                  onChange={(e) => setCategory(e.target.value)}
+                                  className={SELECT}
+                                >
+                                  <option value="">Sin categoría</option>
+                                  {catsForType.map((cat) => (
                                     <option key={cat.category_id} value={cat.category_id}>
                                       {cat.name}
                                     </option>
                                   ))}
-                                </optgroup>
-                              );
-                            })}
-                          </select>
-                          <ChevronSelectIcon />
-                        </div>
+                                </select>
+                                <ChevronSelectIcon />
+                              </div>
+                              {!categoriesLoading && catsForType.length === 0 && (
+                                <p className="text-[11px] text-[#B8860B] mt-1">
+                                  Todavía no hay categorías de este tipo — creá una en Categorías.
+                                </p>
+                              )}
+                            </>
+                          );
+                        })()}
                       </FormField>
                       <FormField label="Etiquetas">
                         <div
@@ -608,87 +716,97 @@ export function ProductEdit() {
                       </div>
                     </FormField>
 
-                    {/* Cuidados */}
-                    <div>
-                      <p className="text-sm font-semibold text-[#1A1A1A] mb-4">Cuidados</p>
-                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                        {[
-                          { icon: <SunIcon />, label: "Luz", value: careLight, onChange: setCareLight },
-                          { icon: <WaterIcon />, label: "Riego", value: careWater, onChange: setCareWater },
-                          { icon: <EnvIcon />, label: "Ambiente", value: careEnv, onChange: setCareEnv },
-                          { icon: <TempIcon />, label: "Temperatura", value: careTemp, onChange: setCareTemp },
-                        ].map((c) => (
-                          <div
-                            key={c.label}
-                            className={`border rounded-lg p-3 transition-colors ${
-                              c.value ? "border-[#5A7A5C] bg-[#F0F5F0]" : "border-[#E8E2D8]"
-                            }`}
-                          >
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className="text-[#5A7A5C]">{c.icon}</span>
-                              <span className="text-xs font-semibold text-[#4A4A4A]">{c.label}</span>
+                    {/* Cuidados — sólo tiene sentido para plantas */}
+                    {productType === "plantas" && (
+                      <div>
+                        <p className="text-sm font-semibold text-[#1A1A1A] mb-4">Cuidados</p>
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                          {[
+                            { icon: <SunIcon />, label: "Luz", value: careLight, onChange: setCareLight },
+                            { icon: <WaterIcon />, label: "Riego", value: careWater, onChange: setCareWater },
+                            { icon: <EnvIcon />, label: "Ambiente", value: careEnv, onChange: setCareEnv },
+                            { icon: <TempIcon />, label: "Temperatura", value: careTemp, onChange: setCareTemp },
+                          ].map((c) => (
+                            <div
+                              key={c.label}
+                              className={`border rounded-lg p-3 transition-colors ${
+                                c.value ? "border-[#5A7A5C] bg-[#F0F5F0]" : "border-[#E8E2D8]"
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-[#5A7A5C]">{c.icon}</span>
+                                <span className="text-xs font-semibold text-[#4A4A4A]">{c.label}</span>
+                              </div>
+                              <div className="flex flex-wrap gap-1 mb-2">
+                                {CARE_OPTIONS[c.label]?.map((opt) => (
+                                  <button
+                                    key={opt}
+                                    type="button"
+                                    onClick={() => c.onChange(c.value === opt ? "" : opt)}
+                                    className={`text-[10px] px-2 py-0.5 border rounded-full transition-colors leading-relaxed ${
+                                      c.value === opt
+                                        ? "border-[#3D6040] bg-[#3D6040] text-white"
+                                        : "border-[#E8E2D8] text-[#6B6B6B] hover:border-[#5A7A5C] hover:text-[#3D6040]"
+                                    }`}
+                                  >
+                                    {opt}
+                                  </button>
+                                ))}
+                              </div>
+                              <input
+                                value={c.value}
+                                onChange={(e) => c.onChange(e.target.value)}
+                                placeholder="Personalizado..."
+                                className="w-full text-xs text-[#6B6B6B] bg-transparent outline-none border-b border-[#E8E2D8] pb-0.5 placeholder:text-[#C0B8B0]"
+                              />
                             </div>
-                            <div className="flex flex-wrap gap-1 mb-2">
-                              {CARE_OPTIONS[c.label]?.map((opt) => (
-                                <button
-                                  key={opt}
-                                  type="button"
-                                  onClick={() => c.onChange(c.value === opt ? "" : opt)}
-                                  className={`text-[10px] px-2 py-0.5 border rounded-full transition-colors leading-relaxed ${
-                                    c.value === opt
-                                      ? "border-[#3D6040] bg-[#3D6040] text-white"
-                                      : "border-[#E8E2D8] text-[#6B6B6B] hover:border-[#5A7A5C] hover:text-[#3D6040]"
-                                  }`}
-                                >
-                                  {opt}
-                                </button>
-                              ))}
-                            </div>
-                            <input
-                              value={c.value}
-                              onChange={(e) => c.onChange(e.target.value)}
-                              placeholder="Personalizado..."
-                              className="w-full text-xs text-[#6B6B6B] bg-transparent outline-none border-b border-[#E8E2D8] pb-0.5 placeholder:text-[#C0B8B0]"
-                            />
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                    )}
 
-                    {/* Dimensiones */}
-                    <div>
-                      <p className="text-sm font-semibold text-[#1A1A1A] mb-4">
-                        Dimensiones y características
-                      </p>
-                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                        <FormField label="Diámetro de maceta">
-                          <input value={dimPot} onChange={(e) => setDimPot(e.target.value)} className={INPUT} />
-                        </FormField>
-                        <FormField label="Altura con maceta">
-                          <input value={dimHeight} onChange={(e) => setDimHeight(e.target.value)} className={INPUT} />
-                        </FormField>
-                        <FormField label="Tipo de planta">
-                          <input value={plantType} onChange={(e) => setPlantType(e.target.value)} className={INPUT} />
-                        </FormField>
-                        <FormField label="Crecimiento">
-                          <div className="relative">
-                            <select value={growth} onChange={(e) => setGrowth(e.target.value)} className={SELECT}>
-                              <option>Lento</option>
-                              <option>Medio</option>
-                              <option>Rápido</option>
-                            </select>
-                            <ChevronSelectIcon />
-                          </div>
-                        </FormField>
+                    {/* Dimensiones — diámetro/altura con maceta aplican a plantas y
+                        macetas; tipo de planta/crecimiento sólo a plantas; nada de
+                        esto tiene sentido para un producto químico. */}
+                    {productType !== "quimicos" && (
+                      <div>
+                        <p className="text-sm font-semibold text-[#1A1A1A] mb-4">
+                          Dimensiones y características
+                        </p>
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                          <FormField label="Diámetro de maceta">
+                            <input value={dimPot} onChange={(e) => setDimPot(e.target.value)} className={INPUT} />
+                          </FormField>
+                          <FormField label="Altura con maceta">
+                            <input value={dimHeight} onChange={(e) => setDimHeight(e.target.value)} className={INPUT} />
+                          </FormField>
+                          {productType === "plantas" && (
+                            <>
+                              <FormField label="Tipo de planta">
+                                <input value={plantType} onChange={(e) => setPlantType(e.target.value)} className={INPUT} />
+                              </FormField>
+                              <FormField label="Crecimiento">
+                                <div className="relative">
+                                  <select value={growth} onChange={(e) => setGrowth(e.target.value)} className={SELECT}>
+                                    <option>Lento</option>
+                                    <option>Medio</option>
+                                    <option>Rápido</option>
+                                  </select>
+                                  <ChevronSelectIcon />
+                                </div>
+                              </FormField>
+                            </>
+                          )}
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 )}
 
                 {tab === "variantes" && (
                   <div>
                     <p className="text-sm font-semibold text-[#1A1A1A] mb-3">
-                      Precio y stock por tamaño
+                      {productType === "plantas" ? "Precio y stock por tamaño" : "Precio y stock"}
                     </p>
                     <div className="mb-4 flex flex-wrap items-center gap-3">
                       <label className="text-xs font-semibold text-[#4A4A4A]">Markup objetivo (%)</label>
@@ -703,72 +821,115 @@ export function ProductEdit() {
                         Si lo dejás vacío se usa el de Configuración ({formatPct(defaultMarkup)}).
                       </span>
                     </div>
-                    <div className="flex flex-col gap-3">
-                      <SizePricingRow
-                        label="Planta chica (pequeña)"
-                        price={priceChica}
-                        setPrice={setPriceChica}
-                        promo={promoChica}
-                        setPromo={setPromoChica}
-                        cost={costChica}
-                        setCost={setCostChica}
-                        markup={targetMarkup ? Number(targetMarkup) : defaultMarkup}
-                        stock={stockChica}
-                        setStock={setStockChica}
-                        weight={weightChica}
-                        setWeight={setWeightChica}
-                        height={heightChica}
-                        setHeight={setHeightChica}
-                        active={activeChica}
-                        setActive={setActiveChica}
-                        pots={potsChica}
-                        setPots={setPotsChica}
-                        excludeProductId={productId}
-                      />
-                      <SizePricingRow
-                        label="Planta mediana"
-                        price={price}
-                        setPrice={setPrice}
-                        promo={promoPrice}
-                        setPromo={setPromoPrice}
-                        cost={cost}
-                        setCost={setCost}
-                        markup={targetMarkup ? Number(targetMarkup) : defaultMarkup}
-                        stock={stock}
-                        setStock={setStock}
-                        weight={weight}
-                        setWeight={setWeight}
-                        height={height}
-                        setHeight={setHeight}
-                        active={active}
-                        setActive={setActive}
-                        pots={recommendedPotIds}
-                        setPots={setRecommendedPotIds}
-                        excludeProductId={productId}
-                        required
-                      />
-                      <SizePricingRow
-                        label="Planta grande"
-                        price={priceGrande}
-                        setPrice={setPriceGrande}
-                        promo={promoGrande}
-                        setPromo={setPromoGrande}
-                        cost={costGrande}
-                        setCost={setCostGrande}
-                        markup={targetMarkup ? Number(targetMarkup) : defaultMarkup}
-                        stock={stockGrande}
-                        setStock={setStockGrande}
-                        weight={weightGrande}
-                        setWeight={setWeightGrande}
-                        height={heightGrande}
-                        setHeight={setHeightGrande}
-                        active={activeGrande}
-                        setActive={setActiveGrande}
-                        pots={potsGrande}
-                        setPots={setPotsGrande}
-                        excludeProductId={productId}
-                      />
-                    </div>
+
+                    {productType === "plantas" ? (
+                      <div className="flex flex-col gap-3">
+                        <SizePricingRow
+                          label="Planta chica (pequeña)"
+                          price={priceChica}
+                          setPrice={setPriceChica}
+                          promo={promoChica}
+                          setPromo={setPromoChica}
+                          cost={costChica}
+                          setCost={setCostChica}
+                          markup={targetMarkup ? Number(targetMarkup) : defaultMarkup}
+                          stock={stockChica}
+                          setStock={setStockChica}
+                          weight={weightChica}
+                          setWeight={setWeightChica}
+                          height={heightChica}
+                          setHeight={setHeightChica}
+                          active={activeChica}
+                          setActive={setActiveChica}
+                          pots={potsChica}
+                          setPots={setPotsChica}
+                          excludeProductId={productId}
+                        />
+                        <SizePricingRow
+                          label="Planta mediana"
+                          price={price}
+                          setPrice={setPrice}
+                          promo={promoPrice}
+                          setPromo={setPromoPrice}
+                          cost={cost}
+                          setCost={setCost}
+                          markup={targetMarkup ? Number(targetMarkup) : defaultMarkup}
+                          stock={stock}
+                          setStock={setStock}
+                          weight={weight}
+                          setWeight={setWeight}
+                          height={height}
+                          setHeight={setHeight}
+                          active={active}
+                          setActive={setActive}
+                          pots={recommendedPotIds}
+                          setPots={setRecommendedPotIds}
+                          excludeProductId={productId}
+                          required
+                        />
+                        <SizePricingRow
+                          label="Planta grande"
+                          price={priceGrande}
+                          setPrice={setPriceGrande}
+                          promo={promoGrande}
+                          setPromo={setPromoGrande}
+                          cost={costGrande}
+                          setCost={setCostGrande}
+                          markup={targetMarkup ? Number(targetMarkup) : defaultMarkup}
+                          stock={stockGrande}
+                          setStock={setStockGrande}
+                          weight={weightGrande}
+                          setWeight={setWeightGrande}
+                          height={heightGrande}
+                          setHeight={setHeightGrande}
+                          active={activeGrande}
+                          setActive={setActiveGrande}
+                          pots={potsGrande}
+                          setPots={setPotsGrande}
+                          excludeProductId={productId}
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-3">
+                        <SizePricingRow
+                          label="Precio, costo y stock"
+                          price={price}
+                          setPrice={setPrice}
+                          promo={promoPrice}
+                          setPromo={setPromoPrice}
+                          cost={cost}
+                          setCost={setCost}
+                          markup={targetMarkup ? Number(targetMarkup) : defaultMarkup}
+                          stock={stock}
+                          setStock={setStock}
+                          weight={weight}
+                          setWeight={setWeight}
+                          height={height}
+                          setHeight={setHeight}
+                          active={active}
+                          setActive={setActive}
+                          pots={recommendedPotIds}
+                          setPots={setRecommendedPotIds}
+                          excludeProductId={productId}
+                          showActiveToggle={false}
+                          showPotPicker={false}
+                          stockReadOnly={productType === "macetas"}
+                          required
+                        />
+                        {productType === "macetas" && (
+                          <ColorStockEditor
+                            colorActive={colorActive}
+                            colorStock={colorStock}
+                            onToggle={(color, on) =>
+                              setColorActive((prev) => ({ ...prev, [color]: on }))
+                            }
+                            onStockChange={(color, value) =>
+                              setColorStock((prev) => ({ ...prev, [color]: value }))
+                            }
+                          />
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -1157,6 +1318,9 @@ function SizePricingRow({
   setPots,
   excludeProductId,
   required,
+  showActiveToggle = true,
+  showPotPicker = true,
+  stockReadOnly = false,
 }: {
   label: string;
   price: string;
@@ -1178,6 +1342,15 @@ function SizePricingRow({
   setPots: (v: string[]) => void;
   excludeProductId?: string;
   required?: boolean;
+  /** Falso para macetas/químicos: "Activo/Inactivo" es un concepto de
+   * tamaño de planta, no aplica cuando no hay tamaños. */
+  showActiveToggle?: boolean;
+  /** Falso para macetas/químicos: "maceta recomendada" es para sugerirle
+   * una maceta a una planta, no tiene sentido en la maceta misma. */
+  showPotPicker?: boolean;
+  /** Cierto para macetas: el stock total sale solo de sumar el stock por
+   * color de abajo, no se tipea acá. */
+  stockReadOnly?: boolean;
 }) {
   const costCents = Math.round(Number(cost) * 100) || null;
   const priceCents = Math.round(Number(price) * 100) || null;
@@ -1187,10 +1360,12 @@ function SizePricingRow({
     <div className="border border-[#E8E2D8] rounded-lg p-3">
       <div className="flex items-center justify-between mb-2">
         <p className="text-xs font-semibold text-[#4A4A4A]">{label}</p>
-        <div className="flex items-center gap-2">
-          <Toggle checked={active} onChange={setActive} />
-          <span className="text-xs text-[#4A4A4A]">{active ? "Activo" : "Inactivo"}</span>
-        </div>
+        {showActiveToggle && (
+          <div className="flex items-center gap-2">
+            <Toggle checked={active} onChange={setActive} />
+            <span className="text-xs text-[#4A4A4A]">{active ? "Activo" : "Inactivo"}</span>
+          </div>
+        )}
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
         <FormField label="Precio" required={required}>
@@ -1213,36 +1388,42 @@ function SizePricingRow({
             </button>
           </div>
         </FormField>
-        <FormField label="Stock" required={required}>
-          <div className="flex border border-[#E8E2D8] rounded-lg overflow-hidden">
-            <input
-              type="number"
-              value={stock}
-              onChange={(e) => setStock(Number(e.target.value))}
-              min={0}
-              className="flex-1 min-w-0 px-3 py-2 text-sm text-[#1A1A1A] bg-white outline-none"
-            />
-            <div className="flex flex-col border-l border-[#E8E2D8]">
-              <button
-                onClick={() => setStock((s) => s + 1)}
-                className="flex-1 px-2 hover:bg-[#F5F5F3] transition-colors flex items-center"
-                aria-label="Incrementar"
-              >
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <path d="M18 15l-6-6-6 6" />
-                </svg>
-              </button>
-              <button
-                onClick={() => setStock((s) => Math.max(0, s - 1))}
-                className="flex-1 px-2 hover:bg-[#F5F5F3] transition-colors border-t border-[#E8E2D8] flex items-center"
-                aria-label="Decrementar"
-              >
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <path d="M6 9l6 6 6-6" />
-                </svg>
-              </button>
+        <FormField label={stockReadOnly ? "Stock (suma de colores)" : "Stock"} required={required}>
+          {stockReadOnly ? (
+            <div className="px-3 py-2 text-sm text-[#6B6B6B] bg-[#F9F8F5] border border-[#E8E2D8] rounded-lg">
+              {stock}
             </div>
-          </div>
+          ) : (
+            <div className="flex border border-[#E8E2D8] rounded-lg overflow-hidden">
+              <input
+                type="number"
+                value={stock}
+                onChange={(e) => setStock(Number(e.target.value))}
+                min={0}
+                className="flex-1 min-w-0 px-3 py-2 text-sm text-[#1A1A1A] bg-white outline-none"
+              />
+              <div className="flex flex-col border-l border-[#E8E2D8]">
+                <button
+                  onClick={() => setStock((s) => s + 1)}
+                  className="flex-1 px-2 hover:bg-[#F5F5F3] transition-colors flex items-center"
+                  aria-label="Incrementar"
+                >
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M18 15l-6-6-6 6" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => setStock((s) => Math.max(0, s - 1))}
+                  className="flex-1 px-2 hover:bg-[#F5F5F3] transition-colors border-t border-[#E8E2D8] flex items-center"
+                  aria-label="Decrementar"
+                >
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M6 9l6 6 6-6" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          )}
         </FormField>
         <FormField label="Peso (kg)">
           <input value={weight} onChange={(e) => setWeight(e.target.value)} className={INPUT} />
@@ -1265,9 +1446,11 @@ function SizePricingRow({
           </button>
         )}
       </div>
-      <div className="mt-4 pt-4 border-t border-[#E8E2D8]">
-        <PotPicker selectedIds={pots} onChange={setPots} excludeProductId={excludeProductId} />
-      </div>
+      {showPotPicker && (
+        <div className="mt-4 pt-4 border-t border-[#E8E2D8]">
+          <PotPicker selectedIds={pots} onChange={setPots} excludeProductId={excludeProductId} />
+        </div>
+      )}
     </div>
   );
 }
@@ -1283,6 +1466,55 @@ function PrefixInput({ prefix, value, onChange }: { prefix: string; value: strin
         onChange={(e) => onChange(e.target.value)}
         className="flex-1 min-w-0 px-3 py-2 text-sm text-[#1A1A1A] bg-white outline-none"
       />
+    </div>
+  );
+}
+
+/** Stock por color de una maceta/accesorio — mismo patrón que el toggle
+ * activo/inactivo de tamaño de planta, pero con un número de stock al lado
+ * en vez de precio/peso/altura (acá no varían por color). */
+function ColorStockEditor({
+  colorActive,
+  colorStock,
+  onToggle,
+  onStockChange,
+}: {
+  colorActive: Record<string, boolean>;
+  colorStock: Record<string, number>;
+  onToggle: (color: string, active: boolean) => void;
+  onStockChange: (color: string, stock: number) => void;
+}) {
+  return (
+    <div className="border border-[#E8E2D8] rounded-lg p-3">
+      <p className="text-xs font-semibold text-[#4A4A4A] mb-3">Stock por color</p>
+      <div className="flex flex-col gap-2">
+        {POT_COLORS.map((color) => {
+          const isActive = colorActive[color] ?? false;
+          return (
+            <div
+              key={color}
+              className={`flex items-center gap-3 border rounded-lg p-2.5 transition-colors ${
+                isActive ? "border-[#5A7A5C] bg-[#F0F5F0]" : "border-[#E8E2D8]"
+              }`}
+            >
+              <Toggle checked={isActive} onChange={(v) => onToggle(color, v)} />
+              <span className={`text-xs font-medium flex-1 ${isActive ? "text-[#1A1A1A]" : "text-[#ABABAB]"}`}>
+                {color}
+              </span>
+              <div className="flex border border-[#E8E2D8] rounded-lg overflow-hidden">
+                <input
+                  type="number"
+                  min={0}
+                  value={colorStock[color] ?? 0}
+                  disabled={!isActive}
+                  onChange={(e) => onStockChange(color, Math.max(0, Number(e.target.value)))}
+                  className="w-20 px-2.5 py-1.5 text-sm text-[#1A1A1A] bg-white outline-none disabled:bg-[#F9F8F5] disabled:text-[#ABABAB]"
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

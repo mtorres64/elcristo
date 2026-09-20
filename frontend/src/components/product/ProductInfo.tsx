@@ -22,7 +22,17 @@ const INSTALLMENTS = 6;
 type SizeId = "pequeña" | "mediana" | "grande";
 
 export function ProductInfo({ product }: { product: ProductDetail }) {
+  // No todos los productos tienen tamaño (plantas) o color (macetas y
+  // accesorios) — un producto químico, o uno importado sin variantes
+  // configuradas, no tiene ninguno de los dos. Mostrar el selector de
+  // tamaño igual (con "Pequeña/Grande" como si estuvieran disponibles) es
+  // el bug que hacía ver esas opciones en productos que no las ofrecen.
+  const hasSizeVariants = product.variants?.some((v) => v.key === "size") ?? false;
+  const colorVariants = (product.variants ?? []).filter((v) => v.key === "color" && v.active);
+  const hasColorVariants = colorVariants.length > 0;
+
   const [size, setSize] = useState<SizeId>("mediana");
+  const [color, setColor] = useState<string | null>(null);
   const [pot, setPot] = useState<string | null>(null);
   const [qty, setQty] = useState(1);
   const { addItem } = useCart();
@@ -39,22 +49,43 @@ export function ProductInfo({ product }: { product: ProductDetail }) {
   });
 
   useEffect(() => {
+    if (!hasSizeVariants) return;
     if (offeredSizes.length && !offeredSizes.some((s) => s.id === size)) {
       setSize(offeredSizes[0].id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [product.product_id]);
+  }, [product.product_id, hasSizeVariants]);
 
-  const sizeVariant = product.variants?.find((v) => v.key === "size" && v.value === size);
-  const sizePrice = sizeVariant?.price_override ?? product.price;
-  const sizeComparePrice = sizeVariant
-    ? sizeVariant.compare_at_price_override
+  useEffect(() => {
+    if (!hasColorVariants) return;
+    if (!colorVariants.some((v) => v.value === color)) {
+      setColor(colorVariants[0].value);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product.product_id, hasColorVariants]);
+
+  const sizeVariant = hasSizeVariants
+    ? product.variants?.find((v) => v.key === "size" && v.value === size)
+    : undefined;
+  const colorVariant = hasColorVariants
+    ? product.variants?.find((v) => v.key === "color" && v.value === color)
+    : undefined;
+  // Nunca hay tamaño y color a la vez en el mismo producto — uno u otro
+  // según el tipo, o ninguno (ej: productos químicos).
+  const selectedVariant = sizeVariant ?? colorVariant;
+  const sizePrice = selectedVariant?.price_override ?? product.price;
+  const sizeComparePrice = selectedVariant
+    ? selectedVariant.compare_at_price_override
     : product.compare_at_price;
-  const sizeStock = sizeVariant ? sizeVariant.stock : product.stock;
+  const sizeStock = selectedVariant ? selectedVariant.stock : product.stock;
 
-  // Las macetas sugeridas dependen del tamaño elegido: cada tamaño tiene su
-  // propia lista (guardada en el variant); "mediana" usa la del producto base.
-  const potIds = sizeVariant ? sizeVariant.recommended_pot_ids : product.recommended_pot_ids ?? [];
+  // Las macetas sugeridas dependen del tamaño elegido y sólo aplican a
+  // plantas (a una maceta no se le recomienda otra maceta).
+  const potIds = hasSizeVariants
+    ? sizeVariant
+      ? sizeVariant.recommended_pot_ids
+      : product.recommended_pot_ids ?? []
+    : [];
   const { data: potResults } = useQuery({
     queryKey: ["product-pots", size, potIds.join(",")],
     queryFn: () => productService.list({ ids: potIds.join(","), page_size: Math.min(100, potIds.length) }),
@@ -91,13 +122,19 @@ export function ProductInfo({ product }: { product: ProductDetail }) {
 
   function handleAddToCart() {
     if (outOfStock) return;
-    const sizeLabel = SIZES.find((s) => s.id === size)?.label ?? size;
-    const potInfo = pot ? POTS.find((p) => p.id === pot) : null;
+    const variantLabel = hasSizeVariants
+      ? SIZES.find((s) => s.id === size)?.label ?? size
+      : hasColorVariants
+        ? color
+        : null;
+    const cartId = variantLabel ? `${product.product_id}__${variantLabel}` : product.product_id;
+    const cartTitle = variantLabel ? `${product.title} ${variantLabel}` : product.title;
+    const potInfo = hasSizeVariants && pot ? POTS.find((p) => p.id === pot) : null;
     for (let i = 0; i < qty; i++) {
       addItem({
-        product_id: `${product.product_id}__${size}`,
+        product_id: cartId,
         tenant_id: product.tenant_id,
-        title: `${product.title} ${sizeLabel}`,
+        title: cartTitle,
         price_snapshot: sizePrice,
         image_url: product.image_url,
       });
@@ -157,81 +194,116 @@ export function ProductInfo({ product }: { product: ProductDetail }) {
 
       <hr className="border-[#E8E2D8]" />
 
-      {/* Size selector */}
-      <div>
-        <p className="text-sm font-semibold text-[#1A1A1A] mb-3">
-          Tamaño de la planta
-        </p>
-        <div className="flex gap-2">
-          {offeredSizes.map((s) => {
-            const v = product.variants?.find((vv) => vv.key === "size" && vv.value === s.id);
-            const sStock = v ? v.stock : product.stock;
-            const sPrice = v?.price_override ?? product.price;
-            const sOut = sStock <= 0;
-            return (
+      {/* Size selector — sólo plantas */}
+      {hasSizeVariants && (
+        <div>
+          <p className="text-sm font-semibold text-[#1A1A1A] mb-3">
+            Tamaño de la planta
+          </p>
+          <div className="flex gap-2">
+            {offeredSizes.map((s) => {
+              const v = product.variants?.find((vv) => vv.key === "size" && vv.value === s.id);
+              const sStock = v ? v.stock : product.stock;
+              const sPrice = v?.price_override ?? product.price;
+              const sOut = sStock <= 0;
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => !sOut && setSize(s.id)}
+                  disabled={sOut}
+                  className={`flex-1 py-3 px-2 border text-center transition-colors ${
+                    sOut
+                      ? "border-[#E8E2D8] opacity-40 cursor-not-allowed"
+                      : size === s.id
+                      ? "border-[#1A2B1C] bg-white"
+                      : "border-[#E8E2D8] hover:border-[#C8C0B4]"
+                  }`}
+                >
+                  <p className="text-xs font-semibold text-[#1A1A1A]">{s.label}</p>
+                  <p className="text-[10px] text-[#8A8A8A] mt-0.5">{s.range}</p>
+                  <p className="text-[10px] text-[#3D6040] mt-0.5">
+                    {sOut ? "Sin stock" : formatARS(sPrice)}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Color selector — sólo macetas y accesorios */}
+      {hasColorVariants && (
+        <div>
+          <p className="text-sm font-semibold text-[#1A1A1A] mb-3">Color</p>
+          <div className="flex gap-2 flex-wrap">
+            {colorVariants.map((v) => {
+              const cOut = v.stock <= 0;
+              return (
+                <button
+                  key={v.value}
+                  onClick={() => !cOut && setColor(v.value)}
+                  disabled={cOut}
+                  className={`flex-1 min-w-[100px] py-3 px-2 border text-center transition-colors ${
+                    cOut
+                      ? "border-[#E8E2D8] opacity-40 cursor-not-allowed"
+                      : color === v.value
+                      ? "border-[#1A2B1C] bg-white"
+                      : "border-[#E8E2D8] hover:border-[#C8C0B4]"
+                  }`}
+                >
+                  <p className="text-xs font-semibold text-[#1A1A1A]">{v.value}</p>
+                  <p className="text-[10px] text-[#8A8A8A] mt-0.5">
+                    {cOut ? "Sin stock" : `${v.stock} disponibles`}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Pot selector — sólo tiene sentido sugerirle una maceta a una planta */}
+      {hasSizeVariants && (
+        <div>
+          <p className="text-sm font-semibold text-[#1A1A1A] mb-3">
+            Elegí tu maceta{" "}
+            <span className="font-normal text-[#8A8A8A]">(opcional)</span>
+          </p>
+          <div className="flex gap-2">
+            {POTS.map((p) => (
               <button
-                key={s.id}
-                onClick={() => !sOut && setSize(s.id)}
-                disabled={sOut}
+                key={p.id ?? "none"}
+                onClick={() => setPot(p.id)}
                 className={`flex-1 py-3 px-2 border text-center transition-colors ${
-                  sOut
-                    ? "border-[#E8E2D8] opacity-40 cursor-not-allowed"
-                    : size === s.id
+                  pot === p.id
                     ? "border-[#1A2B1C] bg-white"
                     : "border-[#E8E2D8] hover:border-[#C8C0B4]"
                 }`}
               >
-                <p className="text-xs font-semibold text-[#1A1A1A]">{s.label}</p>
-                <p className="text-[10px] text-[#8A8A8A] mt-0.5">{s.range}</p>
-                <p className="text-[10px] text-[#3D6040] mt-0.5">
-                  {sOut ? "Sin stock" : formatARS(sPrice)}
+                <div className="w-10 h-10 mx-auto mb-2 rounded-md overflow-hidden bg-[#F0EDE8] flex items-center justify-center">
+                  {p.image ? (
+                    <img
+                      src={p.image.startsWith("/uploads") ? `${API_BASE}${p.image}` : p.image}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <PotIcon type={p.id} />
+                  )}
+                </div>
+                <p className="text-[10px] font-medium text-[#1A1A1A] leading-tight">
+                  {p.label}
                 </p>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Pot selector */}
-      <div>
-        <p className="text-sm font-semibold text-[#1A1A1A] mb-3">
-          Elegí tu maceta{" "}
-          <span className="font-normal text-[#8A8A8A]">(opcional)</span>
-        </p>
-        <div className="flex gap-2">
-          {POTS.map((p) => (
-            <button
-              key={p.id ?? "none"}
-              onClick={() => setPot(p.id)}
-              className={`flex-1 py-3 px-2 border text-center transition-colors ${
-                pot === p.id
-                  ? "border-[#1A2B1C] bg-white"
-                  : "border-[#E8E2D8] hover:border-[#C8C0B4]"
-              }`}
-            >
-              <div className="w-10 h-10 mx-auto mb-2 rounded-md overflow-hidden bg-[#F0EDE8] flex items-center justify-center">
-                {p.image ? (
-                  <img
-                    src={p.image.startsWith("/uploads") ? `${API_BASE}${p.image}` : p.image}
-                    alt=""
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <PotIcon type={p.id} />
+                {p.extra > 0 && (
+                  <p className="text-[10px] text-[#3D6040] mt-0.5">
+                    +{formatARS(p.extra)}
+                  </p>
                 )}
-              </div>
-              <p className="text-[10px] font-medium text-[#1A1A1A] leading-tight">
-                {p.label}
-              </p>
-              {p.extra > 0 && (
-                <p className="text-[10px] text-[#3D6040] mt-0.5">
-                  +{formatARS(p.extra)}
-                </p>
-              )}
-            </button>
-          ))}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Quantity */}
       <div className="flex items-center gap-4">

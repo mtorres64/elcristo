@@ -33,6 +33,16 @@ export interface ProductSummary {
   care: Record<string, string>;
 }
 
+/** Las tres plantillas de importación — no comparten propiedades (cuidados
+ * de planta, color de maceta), por eso van separadas. */
+export type ImportProductKind = "plantas" | "macetas" | "quimicos";
+
+export const IMPORT_KIND_LABEL: Record<ImportProductKind, string> = {
+  plantas: "Plantas",
+  macetas: "Macetas y Accesorios",
+  quimicos: "Productos Químicos",
+};
+
 export interface ImportJobRow {
   row: number;
   name: string | null;

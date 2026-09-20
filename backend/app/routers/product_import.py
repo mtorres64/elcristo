@@ -1,24 +1,39 @@
 """Importación masiva de productos desde una planilla .xlsx.
 
-- `GET  /products/import/template`  → descarga la plantilla vacía.
-- `POST /products/import`           → sube la planilla y arranca un job en segundo plano.
+Hay tres plantillas separadas — Plantas, Macetas y Accesorios, Productos
+Químicos — porque no comparten las mismas propiedades (cuidados y atributos
+de planta sólo tienen sentido para plantas; color sólo para macetas). El
+`kind` de la importación determina qué columnas trae la planilla y qué
+categorías se ofrecen (sólo las de esa sección del menú).
+
+- `GET  /products/import/template?kind=...`  → descarga la plantilla vacía.
+- `POST /products/import`  (form: file + kind) → sube la planilla y arranca un job en segundo plano.
 - `GET  /products/import/{job_id}`  → estado/progreso del job (para el polling del modal).
 
-Todas las filas se importan como la **medida mediana**: se llenan los campos base del
-producto. No se crean variantes de tamaño (pequeña/grande), macetas recomendadas ni
-imágenes. Si un producto ya existe (mismo SKU, o mismo título) se actualiza en lugar
-de duplicarse.
+Todas las filas se importan como la **medida mediana** (plantas) o como el
+único precio del producto (macetas/químicos): se llenan los campos base. No
+se crean variantes de tamaño (pequeña/grande) ni macetas recomendadas ni
+imágenes. Si un producto ya existe (mismo SKU, o mismo título) se actualiza
+en lugar de duplicarse.
+
+Caso especial — color de macetas: cada fila de la planilla de Macetas trae
+UN color con SU stock. Si el mismo producto (mismo nombre o SKU) aparece en
+varias filas con distinto color, no se pisan entre sí: se van sumando como
+variantes `{key: "color", value: <COLOR>, stock: <de esa fila>}` del mismo
+producto, y el stock total del producto queda como la suma de todos sus
+colores.
 """
 
 import io
+import re
 from datetime import UTC, datetime
+from typing import Literal
 
 from bson import ObjectId
-from fastapi import APIRouter, BackgroundTasks, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
 
 from app.database import get_db
-from app.schemas.category import CATEGORY_GROUP_LABELS, CATEGORY_GROUP_ORDER
 from app.schemas.product_import import ImportJobOut, ImportStartResponse
 from app.utils.auth_deps import require_user_id
 from app.utils.slugify import slugify
@@ -27,8 +42,16 @@ router = APIRouter()
 
 XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
-# Encabezado de la plantilla (snake_case) → clave interna que usa el parser.
-COLUMN_MAP: dict[str, str] = {
+ImportKind = Literal["plantas", "macetas", "quimicos"]
+IMPORT_KINDS: tuple[ImportKind, ...] = ("plantas", "macetas", "quimicos")
+
+# Los colores posibles de una maceta — mismos valores en el desplegable de la
+# planilla, en el admin (ver frontend/src/constants/potColors.ts) y acá.
+POT_COLORS: list[str] = ["TERRACOTA", "NEGRO", "BLANCO", "VERDE", "GRIS"]
+
+# Campos base que comparten las tres plantillas (mismo orden de columnas en
+# las tres, hasta donde cada una llega).
+_BASE_COLUMN_MAP: dict[str, str] = {
     "nombre": "title",
     "descripcion_corta": "short_description",
     "descripcion": "description",
@@ -45,33 +68,16 @@ COLUMN_MAP: dict[str, str] = {
     "peso_kg": "weight_kg",
     "altura_cm": "height_cm",
     "etiquetas": "tags",
-    "cuidado_luz": "care_light",
-    "cuidado_riego": "care_water",
-    "cuidado_ambiente": "care_environment",
-    "cuidado_temperatura": "care_temperature",
-    "diametro_maceta": "attr_pot_diameter",
-    "altura_con_maceta": "attr_height_with_pot",
-    "tipo_planta": "attr_plant_type",
-    "crecimiento": "attr_growth",
 }
 
-TEMPLATE_HEADERS = list(COLUMN_MAP.keys())
-
-# Columnas que en el panel son un <select> con opciones cortas y sin comas:
-# se ofrecen como lista desplegable en la celda con la lista embebida.
-DROPDOWN_CHOICES: dict[str, list[str]] = {
+_BASE_DROPDOWNS: dict[str, list[str]] = {
     "moneda": ["ARS", "USD"],
     "impuesto": ["iva-21", "iva-10", "exento"],
     "estado": ["activo", "borrador"],
     "destacado": ["si", "no"],
-    "crecimiento": ["Lento", "Medio", "Rápido"],
 }
 
-# Campos de "cuidados": en el panel son chips sugeridos + texto libre. En la
-# plantilla se ofrecen como desplegable (sin bloquear texto libre). Las opciones
-# tienen comas, así que van por una hoja auxiliar. Deben coincidir con
-# CARE_OPTIONS de frontend/src/pages/admin/ProductEdit.tsx.
-CARE_CHOICES: dict[str, list[str]] = {
+_CARE_CHOICES: dict[str, list[str]] = {
     "cuidado_luz": [
         "Luz directa intensa",
         "Luz brillante indirecta",
@@ -104,43 +110,13 @@ CARE_CHOICES: dict[str, list[str]] = {
     ],
 }
 
-# Hasta qué fila se aplican los desplegables de la plantilla.
-TEMPLATE_VALIDATION_ROWS = 500
-
-TEMPLATE_EXAMPLE = {
-    "nombre": "Pothos Dorado",
-    "descripcion_corta": "La planta más resistente del mundo. Ideal para principiantes.",
-    "descripcion": "Trepadora de interior muy tolerante a la falta de luz y riego irregular.",
-    "categoria": "Plantas de interior",
-    "precio": 6800,
-    "precio_promocional": 8900,
-    "precio_costo": 3200,
-    "moneda": "ARS",
-    "impuesto": "iva-21",
-    "stock": 60,
-    "sku": "PLT-POT-DOR-001",
-    "estado": "activo",
-    "destacado": "no",
-    "peso_kg": 1.2,
-    "altura_cm": 30,
-    "etiquetas": "interior, principiantes, colgante",
-    "cuidado_luz": "Luz media a sombra parcial",
-    "cuidado_riego": "Moderado, dejar secar la capa superior",
-    "cuidado_ambiente": "Interiores cálidos, tolera baja humedad",
-    "cuidado_temperatura": "15° - 30°C",
-    "diametro_maceta": "17 cm",
-    "altura_con_maceta": "25 - 35 cm",
-    "tipo_planta": "Trepadora de interior",
-    "crecimiento": "Rápido",
-}
-
-INSTRUCTIONS = [
+_BASE_INSTRUCTIONS: list[tuple[str, str]] = [
     ("nombre", "Obligatorio. Nombre del producto."),
     ("descripcion_corta", "Opcional. Máximo 160 caracteres."),
     ("descripcion", "Opcional. Descripción completa."),
-    ("categoria", "Opcional. Nombre de una categoría existente (ver lista abajo, agrupada "
-                  "por sección del menú). Si no coincide, el producto se importa sin categoría."),
-    ("precio", "Obligatorio. Precio de venta en pesos (ej. 6800), medida mediana."),
+    ("categoria", "Opcional. Nombre de una categoría existente de esta sección (ver lista abajo). "
+                  "Si no coincide, el producto se importa sin categoría."),
+    ("precio", "Obligatorio. Precio de venta en pesos (ej. 6800)."),
     ("precio_promocional", "Opcional. Precio tachado / de comparación, en pesos."),
     ("precio_costo", "Opcional. Precio de costo en pesos."),
     ("moneda", "ARS (por defecto) o USD."),
@@ -150,17 +126,168 @@ INSTRUCTIONS = [
     ("estado", "activo o borrador. Vacío = borrador."),
     ("destacado", "si o no. Por defecto no."),
     ("peso_kg", "Opcional. Peso en kilogramos (ej. 1.2)."),
-    ("altura_cm", "Opcional. Altura de la planta en centímetros (entero)."),
+    ("altura_cm", "Opcional. Altura en centímetros (entero)."),
     ("etiquetas", "Opcional. Varias separadas por coma."),
-    ("cuidado_luz", "Opcional."),
-    ("cuidado_riego", "Opcional."),
-    ("cuidado_ambiente", "Opcional."),
-    ("cuidado_temperatura", "Opcional."),
-    ("diametro_maceta", "Opcional."),
-    ("altura_con_maceta", "Opcional."),
-    ("tipo_planta", "Opcional."),
-    ("crecimiento", "Lento, Medio o Rápido."),
 ]
+
+
+class ImportSpec:
+    """Todo lo que distingue a una plantilla de otra: columnas, categorías,
+    validaciones de la planilla, ejemplo e instrucciones."""
+
+    def __init__(
+        self,
+        kind: ImportKind,
+        label: str,
+        extra_columns: dict[str, str],
+        extra_dropdowns: dict[str, list[str]],
+        care_choices: dict[str, list[str]],
+        extra_instructions: list[tuple[str, str]],
+        example: dict,
+        headers: list[str] | None = None,
+    ) -> None:
+        self.kind = kind
+        self.label = label
+        self.column_map = {**_BASE_COLUMN_MAP, **extra_columns}
+        # Orden real de columnas: por defecto, base hasta "etiquetas" + las
+        # extra al final — pero algunas plantillas necesitan una columna
+        # extra intercalada en un lugar puntual (ej: "color" antes de
+        # "impuesto" en Macetas), ahí se pasa `headers` explícito.
+        self.headers = headers or (list(_BASE_COLUMN_MAP.keys()) + list(extra_columns.keys()))
+        self.dropdown_choices = {**_BASE_DROPDOWNS, **extra_dropdowns}
+        self.care_choices = care_choices
+        self.instructions = _BASE_INSTRUCTIONS + extra_instructions
+        self.example = example
+
+
+IMPORT_SPECS: dict[ImportKind, ImportSpec] = {
+    "plantas": ImportSpec(
+        kind="plantas",
+        label="Plantas",
+        extra_columns={
+            "cuidado_luz": "care_light",
+            "cuidado_riego": "care_water",
+            "cuidado_ambiente": "care_environment",
+            "cuidado_temperatura": "care_temperature",
+            "diametro_maceta": "attr_pot_diameter",
+            "altura_con_maceta": "attr_height_with_pot",
+            "tipo_planta": "attr_plant_type",
+            "crecimiento": "attr_growth",
+        },
+        extra_dropdowns={"crecimiento": ["Lento", "Medio", "Rápido"]},
+        care_choices=_CARE_CHOICES,
+        extra_instructions=[
+            ("cuidado_luz", "Opcional."),
+            ("cuidado_riego", "Opcional."),
+            ("cuidado_ambiente", "Opcional."),
+            ("cuidado_temperatura", "Opcional."),
+            ("diametro_maceta", "Opcional."),
+            ("altura_con_maceta", "Opcional."),
+            ("tipo_planta", "Opcional."),
+            ("crecimiento", "Lento, Medio o Rápido."),
+        ],
+        example={
+            "nombre": "Pothos Dorado",
+            "descripcion_corta": "La planta más resistente del mundo. Ideal para principiantes.",
+            "descripcion": "Trepadora de interior muy tolerante a la falta de luz y riego irregular.",
+            "categoria": "Plantas de interior",
+            "precio": 6800,
+            "precio_promocional": 8900,
+            "precio_costo": 3200,
+            "moneda": "ARS",
+            "impuesto": "iva-21",
+            "stock": 60,
+            "sku": "PLT-POT-DOR-001",
+            "estado": "activo",
+            "destacado": "no",
+            "peso_kg": 1.2,
+            "altura_cm": 30,
+            "etiquetas": "interior, principiantes, colgante",
+            "cuidado_luz": "Luz media a sombra parcial",
+            "cuidado_riego": "Moderado, dejar secar la capa superior",
+            "cuidado_ambiente": "Interiores cálidos, tolera baja humedad",
+            "cuidado_temperatura": "15° - 30°C",
+            "diametro_maceta": "17 cm",
+            "altura_con_maceta": "25 - 35 cm",
+            "tipo_planta": "Trepadora de interior",
+            "crecimiento": "Rápido",
+        },
+    ),
+    "macetas": ImportSpec(
+        kind="macetas",
+        label="Macetas y Accesorios",
+        extra_columns={
+            "color": "color",
+            "diametro_maceta": "attr_pot_diameter",
+            "altura_con_maceta": "attr_height_with_pot",
+        },
+        extra_dropdowns={"color": POT_COLORS},
+        care_choices={},
+        extra_instructions=[
+            ("color", f"Uno de: {', '.join(POT_COLORS)}. Si el mismo producto viene en varios "
+                      "colores, repetí una fila por color (mismo nombre o SKU) — el stock de cada "
+                      "fila queda como el stock de ESE color, no se pisan entre sí."),
+            ("diametro_maceta", "Opcional."),
+            ("altura_con_maceta", "Opcional."),
+        ],
+        headers=[
+            "nombre", "descripcion_corta", "descripcion", "categoria",
+            "precio", "precio_promocional", "precio_costo", "moneda", "color",
+            "impuesto", "stock", "sku", "estado", "destacado", "peso_kg",
+            "altura_cm", "etiquetas", "diametro_maceta", "altura_con_maceta",
+        ],
+        example={
+            "nombre": "Maceta de Cerámica Redonda 20cm",
+            "descripcion_corta": "Maceta de cerámica esmaltada, apta para interior y exterior.",
+            "descripcion": "Incluye plato. Resistente a la intemperie.",
+            "categoria": "Macetas de cerámica",
+            "precio": 9500,
+            "precio_promocional": "",
+            "precio_costo": 4200,
+            "moneda": "ARS",
+            "color": "TERRACOTA",
+            "impuesto": "iva-21",
+            "stock": 12,
+            "sku": "MAC-CER-RED-20-TER",
+            "estado": "activo",
+            "destacado": "no",
+            "peso_kg": 1.8,
+            "altura_cm": 20,
+            "etiquetas": "ceramica, redonda, exterior",
+            "diametro_maceta": "20 cm",
+            "altura_con_maceta": "20 cm",
+        },
+    ),
+    "quimicos": ImportSpec(
+        kind="quimicos",
+        label="Productos Químicos",
+        extra_columns={},
+        extra_dropdowns={},
+        care_choices={},
+        extra_instructions=[],
+        example={
+            "nombre": "Fertilizante Líquido Universal 500ml",
+            "descripcion_corta": "Fertilizante de uso general para plantas de interior y exterior.",
+            "descripcion": "Aplicar cada 15 días diluido en agua de riego, según indicaciones del envase.",
+            "categoria": "Fertilizantes",
+            "precio": 4200,
+            "precio_promocional": "",
+            "precio_costo": 1800,
+            "moneda": "ARS",
+            "impuesto": "iva-21",
+            "stock": 40,
+            "sku": "QUI-FER-UNI-500",
+            "estado": "activo",
+            "destacado": "no",
+            "peso_kg": 0.6,
+            "altura_cm": 18,
+            "etiquetas": "fertilizante, uso general",
+        },
+    ),
+}
+
+# Hasta qué fila se aplican los desplegables de la plantilla.
+TEMPLATE_VALIDATION_ROWS = 500
 
 
 # --------------------------------------------------------------------------- #
@@ -215,12 +342,16 @@ def _split_tags(value) -> list[str]:
     return [t.strip() for t in str(value).replace(";", ",").split(",") if t.strip()]
 
 
-def _parse_workbook(content: bytes) -> list[dict]:
+def _regex_escape(text: str) -> str:
+    return re.escape(text)
+
+
+def _parse_workbook(content: bytes, spec: ImportSpec) -> list[dict]:
     """Devuelve una lista de filas {clave_interna: valor_crudo, "_row": nro_excel}."""
     from openpyxl import load_workbook
 
     wb = load_workbook(io.BytesIO(content), read_only=True, data_only=True)
-    ws = wb["Productos"] if "Productos" in wb.sheetnames else wb.worksheets[0]
+    ws = wb.worksheets[0]
 
     rows_iter = ws.iter_rows(values_only=True)
     try:
@@ -232,7 +363,7 @@ def _parse_workbook(content: bytes) -> list[dict]:
     col_keys: list[str | None] = []
     for cell in header:
         norm = _norm_header(cell)
-        col_keys.append(COLUMN_MAP.get(norm))
+        col_keys.append(spec.column_map.get(norm))
 
     parsed: list[dict] = []
     for idx, raw in enumerate(rows_iter, start=2):
@@ -250,8 +381,8 @@ def _parse_workbook(content: bytes) -> list[dict]:
     return parsed
 
 
-def _build_product_fields(record: dict, category_id: str | None) -> dict:
-    """Campos comunes para crear o actualizar un producto (medida mediana)."""
+def _build_product_fields(record: dict, category_id: str | None, kind: ImportKind) -> dict:
+    """Campos comunes para crear o actualizar un producto."""
     currency = (_clean_str(record.get("currency")) or "ARS").upper()
     if currency not in {"ARS", "USD"}:
         currency = "ARS"
@@ -272,20 +403,29 @@ def _build_product_fields(record: dict, category_id: str | None) -> dict:
         except ValueError:
             weight_grams = None
 
-    care = {
-        "light": _clean_str(record.get("care_light")),
-        "water": _clean_str(record.get("care_water")),
-        "environment": _clean_str(record.get("care_environment")),
-        "temperature": _clean_str(record.get("care_temperature")),
-    }
-    care = {k: v for k, v in care.items() if v}
+    care: dict[str, str] = {}
+    if kind == "plantas":
+        care = {
+            "light": _clean_str(record.get("care_light")),
+            "water": _clean_str(record.get("care_water")),
+            "environment": _clean_str(record.get("care_environment")),
+            "temperature": _clean_str(record.get("care_temperature")),
+        }
+        care = {k: v for k, v in care.items() if v}
 
-    attributes = {
-        "pot_diameter": _clean_str(record.get("attr_pot_diameter")),
-        "height_with_pot": _clean_str(record.get("attr_height_with_pot")),
-        "plant_type": _clean_str(record.get("attr_plant_type")),
-        "growth": _clean_str(record.get("attr_growth")),
-    }
+    attributes: dict[str, str] = {}
+    if kind == "plantas":
+        attributes = {
+            "pot_diameter": _clean_str(record.get("attr_pot_diameter")),
+            "height_with_pot": _clean_str(record.get("attr_height_with_pot")),
+            "plant_type": _clean_str(record.get("attr_plant_type")),
+            "growth": _clean_str(record.get("attr_growth")),
+        }
+    elif kind == "macetas":
+        attributes = {
+            "pot_diameter": _clean_str(record.get("attr_pot_diameter")),
+            "height_with_pot": _clean_str(record.get("attr_height_with_pot")),
+        }
     attributes = {k: v for k, v in attributes.items() if v}
 
     return {
@@ -310,15 +450,49 @@ def _build_product_fields(record: dict, category_id: str | None) -> dict:
     }
 
 
+def _merge_color_variant(variants: list[dict], color: str, stock: int, sku: str | None) -> list[dict]:
+    """Upsert de una variante `{key: "color", value: <COLOR>}` dentro de la
+    lista de variantes ya existente del producto — nunca pisa las demás."""
+    color_norm = color.strip().upper()
+    result = [dict(v) for v in (variants or [])]
+    for v in result:
+        if v.get("key") == "color" and str(v.get("value") or "").strip().upper() == color_norm:
+            v["stock"] = stock
+            v["active"] = True
+            if sku:
+                v["sku_override"] = sku
+            return result
+    result.append({
+        "key": "color",
+        "value": color_norm,
+        "stock": stock,
+        "price_override": None,
+        "compare_at_price_override": None,
+        "cost_price_override": None,
+        "weight_grams_override": None,
+        "height_cm_override": None,
+        "sku_override": sku,
+        "active": True,
+        "recommended_pot_ids": [],
+    })
+    return result
+
+
+def _sum_color_stock(variants: list[dict]) -> int:
+    return sum(int(v.get("stock") or 0) for v in variants if v.get("key") == "color")
+
+
 # --------------------------------------------------------------------------- #
 # Background job
 # --------------------------------------------------------------------------- #
-async def _process_import(job_id: str, tenant_id: str, records: list[dict]) -> None:
+async def _process_import(job_id: str, tenant_id: str, records: list[dict], kind: ImportKind) -> None:
     db = get_db()
     oid = ObjectId(job_id)
 
     try:
-        cat_docs = await db.categories.find({}).to_list(None)
+        # Sólo categorías de la sección correspondiente — una planilla de
+        # Macetas no debería poder asignar una categoría de Plantas y viceversa.
+        cat_docs = await db.categories.find({"group": kind}).to_list(None)
     except Exception:
         cat_docs = []
     cat_by_slug: dict[str, str] = {}
@@ -349,9 +523,13 @@ async def _process_import(job_id: str, tenant_id: str, records: list[dict]) -> N
         if raw_cat:
             category_id = cat_by_slug.get(slugify(raw_cat))
             if category_id is None:
-                pending_warning = f"Categoría «{raw_cat}» no encontrada; se importó sin categoría"
+                pending_warning = f"Categoría «{raw_cat}» no encontrada en esta sección; se importó sin categoría"
 
-        fields = _build_product_fields(record, category_id)
+        fields = _build_product_fields(record, category_id, kind)
+        color = _clean_str(record.get("color")) if kind == "macetas" else None
+        if color and color.upper() not in POT_COLORS:
+            note = f"Color «{color}» no es uno de los colores esperados ({', '.join(POT_COLORS)})"
+            pending_warning = f"{pending_warning}; {note}" if pending_warning else note
 
         if not name:
             errors += 1
@@ -384,19 +562,27 @@ async def _process_import(job_id: str, tenant_id: str, records: list[dict]) -> N
 
         try:
             if existing:
+                update_fields = dict(fields)
+                if color:
+                    variants = _merge_color_variant(existing.get("variants", []), color, fields["stock"], sku)
+                    update_fields["variants"] = variants
+                    update_fields["stock"] = _sum_color_stock(variants)
                 await db.products.update_one(
                     {"_id": existing["_id"]},
-                    {"$set": {**fields, "updated_at": now}},
+                    {"$set": {**update_fields, "updated_at": now}},
                 )
                 updated += 1
                 action = "updated"
             else:
+                variants: list[dict] = []
+                if color:
+                    variants = _merge_color_variant([], color, fields["stock"], sku)
                 doc = {
                     "tenant_id": tenant_id,
                     "tenant_name": tenant_id,
                     **fields,
                     "images": [],
-                    "variants": [],
+                    "variants": variants,
                     "recommended_pot_ids": [],
                     "publish_at": now if fields["status"] == "active" else None,
                     "rating_avg": None,
@@ -438,36 +624,39 @@ async def _process_import(job_id: str, tenant_id: str, records: list[dict]) -> N
     )
 
 
-def _regex_escape(text: str) -> str:
-    import re
-    return re.escape(text)
-
-
 # --------------------------------------------------------------------------- #
 # Routes
 # --------------------------------------------------------------------------- #
+def _get_spec(kind: str) -> ImportSpec:
+    if kind not in IMPORT_SPECS:
+        raise HTTPException(400, f"Tipo de importación inválido: {kind}")
+    return IMPORT_SPECS[kind]  # type: ignore[index]
+
+
 @router.get("/template")
-async def download_template():
+async def download_template(kind: ImportKind = "plantas"):
     from openpyxl import Workbook
     from openpyxl.styles import Font
     from openpyxl.utils import get_column_letter
     from openpyxl.worksheet.datavalidation import DataValidation
 
+    spec = _get_spec(kind)
+
     wb = Workbook()
     ws = wb.active
-    ws.title = "Productos"
-    ws.append(TEMPLATE_HEADERS)
+    ws.title = spec.label[:31]  # Excel limita el nombre de hoja a 31 chars
+    ws.append(spec.headers)
     for cell in ws[1]:
         cell.font = Font(bold=True)
-    ws.append([TEMPLATE_EXAMPLE.get(h, "") for h in TEMPLATE_HEADERS])
+    ws.append([spec.example.get(h, "") for h in spec.headers])
 
-    header_col = {h: get_column_letter(i) for i, h in enumerate(TEMPLATE_HEADERS, start=1)}
+    header_col = {h: get_column_letter(i) for i, h in enumerate(spec.headers, start=1)}
     for header, letter in header_col.items():
         ws.column_dimensions[letter].width = max(16, len(header) + 4)
 
-    # Desplegables en la celda para los campos con opciones fijas.
+    # Desplegables en la celda para los campos con opciones fijas cortas.
     last = TEMPLATE_VALIDATION_ROWS
-    for header, choices in DROPDOWN_CHOICES.items():
+    for header, choices in spec.dropdown_choices.items():
         dv = DataValidation(
             type="list",
             formula1='"' + ",".join(choices) + '"',
@@ -481,35 +670,26 @@ async def download_template():
     info.append(["Columna", "Descripción"])
     for cell in info[1]:
         cell.font = Font(bold=True)
-    for col, desc in INSTRUCTIONS:
+    for col, desc in spec.instructions:
         info.append([col, desc])
     info.append([])
     info.append(["Notas"])
     info.append(["", "Las fotos y las macetas recomendadas no se importan."])
-    info.append(["", "Todos los valores corresponden a la medida mediana del producto."])
+    if kind == "plantas":
+        info.append(["", "Todos los valores corresponden a la medida mediana del producto."])
+    if kind == "macetas":
+        info.append(["", "Si el mismo producto viene en varios colores, repetí una fila por "
+                          "color (mismo nombre o SKU) con el stock de ese color — no se pisan."])
     info.append(["", "Si el producto ya existe (mismo SKU o mismo nombre) se actualiza."])
     info.column_dimensions["A"].width = 24
     info.column_dimensions["B"].width = 90
 
     db = get_db()
     try:
-        cats = await db.categories.find({}).to_list(None)
+        cats = await db.categories.find({"group": kind}).to_list(None)
     except Exception:
         cats = []
-
-    # Ordenadas por sección del nav (Plantas → Macetas → Químicos) y dentro de
-    # cada una por sort_order y nombre, para que el desplegable y la lista de
-    # ayuda queden agrupados.
-    def _cat_sort_key(c: dict) -> tuple:
-        group = c.get("group", "plantas")
-        rank = (
-            CATEGORY_GROUP_ORDER.index(group)
-            if group in CATEGORY_GROUP_ORDER
-            else len(CATEGORY_GROUP_ORDER)
-        )
-        return (rank, c.get("sort_order", 0), (c.get("name") or "").lower())
-
-    cats = sorted((c for c in cats if c.get("name")), key=_cat_sort_key)
+    cats = sorted((c for c in cats if c.get("name")), key=lambda c: (c.get("sort_order", 0), (c.get("name") or "").lower()))
     cat_names = [c["name"] for c in cats]
 
     # Hoja auxiliar oculta que alimenta los desplegables con opciones largas
@@ -517,7 +697,7 @@ async def download_template():
     listas = wb.create_sheet("Listas")
     listas.sheet_state = "hidden"
 
-    def _add_list_column(col_idx: int, header: str, values: list[str]) -> str:
+    def _add_list_column(col_idx: int, header: str, values: list[str]) -> None:
         letter = get_column_letter(col_idx)
         for row_idx, value in enumerate(values, start=1):
             listas.cell(row=row_idx, column=col_idx, value=value)
@@ -529,25 +709,19 @@ async def download_template():
         )
         dv.add(f"{header_col[header]}2:{header_col[header]}{last}")
         ws.add_data_validation(dv)
-        return letter
 
     col = 1
     if cat_names:
         _add_list_column(col, "categoria", cat_names)
         col += 1
-    for care_header, care_values in CARE_CHOICES.items():
+    for care_header, care_values in spec.care_choices.items():
         _add_list_column(col, care_header, care_values)
         col += 1
 
     if cats:
         info.append([])
-        info.append(["Categorías disponibles (por sección del menú)"])
-        current_group = None
+        info.append([f"Categorías disponibles ({spec.label})"])
         for c in cats:
-            group = c.get("group", "plantas")
-            if group != current_group:
-                current_group = group
-                info.append([CATEGORY_GROUP_LABELS.get(group, group), ""])
             info.append(["", c["name"]])
 
     buf = io.BytesIO()
@@ -556,7 +730,7 @@ async def download_template():
     return StreamingResponse(
         buf,
         media_type=XLSX_MIME,
-        headers={"Content-Disposition": 'attachment; filename="plantilla-productos.xlsx"'},
+        headers={"Content-Disposition": f'attachment; filename="plantilla-{kind}.xlsx"'},
     )
 
 
@@ -565,9 +739,11 @@ async def start_import(
     request: Request,
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
+    kind: ImportKind = Form("plantas"),
 ):
     user_id = require_user_id(request)
     tenant_id = getattr(request.state, "tenant_id", None) or "default"
+    spec = _get_spec(kind)
 
     filename = file.filename or "productos.xlsx"
     if not filename.lower().endswith((".xlsx", ".xlsm")):
@@ -578,7 +754,7 @@ async def start_import(
         raise HTTPException(400, "El archivo no puede superar 10MB")
 
     try:
-        records = _parse_workbook(content)
+        records = _parse_workbook(content, spec)
     except Exception:  # noqa: BLE001
         raise HTTPException(
             400, "No se pudo leer la planilla. Usá la plantilla oficial."
@@ -592,6 +768,7 @@ async def start_import(
     result = await db.import_jobs.insert_one({
         "tenant_id": tenant_id,
         "created_by": user_id,
+        "kind": kind,
         "filename": filename,
         "status": "processing",
         "total": len(records),
@@ -606,7 +783,7 @@ async def start_import(
         "finished_at": None,
     })
     job_id = str(result.inserted_id)
-    background_tasks.add_task(_process_import, job_id, tenant_id, records)
+    background_tasks.add_task(_process_import, job_id, tenant_id, records, kind)
     return {"job_id": job_id}
 
 

@@ -1,17 +1,35 @@
 import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { productImportService } from "../../services/product.service";
-import type { ImportJob } from "../../types/product";
+import type { ImportJob, ImportProductKind } from "../../types/product";
+import { IMPORT_KIND_LABEL } from "../../types/product";
 
 interface Props {
   open: boolean;
   onClose: () => void;
   job: ImportJob | null;
   starting: boolean;
-  onStart: (file: File) => void;
+  onStart: (file: File, kind: ImportProductKind) => void;
 }
 
+const IMPORT_KINDS: ImportProductKind[] = ["plantas", "macetas", "quimicos"];
+
+// Copy del paso 1, específica de cada plantilla — no todas comparten
+// "mediana" (sólo plantas) ni "precio de costo en su propia columna".
+const STEP1_COPY: Record<ImportProductKind, string> = {
+  plantas:
+    "Completá una fila por planta. Las fotos y las macetas recomendadas no se importan. " +
+    "Todos los valores corresponden a la medida mediana; el precio de costo va en la " +
+    "columna precio_costo.",
+  macetas:
+    "Completá una fila por producto. Si el mismo producto viene en varios colores, " +
+    "repetí una fila por color (mismo nombre o SKU) — el stock de cada fila queda como " +
+    "el stock de ese color, no se pisan entre sí.",
+  quimicos: "Completá una fila por producto, con su precio y stock.",
+};
+
 export function ImportProductsModal({ open, onClose, job, starting, onStart }: Props) {
+  const [kind, setKind] = useState<ImportProductKind>("plantas");
   const [file, setFile] = useState<File | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -20,6 +38,12 @@ export function ImportProductsModal({ open, onClose, job, starting, onStart }: P
   useEffect(() => {
     if (open) setFile(null);
   }, [open]);
+
+  // Si cambia el tipo, el archivo ya elegido corresponde a la plantilla
+  // anterior — mejor pedirlo de nuevo que mandarlo con el kind equivocado.
+  useEffect(() => {
+    setFile(null);
+  }, [kind]);
 
   if (!open) return null;
 
@@ -31,7 +55,7 @@ export function ImportProductsModal({ open, onClose, job, starting, onStart }: P
   async function handleDownload() {
     setDownloading(true);
     try {
-      await productImportService.downloadTemplate();
+      await productImportService.downloadTemplate(kind);
     } catch {
       toast.error("No se pudo descargar la plantilla");
     } finally {
@@ -71,14 +95,33 @@ export function ImportProductsModal({ open, onClose, job, starting, onStart }: P
         </div>
 
         <div className="px-5 py-5 space-y-5">
+          {/* Tipo de producto — cada uno tiene su propia plantilla, no comparten columnas */}
+          <div>
+            <p className="text-sm font-semibold text-[#1A1A1A] mb-2">Tipo de producto</p>
+            <div className="flex gap-2">
+              {IMPORT_KINDS.map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setKind(k)}
+                  disabled={running}
+                  className={`flex-1 px-3 py-2 rounded-lg text-xs font-semibold uppercase tracking-wide border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                    kind === k
+                      ? "bg-[#1A2B1C] text-white border-[#1A2B1C]"
+                      : "bg-white text-[#4A4A4A] border-[#E8E2D8] hover:border-[#1A2B1C]"
+                  }`}
+                >
+                  {IMPORT_KIND_LABEL[k]}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Paso 1: plantilla */}
           <div>
             <p className="text-sm font-semibold text-[#1A1A1A] mb-1">1. Descargá la plantilla</p>
             <p className="text-xs text-[#6B6B6B] mb-3">
-              Completá una fila por producto. Las fotos y las macetas recomendadas no se
-              importan. Todos los valores corresponden a la medida <strong>mediana</strong>;
-              el precio de costo va en la columna <code>precio_costo</code>. Si un producto ya
-              existe (mismo SKU o nombre) se actualiza.
+              {STEP1_COPY[kind]} Si un producto ya existe (mismo SKU o nombre) se actualiza.
             </p>
             <button
               onClick={handleDownload}
@@ -179,7 +222,7 @@ export function ImportProductsModal({ open, onClose, job, starting, onStart }: P
             {finished ? "Cerrar" : "Cerrar (sigue en segundo plano)"}
           </button>
           <button
-            onClick={() => file && onStart(file)}
+            onClick={() => file && onStart(file, kind)}
             disabled={!file || starting || running}
             className="btn-primary disabled:opacity-50"
           >

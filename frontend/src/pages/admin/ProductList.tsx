@@ -7,7 +7,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useCategories } from "../../hooks/useCategories";
 import { formatARS } from "../../utils/currency";
 import { formatPct, markupPct } from "../../utils/pricing";
-import type { ImportJob, ProductSummary } from "../../types/product";
+import type { ImportJob, ImportProductKind, ProductSummary } from "../../types/product";
 import toast from "react-hot-toast";
 
 const IMPORT_JOB_KEY = "product_import_job";
@@ -711,10 +711,10 @@ export function ProductList() {
     return () => clearInterval(t);
   }, [importJob?.status, importJob?.job_id]);
 
-  async function handleStartImport(file: File) {
+  async function handleStartImport(file: File, kind: ImportProductKind) {
     setImportStarting(true);
     try {
-      const { job_id } = await productImportService.start(file);
+      const { job_id } = await productImportService.start(file, kind);
       localStorage.setItem(IMPORT_JOB_KEY, job_id);
       setImportJob({
         job_id, status: "processing", filename: file.name, total: 0, processed: 0,

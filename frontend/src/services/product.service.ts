@@ -1,5 +1,5 @@
 import { api } from "./api";
-import type { ImportJob, ProductDetail, ProductSummary, ProductVariant } from "../types/product";
+import type { ImportJob, ImportProductKind, ProductDetail, ProductSummary, ProductVariant } from "../types/product";
 
 interface PaginatedProducts {
   items: ProductSummary[];
@@ -107,21 +107,25 @@ export const productService = {
 };
 
 export const productImportService = {
-  async downloadTemplate(): Promise<void> {
-    const res = await api.get("/products/import/template", { responseType: "blob" });
+  async downloadTemplate(kind: ImportProductKind): Promise<void> {
+    const res = await api.get("/products/import/template", {
+      params: { kind },
+      responseType: "blob",
+    });
     const url = URL.createObjectURL(res.data as Blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "plantilla-productos.xlsx";
+    a.download = `plantilla-${kind}.xlsx`;
     document.body.appendChild(a);
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
   },
 
-  async start(file: File): Promise<{ job_id: string }> {
+  async start(file: File, kind: ImportProductKind): Promise<{ job_id: string }> {
     const form = new FormData();
     form.append("file", file);
+    form.append("kind", kind);
     const res = await api.post("/products/import", form, {
       headers: { "Content-Type": "multipart/form-data" },
     });
