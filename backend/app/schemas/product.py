@@ -88,6 +88,56 @@ class ProductSummary(BaseModel):
     care: dict[str, str] = {}
 
 
+class ImageSuggestionCandidate(BaseModel):
+    title: str
+    thumbnail_url: str
+    full_url: str
+    source_url: str
+    license: str | None = None
+    attribution: str | None = None
+
+
+class ImageSuggestionResponse(BaseModel):
+    query: str
+    candidates: list[ImageSuggestionCandidate]
+
+
+class BulkImageSuggestionRow(BaseModel):
+    product_id: str
+    title: str
+    query: str
+    candidates: list[ImageSuggestionCandidate] = []
+    error: str | None = None
+
+
+class ConfirmSuggestionRequest(BaseModel):
+    image_urls: list[str] = Field(min_length=1)
+
+
+class ConfirmSuggestionResponse(BaseModel):
+    urls: list[str]
+
+
+class BulkConfirmItem(BaseModel):
+    product_id: str
+    image_urls: list[str] = Field(min_length=1)
+
+
+class BulkConfirmRequest(BaseModel):
+    items: list[BulkConfirmItem] = Field(min_length=1)
+
+
+class BulkConfirmResult(BaseModel):
+    product_id: str
+    status: Literal["ok", "error"]
+    urls: list[str] = []
+    message: str | None = None
+
+
+class BulkConfirmResponse(BaseModel):
+    results: list[BulkConfirmResult]
+
+
 class ProductDetail(ProductSummary):
     description: str | None = None
     target_markup_pct: float | None = None

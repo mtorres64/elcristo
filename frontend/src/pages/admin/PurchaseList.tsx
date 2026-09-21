@@ -5,8 +5,8 @@ import { purchaseService } from "../../services/purchase.service";
 import { useAuth } from "../../hooks/useAuth";
 import { formatARS } from "../../utils/currency";
 import type { PurchaseSummary } from "../../types/purchase";
-
-const PAGE_SIZE = 20;
+import { usePageSize } from "../../hooks/usePageSize";
+import { PageSizeSelect } from "../../components/admin/PageSizeSelect";
 
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric" });
@@ -17,6 +17,7 @@ export function PurchaseList() {
   const [q, setQ] = useState("");
   const [debouncedQ, setDebouncedQ] = useState("");
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = usePageSize();
 
   const [items, setItems] = useState<PurchaseSummary[]>([]);
   const [total, setTotal] = useState(0);
@@ -29,7 +30,7 @@ export function PurchaseList() {
     return () => clearTimeout(t);
   }, [q]);
 
-  useEffect(() => setPage(1), [debouncedQ]);
+  useEffect(() => setPage(1), [debouncedQ, pageSize]);
 
   useEffect(() => {
     let cancelled = false;
@@ -40,7 +41,7 @@ export function PurchaseList() {
         tenant_id: user?.tenant_id ?? undefined,
         q: debouncedQ || undefined,
         page,
-        page_size: PAGE_SIZE,
+        page_size: pageSize,
       })
       .then((data) => {
         if (cancelled) return;
@@ -55,7 +56,7 @@ export function PurchaseList() {
         setLoading(false);
       });
     return () => { cancelled = true; };
-  }, [debouncedQ, page, user?.tenant_id]);
+  }, [debouncedQ, page, pageSize, user?.tenant_id]);
 
   return (
     <AdminLayout>
@@ -160,8 +161,11 @@ export function PurchaseList() {
               </div>
 
               {pages > 1 && (
-                <div className="flex items-center justify-between px-4 py-3 border-t border-[#E8E2D8]">
-                  <p className="text-xs text-[#8A8A8A]">Página {page} de {pages}</p>
+                <div className="flex items-center justify-between gap-4 px-4 py-3 border-t border-[#E8E2D8] flex-wrap">
+                  <div className="flex items-center gap-4">
+                    <p className="text-xs text-[#8A8A8A]">Página {page} de {pages}</p>
+                    <PageSizeSelect value={pageSize} onChange={setPageSize} />
+                  </div>
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => setPage((p) => Math.max(1, p - 1))}

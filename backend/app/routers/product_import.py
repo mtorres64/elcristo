@@ -116,14 +116,18 @@ _BASE_INSTRUCTIONS: list[tuple[str, str]] = [
     ("descripcion", "Opcional. Descripción completa."),
     ("categoria", "Opcional. Nombre de una categoría existente de esta sección (ver lista abajo). "
                   "Si no coincide, el producto se importa sin categoría."),
-    ("precio", "Obligatorio. Precio de venta en pesos (ej. 6800)."),
+    ("precio", "Precio de venta en pesos (ej. 6800). 0 o vacío es válido — el producto se "
+               "importa igual, pero como borrador (no se ofrece en la tienda hasta que le "
+               "cargues un precio)."),
     ("precio_promocional", "Opcional. Precio tachado / de comparación, en pesos."),
     ("precio_costo", "Opcional. Precio de costo en pesos."),
     ("moneda", "ARS (por defecto) o USD."),
     ("impuesto", "iva-21 (por defecto), iva-10 o exento."),
-    ("stock", "Cantidad disponible (entero). Por defecto 0."),
+    ("stock", "Cantidad disponible (entero). Por defecto 0 — con 0 el producto se importa "
+              "igual, pero como borrador."),
     ("sku", "Opcional. Se usa para detectar productos ya existentes y actualizarlos."),
-    ("estado", "activo o borrador. Vacío = borrador."),
+    ("estado", "activo o borrador. Vacío = borrador. Si pusiste activo pero el producto no "
+               "tiene precio o stock, se importa como borrador igual."),
     ("destacado", "si o no. Por defecto no."),
     ("peso_kg", "Opcional. Peso en kilogramos (ej. 1.2)."),
     ("altura_cm", "Opcional. Altura en centímetros (entero)."),
@@ -432,7 +436,12 @@ def _build_product_fields(record: dict, category_id: str | None, kind: ImportKin
         "title": _clean_str(record.get("title")),
         "short_description": _clean_str(record.get("short_description")),
         "description": _clean_str(record.get("description")),
-        "price": _money_to_cents(record.get("price")),
+        # 0 es un precio válido (catálogo cargado sin precio todavía) — nunca
+        # None, porque el schema de producto no admite precio nulo. Sin
+        # precio o sin stock el producto igual se importa, pero como
+        # borrador (ver _process_import) para que no quede visible a $0
+        # o "disponible" sin stock real.
+        "price": _money_to_cents(record.get("price")) or 0,
         "compare_at_price": _money_to_cents(record.get("compare_at_price")),
         "cost_price": _money_to_cents(record.get("cost_price")),
         "currency": currency,
@@ -538,13 +547,17 @@ async def _process_import(job_id: str, tenant_id: str, records: list[dict], kind
                            "message": "Falta el nombre del producto"})
             await _flush()
             continue
-        if not fields["price"] or fields["price"] <= 0:
-            errors += 1
-            processed += 1
-            report.append({"row": excel_row, "name": name, "action": "error",
-                           "message": "Falta el precio o es inválido"})
-            await _flush()
-            continue
+
+        # $0 es un precio válido (catálogo cargado sin precio todavía) y no
+        # es motivo para rechazar la fila — como sin stock, se importa igual
+        # pero se fuerza a borrador para que nunca quede visible u ofrecida
+        # en la tienda a $0 o sin stock real, aunque la columna "estado"
+        # diga "activo".
+        if fields["status"] == "active" and (fields["price"] <= 0 or fields["stock"] <= 0):
+            fields["status"] = "draft"
+            reason = "sin precio" if fields["price"] <= 0 else "sin stock"
+            note = f"Importado como borrador ({reason})"
+            pending_warning = f"{pending_warning}; {note}" if pending_warning else note
 
         now = datetime.now(UTC)
         sku = fields["sku"]

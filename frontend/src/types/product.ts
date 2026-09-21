@@ -66,6 +66,35 @@ export interface ImportJob {
   finished_at: string | null;
 }
 
+export interface ImageSuggestionCandidate {
+  title: string;
+  thumbnail_url: string;
+  full_url: string;
+  source_url: string;
+  license: string | null;
+  attribution: string | null;
+}
+
+export interface ImageSuggestionResponse {
+  query: string;
+  candidates: ImageSuggestionCandidate[];
+}
+
+export interface BulkImageSuggestionRow {
+  product_id: string;
+  title: string;
+  query: string;
+  candidates: ImageSuggestionCandidate[];
+  error: string | null;
+}
+
+export interface BulkConfirmResult {
+  product_id: string;
+  status: "ok" | "error";
+  urls: string[];
+  message: string | null;
+}
+
 export interface ProductDetail extends ProductSummary {
   description: string | null;
   target_markup_pct: number | null;

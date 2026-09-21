@@ -1,3 +1,4 @@
+import asyncio
 import math
 
 from bson import ObjectId
@@ -5,9 +6,41 @@ from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile
 
 from app.database import get_db
 from app.schemas.common import PaginatedResponse
-from app.schemas.product import ProductCreate, ProductDetail, ProductSummary, ProductUpdate
+from app.schemas.product import (
+    BulkConfirmRequest,
+    BulkConfirmResponse,
+    BulkImageSuggestionRow,
+    ConfirmSuggestionRequest,
+    ConfirmSuggestionResponse,
+    ImageSuggestionResponse,
+    ProductCreate,
+    ProductDetail,
+    ProductSummary,
+    ProductUpdate,
+)
+from app.utils.auth_deps import require_user
+from app.utils.plant_image_search import (
+    WikimediaUnavailableError,
+    build_query,
+    fetch_wikimedia_image,
+    search_with_fallback,
+)
 
 router = APIRouter()
+
+
+async def _confirm_image_suggestions(image_urls: list[str]) -> list[str]:
+    """Descarga cada imagen elegida por el admin desde Wikimedia y la sube
+    vía `save_image` (Cloudinary en prod / disco en dev) — recién acá se
+    toca el storage real; `search_plant_images` nunca sube nada."""
+    from app.utils.upload import save_image
+
+    urls = []
+    for image_url in image_urls:
+        content = await fetch_wikimedia_image(image_url)
+        filename = image_url.rsplit("/", 1)[-1] or "image.jpg"
+        urls.append(await save_image(content, filename))
+    return urls
 
 
 def _to_summary(doc: dict) -> dict:
@@ -154,6 +187,49 @@ async def list_products(
     }
 
 
+@router.get("/image-suggestions", response_model=list[BulkImageSuggestionRow])
+async def suggest_product_images_bulk(request: Request, ids: str = Query(...)):
+    """Sugerencias para varios productos a la vez (edición masiva). Una
+    sola request: el fan-out a Wikimedia se hace acá en paralelo, y un
+    error puntual en un producto no tira abajo los demás."""
+    require_user(request)
+
+    oids = []
+    for raw in ids.split(","):
+        raw = raw.strip()
+        if not raw:
+            continue
+        try:
+            oids.append(ObjectId(raw))
+        except Exception:
+            continue
+    if not oids:
+        raise HTTPException(400, "No se especificaron productos válidos")
+
+    db = get_db()
+    f: dict = {"_id": {"$in": oids}, "deleted_at": None}
+    tid = request.state.tenant_id
+    if tid:
+        f["tenant_id"] = tid
+
+    docs = await db.products.find(f).to_list(length=len(oids))
+    docs_by_id = {str(doc["_id"]): doc for doc in docs}
+
+    async def suggest_one(oid: ObjectId) -> dict:
+        pid = str(oid)
+        doc = docs_by_id.get(pid)
+        if not doc:
+            return {"product_id": pid, "title": "", "query": "", "candidates": [], "error": "Producto no encontrado"}
+        query = build_query(doc["title"])
+        try:
+            resolved_query, candidates = await search_with_fallback(query)
+        except WikimediaUnavailableError as e:
+            return {"product_id": pid, "title": doc["title"], "query": query, "candidates": [], "error": str(e)}
+        return {"product_id": pid, "title": doc["title"], "query": resolved_query, "candidates": candidates}
+
+    return await asyncio.gather(*(suggest_one(oid) for oid in oids))
+
+
 @router.get("/{product_id}", response_model=ProductDetail)
 async def get_product(product_id: str):
     db = get_db()
@@ -260,6 +336,118 @@ async def upload_product_image(
     )
 
     return {"url": url}
+
+
+@router.get("/{product_id}/image-suggestions", response_model=ImageSuggestionResponse)
+async def suggest_product_images(product_id: str, request: Request, q: str | None = None):
+    require_user(request)
+
+    db = get_db()
+    try:
+        oid = ObjectId(product_id)
+    except Exception:
+        raise HTTPException(400, "ID de producto inválido")
+
+    f: dict = {"_id": oid, "deleted_at": None}
+    tid = request.state.tenant_id
+    if tid:
+        f["tenant_id"] = tid
+
+    doc = await db.products.find_one(f)
+    if not doc:
+        raise HTTPException(404, "Producto no encontrado")
+
+    query = q or build_query(doc["title"])
+    try:
+        resolved_query, candidates = await search_with_fallback(query)
+    except WikimediaUnavailableError as e:
+        raise HTTPException(502, str(e)) from None
+
+    return {"query": resolved_query, "candidates": candidates}
+
+
+@router.post("/{product_id}/image-suggestions/confirm", response_model=ConfirmSuggestionResponse)
+async def confirm_product_image_suggestion(
+    product_id: str, body: ConfirmSuggestionRequest, request: Request
+):
+    from datetime import UTC, datetime
+
+    require_user(request)
+
+    db = get_db()
+    try:
+        oid = ObjectId(product_id)
+    except Exception:
+        raise HTTPException(400, "ID de producto inválido")
+
+    f: dict = {"_id": oid, "deleted_at": None}
+    tid = request.state.tenant_id
+    if tid:
+        f["tenant_id"] = tid
+
+    doc = await db.products.find_one(f)
+    if not doc:
+        raise HTTPException(404, "Producto no encontrado")
+
+    try:
+        urls = await _confirm_image_suggestions(body.image_urls)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from None
+    except WikimediaUnavailableError as e:
+        raise HTTPException(502, str(e)) from None
+
+    await db.products.update_one(
+        {"_id": oid},
+        {"$push": {"images": {"$each": urls}}, "$set": {"updated_at": datetime.now(UTC)}},
+    )
+    return {"urls": urls}
+
+
+@router.post("/image-suggestions/confirm-bulk", response_model=BulkConfirmResponse)
+async def confirm_product_image_suggestions_bulk(body: BulkConfirmRequest, request: Request):
+    """Confirma en un solo click las sugerencias elegidas para varios
+    productos. Endpoint dedicado (no un loop de confirmaciones individuales
+    desde el frontend): cada ítem implica descargar de Wikimedia + resize +
+    subida a Cloudinary, así que conviene concurrencia acotada y que un
+    fallo puntual no aborte el resto del lote."""
+    from datetime import UTC, datetime
+
+    require_user(request)
+
+    db = get_db()
+    tid = request.state.tenant_id
+    semaphore = asyncio.Semaphore(4)
+
+    async def confirm_one(item) -> dict:
+        async with semaphore:
+            try:
+                oid = ObjectId(item.product_id)
+            except Exception:
+                return {"product_id": item.product_id, "status": "error", "message": "ID de producto inválido"}
+
+            f: dict = {"_id": oid, "deleted_at": None}
+            if tid:
+                f["tenant_id"] = tid
+
+            doc = await db.products.find_one(f)
+            if not doc:
+                return {"product_id": item.product_id, "status": "error", "message": "Producto no encontrado"}
+
+            try:
+                urls = await _confirm_image_suggestions(item.image_urls)
+            except ValueError as e:
+                return {"product_id": item.product_id, "status": "error", "message": str(e)}
+            except WikimediaUnavailableError as e:
+                return {"product_id": item.product_id, "status": "error", "message": str(e)}
+
+            await db.products.update_one(
+                {"_id": oid},
+                {"$push": {"images": {"$each": urls}}, "$set": {"updated_at": datetime.now(UTC)}},
+            )
+            return {"product_id": item.product_id, "status": "ok", "urls": urls}
+
+    results = await asyncio.gather(*(confirm_one(item) for item in body.items))
+    return {"results": results}
 
 
 @router.patch("/{product_id}", response_model=ProductDetail)

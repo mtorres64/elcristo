@@ -3,10 +3,9 @@ import { Link, useNavigate } from "react-router-dom";
 import { AdminLayout } from "../../components/admin/AdminLayout";
 import { userService } from "../../services/user.service";
 import type { User } from "../../types/user";
+import { usePageSize } from "../../hooks/usePageSize";
+import { PageSizeSelect } from "../../components/admin/PageSizeSelect";
 import toast from "react-hot-toast";
-
-// ─── Constants ────────────────────────────────────────────────────
-const PAGE_SIZE = 20;
 
 const INPUT =
   "rounded-lg border border-[#E8E2D8] px-3 py-2 text-sm text-[#1A1A1A] bg-white placeholder-[#ABABAB] focus:outline-none focus:border-[#1A2B1C] transition-colors";
@@ -210,7 +209,19 @@ function EmptyState({ hasFilters, onReset }: { hasFilters: boolean; onReset: () 
 }
 
 // ─── Pagination ───────────────────────────────────────────────────
-function Pagination({ page, pages, onPage }: { page: number; pages: number; onPage: (p: number) => void }) {
+function Pagination({
+  page,
+  pages,
+  onPage,
+  pageSize,
+  onPageSize,
+}: {
+  page: number;
+  pages: number;
+  onPage: (p: number) => void;
+  pageSize: number;
+  onPageSize: (size: number) => void;
+}) {
   const all = Array.from({ length: pages }, (_, i) => i + 1);
   let visible: (number | "...")[];
   if (pages <= 7) {
@@ -226,8 +237,11 @@ function Pagination({ page, pages, onPage }: { page: number; pages: number; onPa
   const btn = "rounded-lg px-2.5 py-1.5 text-xs border border-[#E8E2D8] text-[#4A4A4A] hover:bg-[#F9F8F5] transition-colors disabled:opacity-40 disabled:cursor-not-allowed";
 
   return (
-    <div className="flex items-center justify-between px-4 py-3 border-t border-[#E8E2D8]">
-      <p className="text-xs text-[#8A8A8A]">Página {page} de {pages}</p>
+    <div className="flex items-center justify-between gap-4 px-4 py-3 border-t border-[#E8E2D8] flex-wrap">
+      <div className="flex items-center gap-4">
+        <p className="text-xs text-[#8A8A8A]">Página {page} de {pages}</p>
+        <PageSizeSelect value={pageSize} onChange={onPageSize} />
+      </div>
       <div className="flex items-center gap-1">
         <button onClick={() => onPage(page - 1)} disabled={page === 1} className={btn}>←</button>
         {visible.map((v, i) =>
@@ -559,6 +573,7 @@ export function UserList() {
   const [statusFilter, setStatusFilter] = useState("");
   const [sort, setSort] = useState("newest");
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = usePageSize();
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   const [items, setItems] = useState<User[]>([]);
@@ -582,7 +597,7 @@ export function UserList() {
     setPage(1);
     setSelected(new Set());
     setConfirmBulk(false);
-  }, [debouncedQ, roleFilter, statusFilter, sort]);
+  }, [debouncedQ, roleFilter, statusFilter, sort, pageSize]);
 
   // Fetch
   useEffect(() => {
@@ -595,7 +610,7 @@ export function UserList() {
       role: roleFilter || undefined,
       sort,
       page,
-      page_size: PAGE_SIZE,
+      page_size: pageSize,
     };
     if (statusFilter === "active") params.is_active = true;
     if (statusFilter === "inactive") params.is_active = false;
@@ -618,7 +633,7 @@ export function UserList() {
       });
 
     return () => { cancelled = true; };
-  }, [debouncedQ, roleFilter, statusFilter, sort, page]);
+  }, [debouncedQ, roleFilter, statusFilter, sort, page, pageSize]);
 
   const hasFilters = !!(q || roleFilter || statusFilter || sort !== "newest");
   const activeFilterCount = [q, roleFilter, statusFilter, sort !== "newest" ? sort : ""].filter(Boolean).length;
@@ -908,7 +923,15 @@ export function UserList() {
                 ))}
               </div>
 
-              {pages > 1 && <Pagination page={page} pages={pages} onPage={handlePageChange} />}
+              {pages > 1 && (
+                <Pagination
+                  page={page}
+                  pages={pages}
+                  onPage={handlePageChange}
+                  pageSize={pageSize}
+                  onPageSize={setPageSize}
+                />
+              )}
             </>
           )}
         </div>

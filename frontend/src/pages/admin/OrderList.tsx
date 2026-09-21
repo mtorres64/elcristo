@@ -6,8 +6,8 @@ import { useAuth } from "../../hooks/useAuth";
 import { ORDER_STATUS_LABEL } from "../../types/order";
 import type { OrderStatus, OrderSummary } from "../../types/order";
 import { formatARS } from "../../utils/currency";
-
-const PAGE_SIZE = 20;
+import { usePageSize } from "../../hooks/usePageSize";
+import { PageSizeSelect } from "../../components/admin/PageSizeSelect";
 
 const INPUT =
   "rounded-lg border border-[#E8E2D8] px-3 py-2 text-sm text-[#1A1A1A] bg-white placeholder-[#ABABAB] focus:outline-none focus:border-[#1A2B1C] transition-colors";
@@ -146,7 +146,19 @@ function OrderCardMobile({ order }: { order: OrderSummary }) {
   );
 }
 
-function Pagination({ page, pages, onPage }: { page: number; pages: number; onPage: (p: number) => void }) {
+function Pagination({
+  page,
+  pages,
+  onPage,
+  pageSize,
+  onPageSize,
+}: {
+  page: number;
+  pages: number;
+  onPage: (p: number) => void;
+  pageSize: number;
+  onPageSize: (size: number) => void;
+}) {
   const all = Array.from({ length: pages }, (_, i) => i + 1);
   let visible: (number | "...")[];
   if (pages <= 7) {
@@ -160,8 +172,11 @@ function Pagination({ page, pages, onPage }: { page: number; pages: number; onPa
   }
   const btn = "rounded-lg px-2.5 py-1.5 text-xs border border-[#E8E2D8] text-[#4A4A4A] hover:bg-[#F9F8F5] transition-colors disabled:opacity-40 disabled:cursor-not-allowed";
   return (
-    <div className="flex items-center justify-between px-4 py-3 border-t border-[#E8E2D8]">
-      <p className="text-xs text-[#8A8A8A]">Página {page} de {pages}</p>
+    <div className="flex items-center justify-between gap-4 px-4 py-3 border-t border-[#E8E2D8] flex-wrap">
+      <div className="flex items-center gap-4">
+        <p className="text-xs text-[#8A8A8A]">Página {page} de {pages}</p>
+        <PageSizeSelect value={pageSize} onChange={onPageSize} />
+      </div>
       <div className="flex items-center gap-1">
         <button onClick={() => onPage(page - 1)} disabled={page === 1} className={btn}>←</button>
         {visible.map((v, i) =>
@@ -190,6 +205,7 @@ export function OrderList() {
   const [statusFilter, setStatusFilter] = useState("");
   const [sort, setSort] = useState("newest");
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = usePageSize();
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   const [items, setItems] = useState<OrderSummary[]>([]);
@@ -205,7 +221,7 @@ export function OrderList() {
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedQ, statusFilter, sort]);
+  }, [debouncedQ, statusFilter, sort, pageSize]);
 
   useEffect(() => {
     let cancelled = false;
@@ -219,7 +235,7 @@ export function OrderList() {
         status: statusFilter || undefined,
         sort,
         page,
-        page_size: PAGE_SIZE,
+        page_size: pageSize,
       })
       .then((data) => {
         if (!cancelled) {
@@ -237,7 +253,7 @@ export function OrderList() {
       });
 
     return () => { cancelled = true; };
-  }, [debouncedQ, statusFilter, sort, page, user?.tenant_id]);
+  }, [debouncedQ, statusFilter, sort, page, pageSize, user?.tenant_id]);
 
   const hasFilters = !!(q || statusFilter || sort !== "newest");
   const activeFilterCount = [q, statusFilter, sort !== "newest" ? sort : ""].filter(Boolean).length;
@@ -384,7 +400,15 @@ export function OrderList() {
                 ))}
               </div>
 
-              {pages > 1 && <Pagination page={page} pages={pages} onPage={setPage} />}
+              {pages > 1 && (
+                <Pagination
+                  page={page}
+                  pages={pages}
+                  onPage={setPage}
+                  pageSize={pageSize}
+                  onPageSize={setPageSize}
+                />
+              )}
             </>
           )}
         </div>

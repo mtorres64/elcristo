@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { AdminLayout } from "../../components/admin/AdminLayout";
 import { PotPicker } from "../../components/admin/PotPicker";
+import { ImageSuggestionModal } from "../../components/admin/ImageSuggestionModal";
 import { productService } from "../../services/product.service";
 import { storeSettingsService } from "../../services/storeSettings.service";
 import { useCategories } from "../../hooks/useCategories";
@@ -116,6 +117,7 @@ export function ProductEdit() {
   const [coverIndex, setCoverIndex] = useState(0);
   const [images, setImages] = useState<string[]>([]);
   const [uploadingCount, setUploadingCount] = useState(0);
+  const [suggestModalOpen, setSuggestModalOpen] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [tagInput, setTagInput] = useState("");
   const tagInputRef = useRef<HTMLInputElement>(null);
@@ -947,6 +949,7 @@ export function ProductEdit() {
                       onSelectCover={setCoverIndex}
                       onRemove={removeImage}
                       apiBase={API_BASE}
+                      onSuggest={() => setSuggestModalOpen(true)}
                     />
                   </div>
                 )}
@@ -989,6 +992,7 @@ export function ProductEdit() {
                 onSelectCover={setCoverIndex}
                 onRemove={removeImage}
                 apiBase={API_BASE}
+                onSuggest={() => setSuggestModalOpen(true)}
               />
             </div>
 
@@ -1031,6 +1035,14 @@ export function ProductEdit() {
           </div>
         </div>
       </div>
+
+      {suggestModalOpen && productId && (
+        <ImageSuggestionModal
+          productId={productId}
+          onConfirm={(urls) => setImages((prev) => [...prev, ...urls])}
+          onClose={() => setSuggestModalOpen(false)}
+        />
+      )}
     </AdminLayout>
   );
 }
@@ -1177,6 +1189,7 @@ function ProductImageUploader({
   onSelectCover,
   onRemove,
   apiBase,
+  onSuggest,
 }: {
   uploadingCount: number;
   onFiles: (files: FileList | File[]) => void;
@@ -1188,6 +1201,7 @@ function ProductImageUploader({
   onSelectCover: (i: number) => void;
   onRemove: (i: number) => void;
   apiBase: string;
+  onSuggest: () => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const items = productId ? images : pendingFiles;
@@ -1230,6 +1244,16 @@ function ProductImageUploader({
           Formato recomendado: 1:1 o 4:5. Máx 5MB
         </p>
       </div>
+
+      {productId && (
+        <button
+          type="button"
+          onClick={onSuggest}
+          className="w-full mb-4 px-3 py-2 text-xs font-medium text-[#3D6040] border border-[#D4E8D4] rounded-lg hover:bg-[#F4F8F4] transition-colors"
+        >
+          Sugerir fotos
+        </button>
+      )}
 
       {/* Thumbnails */}
       {items.length > 0 && (

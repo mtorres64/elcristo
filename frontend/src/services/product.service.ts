@@ -1,5 +1,14 @@
 import { api } from "./api";
-import type { ImportJob, ImportProductKind, ProductDetail, ProductSummary, ProductVariant } from "../types/product";
+import type {
+  BulkConfirmResult,
+  BulkImageSuggestionRow,
+  ImageSuggestionResponse,
+  ImportJob,
+  ImportProductKind,
+  ProductDetail,
+  ProductSummary,
+  ProductVariant,
+} from "../types/product";
 
 interface PaginatedProducts {
   items: ProductSummary[];
@@ -103,6 +112,34 @@ export const productService = {
 
   async deleteById(productId: string): Promise<void> {
     await api.delete(`/products/${productId}`);
+  },
+
+  async suggestImages(productId: string, q?: string): Promise<ImageSuggestionResponse> {
+    const res = await api.get(`/products/${productId}/image-suggestions`, {
+      params: q ? { q } : {},
+    });
+    return res.data;
+  },
+
+  async confirmImageSuggestions(productId: string, imageUrls: string[]): Promise<{ urls: string[] }> {
+    const res = await api.post(`/products/${productId}/image-suggestions/confirm`, {
+      image_urls: imageUrls,
+    });
+    return res.data;
+  },
+
+  async suggestImagesBulk(productIds: string[]): Promise<BulkImageSuggestionRow[]> {
+    const res = await api.get("/products/image-suggestions", {
+      params: { ids: productIds.join(",") },
+    });
+    return res.data;
+  },
+
+  async confirmImageSuggestionsBulk(
+    items: { product_id: string; image_urls: string[] }[]
+  ): Promise<{ results: BulkConfirmResult[] }> {
+    const res = await api.post("/products/image-suggestions/confirm-bulk", { items });
+    return res.data;
   },
 };
 

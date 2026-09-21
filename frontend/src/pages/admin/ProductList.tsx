@@ -2,9 +2,12 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { AdminLayout } from "../../components/admin/AdminLayout";
 import { ImportProductsModal } from "../../components/admin/ImportProductsModal";
+import { BulkImageSuggestionModal } from "../../components/admin/BulkImageSuggestionModal";
 import { productService, productImportService } from "../../services/product.service";
 import { useAuth } from "../../context/AuthContext";
 import { useCategories } from "../../hooks/useCategories";
+import { usePageSize } from "../../hooks/usePageSize";
+import { PageSizeSelect } from "../../components/admin/PageSizeSelect";
 import { formatARS } from "../../utils/currency";
 import { formatPct, markupPct } from "../../utils/pricing";
 import type { ImportJob, ImportProductKind, ProductSummary } from "../../types/product";
@@ -13,7 +16,7 @@ import toast from "react-hot-toast";
 const IMPORT_JOB_KEY = "product_import_job";
 
 // ─── Constants ────────────────────────────────────────────────────
-const PAGE_SIZE = 8;
+const DEFAULT_STATUS = "active";
 
 const INPUT =
   "rounded-lg border border-[#E8E2D8] px-3 py-2 text-sm text-[#1A1A1A] bg-white placeholder-[#ABABAB] focus:outline-none focus:border-[#1A2B1C] transition-colors";
@@ -536,10 +539,14 @@ function Pagination({
   page,
   pages,
   onPage,
+  pageSize,
+  onPageSize,
 }: {
   page: number;
   pages: number;
   onPage: (p: number) => void;
+  pageSize: number;
+  onPageSize: (size: number) => void;
 }) {
   const all = Array.from({ length: pages }, (_, i) => i + 1);
   let visible: (number | "...")[];
@@ -557,10 +564,13 @@ function Pagination({
     "rounded-lg px-2.5 py-1.5 text-xs border border-[#E8E2D8] text-[#4A4A4A] hover:bg-[#F9F8F5] transition-colors disabled:opacity-40 disabled:cursor-not-allowed";
 
   return (
-    <div className="flex items-center justify-between px-4 py-3 border-t border-[#E8E2D8]">
-      <p className="text-xs text-[#8A8A8A]">
-        Página {page} de {pages}
-      </p>
+    <div className="flex items-center justify-between gap-4 px-4 py-3 border-t border-[#E8E2D8] flex-wrap">
+      <div className="flex items-center gap-4">
+        <p className="text-xs text-[#8A8A8A]">
+          Página {page} de {pages}
+        </p>
+        <PageSizeSelect value={pageSize} onChange={onPageSize} />
+      </div>
       <div className="flex items-center gap-1">
         <button onClick={() => onPage(page - 1)} disabled={page === 1} className={btn}>
           ←
@@ -603,9 +613,10 @@ export function ProductList() {
 
   const [q, setQ] = useState("");
   const [debouncedQ, setDebouncedQ] = useState("");
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState(DEFAULT_STATUS);
   const [sort, setSort] = useState("newest");
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = usePageSize();
 
   const [items, setItems] = useState<ProductSummary[]>([]);
   const [total, setTotal] = useState(0);
@@ -623,6 +634,7 @@ export function ProductList() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmBulk, setConfirmBulk] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkSuggestOpen, setBulkSuggestOpen] = useState(false);
 
   // Debounce search input
   useEffect(() => {
@@ -635,7 +647,7 @@ export function ProductList() {
     setPage(1);
     setSelected(new Set());
     setConfirmBulk(false);
-  }, [debouncedQ, status, sort]);
+  }, [debouncedQ, status, sort, pageSize]);
 
   // Fetch products
   useEffect(() => {
@@ -649,7 +661,7 @@ export function ProductList() {
         status: status || undefined,
         sort,
         page,
-        page_size: PAGE_SIZE,
+        page_size: pageSize,
         tenant_id: user?.tenant_id ?? undefined,
       })
       .then((data) => {
@@ -670,7 +682,7 @@ export function ProductList() {
     return () => {
       cancelled = true;
     };
-  }, [debouncedQ, status, sort, page, user?.tenant_id, refreshKey]);
+  }, [debouncedQ, status, sort, page, pageSize, user?.tenant_id, refreshKey]);
 
   // Polling de la importación en segundo plano (sobrevive al cierre del modal
   // y a la navegación: el job id queda guardado en localStorage).
@@ -728,12 +740,16 @@ export function ProductList() {
     }
   }
 
-  const hasFilters = !!(q || status || sort !== "newest");
-  const activeFilterCount = [q, status, sort !== "newest" ? sort : ""].filter(Boolean).length;
+  const hasFilters = !!(q || status !== DEFAULT_STATUS || sort !== "newest");
+  const activeFilterCount = [
+    q,
+    status !== DEFAULT_STATUS ? status : "",
+    sort !== "newest" ? sort : "",
+  ].filter(Boolean).length;
 
   function handleReset() {
     setQ("");
-    setStatus("");
+    setStatus(DEFAULT_STATUS);
     setSort("newest");
     setPage(1);
   }
@@ -992,6 +1008,12 @@ export function ProductList() {
                   ) : (
                     <>
                       <button
+                        onClick={() => setBulkSuggestOpen(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#3D6040] border border-[#D4E8D4] rounded-lg hover:bg-[#F4F8F4] transition-colors"
+                      >
+                        Sugerir fotos
+                      </button>
+                      <button
                         onClick={() => setConfirmBulk(true)}
                         className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#DC2626] border border-[#FECACA] rounded-lg hover:bg-[#FEF2F2] transition-colors"
                       >
@@ -1068,7 +1090,13 @@ export function ProductList() {
               </div>
 
               {pages > 1 && (
-                <Pagination page={page} pages={pages} onPage={handlePageChange} />
+                <Pagination
+                  page={page}
+                  pages={pages}
+                  onPage={handlePageChange}
+                  pageSize={pageSize}
+                  onPageSize={setPageSize}
+                />
               )}
             </>
           )}
@@ -1082,6 +1110,21 @@ export function ProductList() {
         starting={importStarting}
         onStart={handleStartImport}
       />
+
+      {bulkSuggestOpen && (
+        <BulkImageSuggestionModal
+          productIds={[...selected]}
+          onDone={(succeededIds) => {
+            setSelected((prev) => {
+              const next = new Set(prev);
+              succeededIds.forEach((id) => next.delete(id));
+              return next;
+            });
+            setRefreshKey((k) => k + 1);
+          }}
+          onClose={() => setBulkSuggestOpen(false)}
+        />
+      )}
     </AdminLayout>
   );
 }
