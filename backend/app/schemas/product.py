@@ -91,7 +91,6 @@ class ProductSummary(BaseModel):
 class ImageSuggestionCandidate(BaseModel):
     title: str
     thumbnail_url: str
-    full_url: str
     source_url: str
     license: str | None = None
     attribution: str | None = None

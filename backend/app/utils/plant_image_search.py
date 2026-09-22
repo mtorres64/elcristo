@@ -3,9 +3,12 @@
 Se usa Commons (en vez de una búsqueda de imágenes web genérica) porque
 las licencias son claras (CC / dominio público) y la API es pública, sin
 necesidad de API key. El admin siempre confirma visualmente antes de que
-una foto sugerida termine subida a Cloudinary (ver `save_image` en
-`app/utils/upload.py`) — este módulo solo devuelve candidatos, nunca
-sube nada.
+una foto sugerida quede asociada al producto — pero a diferencia de una
+imagen subida a mano, una foto sugerida nunca se descarga ni se sube a
+Cloudinary: se guarda directo el link al thumbnail que sirve Wikimedia
+(ver `is_wikimedia_host`, usado en `products.py` al confirmar). Evita
+descargar originales pesados (algunos escaneos de láminas botánicas en
+Commons pesan decenas o cientos de MB) solo para volver a subirlos.
 """
 import re
 from urllib.parse import urlparse
@@ -15,7 +18,12 @@ import httpx
 _COMMONS_API_URL = "https://commons.wikimedia.org/w/api.php"
 _USER_AGENT = "ViveroElCristoTienda/1.0 (+https://viveroelcristo.com)"
 _TIMEOUT = httpx.Timeout(8.0, connect=4.0)
-_MAX_IMAGE_BYTES = 5 * 1024 * 1024
+
+# Ancho del thumbnail que sirve Wikimedia — es la imagen que termina
+# guardada como foto del producto, así que va acorde al tamaño máximo que
+# ya usan las imágenes subidas a mano (ver DEFAULT_MAX_IMAGE_DIMENSION en
+# app/utils/upload.py).
+_THUMBNAIL_WIDTH = 800
 
 _HTML_TAG_RE = re.compile(r"<[^>]+>")
 
@@ -47,8 +55,9 @@ def build_query(title: str) -> str:
 
 async def search_plant_images(query: str, limit: int = 8) -> list[dict]:
     """Busca imágenes en el namespace File: de Commons y devuelve, en una
-    sola llamada (gracias a iiurlwidth), thumbnail + full-res + atribución
-    por candidato."""
+    sola llamada (gracias a iiurlwidth), thumbnail + atribución por
+    candidato. El thumbnail es la imagen final: no hay un paso posterior
+    que baje el original."""
     params = {
         "action": "query",
         "format": "json",
@@ -57,8 +66,8 @@ async def search_plant_images(query: str, limit: int = 8) -> list[dict]:
         "gsrnamespace": 6,
         "gsrlimit": limit,
         "prop": "imageinfo",
-        "iiprop": "url|extmetadata|size|mime",
-        "iiurlwidth": 400,
+        "iiprop": "url|extmetadata|mime",
+        "iiurlwidth": _THUMBNAIL_WIDTH,
     }
 
     try:
@@ -80,11 +89,8 @@ async def search_plant_images(query: str, limit: int = 8) -> list[dict]:
         if not imageinfo or not imageinfo.get("url"):
             continue
 
-        # No mostrar candidatos que después van a fallar al confirmar: se
-        # sube el original (`full_url`), no el thumbnail, así que el límite
-        # de tamaño se chequea acá contra el tamaño real del archivo.
-        size = imageinfo.get("size")
-        if size is not None and size > _MAX_IMAGE_BYTES:
+        thumbnail_url = imageinfo.get("thumburl")
+        if not thumbnail_url:
             continue
 
         extmetadata = imageinfo.get("extmetadata", {})
@@ -97,8 +103,7 @@ async def search_plant_images(query: str, limit: int = 8) -> list[dict]:
         candidates.append(
             {
                 "title": page.get("title", ""),
-                "thumbnail_url": imageinfo.get("thumburl") or imageinfo["url"],
-                "full_url": imageinfo["url"],
+                "thumbnail_url": thumbnail_url,
                 "source_url": imageinfo.get("descriptionurl", ""),
                 "license": meta("LicenseShortName") or None,
                 "attribution": attribution or None,
@@ -128,28 +133,9 @@ async def search_with_fallback(query: str, limit: int = 8) -> tuple[str, list[di
     return query, []
 
 
-def _is_wikimedia_host(url: str) -> bool:
+def is_wikimedia_host(url: str) -> bool:
+    """Usado al confirmar una sugerencia (`products.py`): como el link se
+    guarda tal cual como imagen del producto, hay que validar que de
+    verdad venga de Wikimedia antes de aceptarlo."""
     host = urlparse(url).netloc.lower()
     return host == "wikimedia.org" or host.endswith(".wikimedia.org")
-
-
-async def fetch_wikimedia_image(url: str) -> bytes:
-    """Descarga una imagen que el admin eligió entre las sugerencias.
-    Valida que la URL sea realmente de Wikimedia antes de pedirla — este
-    endpoint no debe convertirse en un proxy para bajar cualquier URL."""
-    if not _is_wikimedia_host(url):
-        raise ValueError("La URL no pertenece a Wikimedia")
-
-    try:
-        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-            res = await client.get(url, headers={"User-Agent": _USER_AGENT})
-    except httpx.HTTPError:
-        raise WikimediaUnavailableError("No se pudo descargar la imagen") from None
-
-    if res.status_code != 200:
-        raise WikimediaUnavailableError("No se pudo descargar la imagen")
-
-    if len(res.content) > _MAX_IMAGE_BYTES:
-        raise ValueError("La imagen supera el tamaño máximo permitido (5MB)")
-
-    return res.content

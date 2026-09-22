@@ -40,9 +40,9 @@ export function ImageCandidateTile({
 }
 
 /** Modal de sugerencia de fotos para un producto individual. Las imágenes
- * nunca se suben a Cloudinary acá: `suggestImages` solo trae URLs de
- * Wikimedia para mostrar, y recién `confirmImageSuggestions` (al tocar
- * "Confirmar") las baja y las sube al storage real. */
+ * nunca se suben a Cloudinary: `confirmImageSuggestions` (al tocar
+ * "Confirmar") guarda directo el link al thumbnail que sirve Wikimedia
+ * como imagen del producto. */
 export function ImageSuggestionModal({
   productId,
   onConfirm,
@@ -140,10 +140,10 @@ export function ImageSuggestionModal({
             <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
               {candidates.map((c) => (
                 <ImageCandidateTile
-                  key={c.full_url}
+                  key={c.thumbnail_url}
                   candidate={c}
-                  selected={selected.has(c.full_url)}
-                  onToggle={() => toggle(c.full_url)}
+                  selected={selected.has(c.thumbnail_url)}
+                  onToggle={() => toggle(c.thumbnail_url)}
                 />
               ))}
             </div>

@@ -12,8 +12,9 @@ interface RowState extends BulkImageSuggestionRow {
 
 /** Revisión y confirmación masiva de sugerencias de fotos para varios
  * productos seleccionados. Una sola llamada trae las sugerencias de todos
- * (el fan-out a Wikimedia lo hace el backend), y una sola confirmación las
- * guarda todas — nada se sube a Cloudinary hasta ese click final. */
+ * (el fan-out a Wikimedia lo hace el backend), y una sola confirmación
+ * guarda los links elegidos como imágenes — nunca se sube nada a
+ * Cloudinary. */
 export function BulkImageSuggestionModal({
   productIds,
   onDone,
@@ -35,7 +36,7 @@ export function BulkImageSuggestionModal({
         setRows(
           data.map((row) => ({
             ...row,
-            selectedUrls: new Set(row.candidates[0] ? [row.candidates[0].full_url] : []),
+            selectedUrls: new Set(row.candidates[0] ? [row.candidates[0].thumbnail_url] : []),
             omitted: row.candidates.length === 0,
             confirmStatus: "idle",
             confirmMessage: null,
@@ -141,10 +142,10 @@ export function BulkImageSuggestionModal({
                     <div className={`grid grid-cols-4 sm:grid-cols-6 gap-2 ${row.omitted || row.confirmStatus === "ok" ? "opacity-40 pointer-events-none" : ""}`}>
                       {row.candidates.map((c) => (
                         <ImageCandidateTile
-                          key={c.full_url}
+                          key={c.thumbnail_url}
                           candidate={c}
-                          selected={row.selectedUrls.has(c.full_url)}
-                          onToggle={() => toggleCandidate(row.product_id, c.full_url)}
+                          selected={row.selectedUrls.has(c.thumbnail_url)}
+                          onToggle={() => toggleCandidate(row.product_id, c.thumbnail_url)}
                         />
                       ))}
                     </div>

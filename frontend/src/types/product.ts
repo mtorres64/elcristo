@@ -69,7 +69,6 @@ export interface ImportJob {
 export interface ImageSuggestionCandidate {
   title: string;
   thumbnail_url: string;
-  full_url: string;
   source_url: string;
   license: string | null;
   attribution: string | null;

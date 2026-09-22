@@ -1,6 +1,5 @@
 import asyncio
 import math
-from urllib.parse import urlsplit
 
 from bson import ObjectId
 from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile
@@ -23,25 +22,23 @@ from app.utils.auth_deps import require_user
 from app.utils.plant_image_search import (
     WikimediaUnavailableError,
     build_query,
-    fetch_wikimedia_image,
+    is_wikimedia_host,
     search_with_fallback,
 )
 
 router = APIRouter()
 
 
-async def _confirm_image_suggestions(image_urls: list[str]) -> list[str]:
-    """Descarga cada imagen elegida por el admin desde Wikimedia y la sube
-    vía `save_image` (Cloudinary en prod / disco en dev) — recién acá se
-    toca el storage real; `search_plant_images` nunca sube nada."""
-    from app.utils.upload import save_image
-
-    urls = []
+def _validate_wikimedia_urls(image_urls: list[str]) -> list[str]:
+    """Los links elegidos por el admin se guardan tal cual como imágenes
+    del producto — apuntan al thumbnail que sirve Wikimedia, no se
+    descargan ni se suben a Cloudinary. Solo se valida que de verdad sean
+    de Wikimedia para que este endpoint no termine usándose para guardar
+    cualquier URL arbitraria como imagen de producto."""
     for image_url in image_urls:
-        content = await fetch_wikimedia_image(image_url)
-        filename = urlsplit(image_url).path.rsplit("/", 1)[-1] or "image.jpg"
-        urls.append(await save_image(content, filename))
-    return urls
+        if not is_wikimedia_host(image_url):
+            raise ValueError("La URL no pertenece a Wikimedia")
+    return image_urls
 
 
 def _to_summary(doc: dict) -> dict:
@@ -391,11 +388,9 @@ async def confirm_product_image_suggestion(
         raise HTTPException(404, "Producto no encontrado")
 
     try:
-        urls = await _confirm_image_suggestions(body.image_urls)
+        urls = _validate_wikimedia_urls(body.image_urls)
     except ValueError as e:
         raise HTTPException(400, str(e)) from None
-    except WikimediaUnavailableError as e:
-        raise HTTPException(502, str(e)) from None
 
     await db.products.update_one(
         {"_id": oid},
@@ -408,44 +403,39 @@ async def confirm_product_image_suggestion(
 async def confirm_product_image_suggestions_bulk(body: BulkConfirmRequest, request: Request):
     """Confirma en un solo click las sugerencias elegidas para varios
     productos. Endpoint dedicado (no un loop de confirmaciones individuales
-    desde el frontend): cada ítem implica descargar de Wikimedia + resize +
-    subida a Cloudinary, así que conviene concurrencia acotada y que un
-    fallo puntual no aborte el resto del lote."""
+    desde el frontend): un fallo puntual en un producto no aborta el resto
+    del lote."""
     from datetime import UTC, datetime
 
     require_user(request)
 
     db = get_db()
     tid = request.state.tenant_id
-    semaphore = asyncio.Semaphore(4)
 
     async def confirm_one(item) -> dict:
-        async with semaphore:
-            try:
-                oid = ObjectId(item.product_id)
-            except Exception:
-                return {"product_id": item.product_id, "status": "error", "message": "ID de producto inválido"}
+        try:
+            oid = ObjectId(item.product_id)
+        except Exception:
+            return {"product_id": item.product_id, "status": "error", "message": "ID de producto inválido"}
 
-            f: dict = {"_id": oid, "deleted_at": None}
-            if tid:
-                f["tenant_id"] = tid
+        f: dict = {"_id": oid, "deleted_at": None}
+        if tid:
+            f["tenant_id"] = tid
 
-            doc = await db.products.find_one(f)
-            if not doc:
-                return {"product_id": item.product_id, "status": "error", "message": "Producto no encontrado"}
+        doc = await db.products.find_one(f)
+        if not doc:
+            return {"product_id": item.product_id, "status": "error", "message": "Producto no encontrado"}
 
-            try:
-                urls = await _confirm_image_suggestions(item.image_urls)
-            except ValueError as e:
-                return {"product_id": item.product_id, "status": "error", "message": str(e)}
-            except WikimediaUnavailableError as e:
-                return {"product_id": item.product_id, "status": "error", "message": str(e)}
+        try:
+            urls = _validate_wikimedia_urls(item.image_urls)
+        except ValueError as e:
+            return {"product_id": item.product_id, "status": "error", "message": str(e)}
 
-            await db.products.update_one(
-                {"_id": oid},
-                {"$push": {"images": {"$each": urls}}, "$set": {"updated_at": datetime.now(UTC)}},
-            )
-            return {"product_id": item.product_id, "status": "ok", "urls": urls}
+        await db.products.update_one(
+            {"_id": oid},
+            {"$push": {"images": {"$each": urls}}, "$set": {"updated_at": datetime.now(UTC)}},
+        )
+        return {"product_id": item.product_id, "status": "ok", "urls": urls}
 
     results = await asyncio.gather(*(confirm_one(item) for item in body.items))
     return {"results": results}
