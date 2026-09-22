@@ -22,6 +22,7 @@ from app.utils.auth_deps import require_user
 from app.utils.plant_image_search import (
     WikimediaUnavailableError,
     build_query,
+    build_query_from_description,
     is_wikimedia_host,
     search_with_fallback,
 )
@@ -337,7 +338,9 @@ async def upload_product_image(
 
 
 @router.get("/{product_id}/image-suggestions", response_model=ImageSuggestionResponse)
-async def suggest_product_images(product_id: str, request: Request, q: str | None = None):
+async def suggest_product_images(
+    product_id: str, request: Request, q: str | None = None, field: str = "title"
+):
     require_user(request)
 
     db = get_db()
@@ -355,7 +358,14 @@ async def suggest_product_images(product_id: str, request: Request, q: str | Non
     if not doc:
         raise HTTPException(404, "Producto no encontrado")
 
-    query = q or build_query(doc["title"])
+    if q:
+        query = q
+    elif field == "description":
+        query = build_query_from_description(
+            doc.get("short_description") or doc.get("description"), doc["title"]
+        )
+    else:
+        query = build_query(doc["title"])
     try:
         resolved_query, candidates = await search_with_fallback(query)
     except WikimediaUnavailableError as e:

@@ -53,6 +53,19 @@ def build_query(title: str) -> str:
     return _SIZE_CODE_RE.sub("", title).strip()
 
 
+def build_query_from_description(text: str | None, fallback_title: str) -> str:
+    """Igual que `build_query`, pero a partir de la descripción del
+    producto en vez del título — para catálogos (ej. macetas) donde el
+    título es un código interno ("PREMIUM 35") sin valor de búsqueda y la
+    descripción tiene el nombre real del producto. Se recorta a las
+    primeras palabras porque, igual que con el título, Commons devuelve
+    más resultados con frases cortas que con párrafos completos."""
+    stripped = (text or "").strip()
+    if not stripped:
+        return build_query(fallback_title)
+    return " ".join(stripped.split()[:12])
+
+
 async def search_plant_images(query: str, limit: int = 8) -> list[dict]:
     """Busca imágenes en el namespace File: de Commons y devuelve, en una
     sola llamada (gracias a iiurlwidth), thumbnail + atribución por

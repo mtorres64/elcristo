@@ -114,9 +114,13 @@ export const productService = {
     await api.delete(`/products/${productId}`);
   },
 
-  async suggestImages(productId: string, q?: string): Promise<ImageSuggestionResponse> {
+  async suggestImages(
+    productId: string,
+    q?: string,
+    field?: "title" | "description"
+  ): Promise<ImageSuggestionResponse> {
     const res = await api.get(`/products/${productId}/image-suggestions`, {
-      params: q ? { q } : {},
+      params: { ...(q ? { q } : {}), ...(field ? { field } : {}) },
     });
     return res.data;
   },

@@ -54,17 +54,18 @@ export function ImageSuggestionModal({
 }) {
   const [query, setQuery] = useState("");
   const [queryInput, setQueryInput] = useState("");
+  const [field, setField] = useState<"title" | "description">("title");
   const [candidates, setCandidates] = useState<ImageSuggestionCandidate[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function load(q?: string) {
+  function load(q?: string, f: "title" | "description" = field) {
     setLoading(true);
     setError(null);
     productService
-      .suggestImages(productId, q)
+      .suggestImages(productId, q, f)
       .then((res) => {
         setQuery(res.query);
         setQueryInput(res.query);
@@ -79,6 +80,11 @@ export function ImageSuggestionModal({
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productId]);
+
+  function handleFieldChange(next: "title" | "description") {
+    setField(next);
+    load(undefined, next);
+  }
 
   function toggle(url: string) {
     setSelected((prev) => {
@@ -113,20 +119,45 @@ export function ImageSuggestionModal({
           </button>
         </div>
 
-        <div className="px-5 py-3 border-b border-[#E8E2D8] flex gap-2">
-          <input
-            value={queryInput}
-            onChange={(e) => setQueryInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && load(queryInput)}
-            className="flex-1 border border-[#D0C8C0] rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#1A2B1C]"
-            placeholder="Buscar en Wikimedia Commons…"
-          />
-          <button
-            onClick={() => load(queryInput)}
-            className="px-3 py-1.5 text-xs font-medium border border-[#D0C8C0] rounded-lg hover:bg-[#F7F5F2] transition-colors"
-          >
-            Buscar
-          </button>
+        <div className="px-5 py-3 border-b border-[#E8E2D8] space-y-2">
+          <div className="flex items-center gap-2 text-xs text-[#6B6B6B]">
+            <span>Buscar por:</span>
+            <div className="inline-flex rounded-lg border border-[#D0C8C0] overflow-hidden">
+              <button
+                type="button"
+                onClick={() => handleFieldChange("title")}
+                className={`px-2.5 py-1 transition-colors ${
+                  field === "title" ? "bg-[#1A2B1C] text-white" : "hover:bg-[#F7F5F2]"
+                }`}
+              >
+                Nombre
+              </button>
+              <button
+                type="button"
+                onClick={() => handleFieldChange("description")}
+                className={`px-2.5 py-1 transition-colors border-l border-[#D0C8C0] ${
+                  field === "description" ? "bg-[#1A2B1C] text-white" : "hover:bg-[#F7F5F2]"
+                }`}
+              >
+                Descripción
+              </button>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <input
+              value={queryInput}
+              onChange={(e) => setQueryInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && load(queryInput)}
+              className="flex-1 border border-[#D0C8C0] rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#1A2B1C]"
+              placeholder="Buscar en Wikimedia Commons…"
+            />
+            <button
+              onClick={() => load(queryInput)}
+              className="px-3 py-1.5 text-xs font-medium border border-[#D0C8C0] rounded-lg hover:bg-[#F7F5F2] transition-colors"
+            >
+              Buscar
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-4">

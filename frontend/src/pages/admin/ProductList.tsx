@@ -614,6 +614,7 @@ export function ProductList() {
   const [q, setQ] = useState("");
   const [debouncedQ, setDebouncedQ] = useState("");
   const [status, setStatus] = useState(DEFAULT_STATUS);
+  const [categoryId, setCategoryId] = useState("");
   const [sort, setSort] = useState("newest");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = usePageSize();
@@ -647,7 +648,7 @@ export function ProductList() {
     setPage(1);
     setSelected(new Set());
     setConfirmBulk(false);
-  }, [debouncedQ, status, sort, pageSize]);
+  }, [debouncedQ, status, categoryId, sort, pageSize]);
 
   // Fetch products
   useEffect(() => {
@@ -659,6 +660,7 @@ export function ProductList() {
       .list({
         q: debouncedQ || undefined,
         status: status || undefined,
+        category_id: categoryId || undefined,
         sort,
         page,
         page_size: pageSize,
@@ -682,7 +684,7 @@ export function ProductList() {
     return () => {
       cancelled = true;
     };
-  }, [debouncedQ, status, sort, page, pageSize, user?.tenant_id, refreshKey]);
+  }, [debouncedQ, status, categoryId, sort, page, pageSize, user?.tenant_id, refreshKey]);
 
   // Polling de la importación en segundo plano (sobrevive al cierre del modal
   // y a la navegación: el job id queda guardado en localStorage).
@@ -740,16 +742,18 @@ export function ProductList() {
     }
   }
 
-  const hasFilters = !!(q || status !== DEFAULT_STATUS || sort !== "newest");
+  const hasFilters = !!(q || status !== DEFAULT_STATUS || categoryId || sort !== "newest");
   const activeFilterCount = [
     q,
     status !== DEFAULT_STATUS ? status : "",
+    categoryId,
     sort !== "newest" ? sort : "",
   ].filter(Boolean).length;
 
   function handleReset() {
     setQ("");
     setStatus(DEFAULT_STATUS);
+    setCategoryId("");
     setSort("newest");
     setPage(1);
   }
@@ -916,6 +920,23 @@ export function ProductList() {
                 placeholder="Buscar por nombre..."
                 className={`${INPUT} w-full pl-9`}
               />
+            </div>
+
+            {/* Category */}
+            <div className="relative w-full sm:w-auto">
+              <select
+                value={categoryId}
+                onChange={(e) => setCategoryId(e.target.value)}
+                className={`${SELECT} w-full sm:w-[180px]`}
+              >
+                <option value="">Todas las categorías</option>
+                {categories.map((c) => (
+                  <option key={c.category_id} value={c.category_id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown />
             </div>
 
             {/* Status */}
