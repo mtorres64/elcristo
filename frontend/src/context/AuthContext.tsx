@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { api, setTokens, clearTokens, getStoredRefreshToken } from "../services/api";
+import toast from "react-hot-toast";
+import { api, setTokens, clearTokens, getStoredRefreshToken, AUTH_EXPIRED_EVENT } from "../services/api";
 
 interface User {
   user_id: string;
@@ -54,6 +55,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearTokens();
     setUser(null);
   }
+
+  useEffect(() => {
+    function handleExpired() {
+      clearTokens();
+      setUser(null);
+      toast.error("Tu sesión expiró. Iniciá sesión de nuevo.");
+    }
+    window.addEventListener(AUTH_EXPIRED_EVENT, handleExpired);
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, handleExpired);
+  }, []);
 
   if (restoring) return null;
 

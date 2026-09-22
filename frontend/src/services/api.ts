@@ -14,17 +14,23 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+export const AUTH_EXPIRED_EVENT = "auth:expired";
+
 // Manejo global de errores 401 → intento de refresh
 api.interceptors.response.use(
   (res) => res,
   async (error) => {
     const original = error.config;
-    if (error.response?.status === 401 && !original._retry) {
+    if (error.response?.status === 401 && !original._retry && !original.url?.includes("/auth/refresh")) {
       original._retry = true;
+      const hadRefreshToken = !!_refreshToken;
       const refreshed = await tryRefresh();
       if (refreshed) {
         original.headers.Authorization = `Bearer ${getAccessToken()}`;
         return api(original);
+      }
+      if (hadRefreshToken) {
+        window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
       }
     }
     return Promise.reject(error);

@@ -1,5 +1,6 @@
 import asyncio
 import math
+from urllib.parse import urlsplit
 
 from bson import ObjectId
 from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile
@@ -38,7 +39,7 @@ async def _confirm_image_suggestions(image_urls: list[str]) -> list[str]:
     urls = []
     for image_url in image_urls:
         content = await fetch_wikimedia_image(image_url)
-        filename = image_url.rsplit("/", 1)[-1] or "image.jpg"
+        filename = urlsplit(image_url).path.rsplit("/", 1)[-1] or "image.jpg"
         urls.append(await save_image(content, filename))
     return urls
 

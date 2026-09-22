@@ -1,6 +1,7 @@
 import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
 import { useEffect } from "react";
 import { AuthProvider } from "./context/AuthContext";
+import { RequireAuth } from "./components/auth/RequireAuth";
 import { CartProvider } from "./context/CartContext";
 import { Home } from "./pages/Home";
 import { AboutUs } from "./pages/AboutUs";
@@ -78,26 +79,26 @@ export default function App() {
             <Route path="/pedido/:orderId" element={<OrderConfirmation />} />
             <Route path="/mis-pedidos" element={<MyOrders />} />
             <Route path="/mis-pedidos/:orderId" element={<MyOrderDetail />} />
-            <Route path="/seller" element={<Dashboard />} />
-            <Route path="/seller/orders" element={<OrderList />} />
-            <Route path="/seller/orders/:orderId" element={<OrderDetail />} />
-            <Route path="/seller/products" element={<ProductList />} />
-            <Route path="/seller/products/new" element={<ProductEdit />} />
-            <Route path="/seller/products/:productId/edit" element={<ProductEdit />} />
-            <Route path="/seller/purchases" element={<PurchaseList />} />
-            <Route path="/seller/purchases/new" element={<PurchaseNew />} />
-            <Route path="/seller/purchases/:purchaseId" element={<PurchaseDetailPage />} />
-            <Route path="/seller/categories" element={<CategoryList />} />
-            <Route path="/seller/clients" element={<ClientList />} />
-            <Route path="/seller/users" element={<UserList />} />
-            <Route path="/seller/users/new" element={<UserNew />} />
-            <Route path="/seller/users/:userId/edit" element={<UserEdit />} />
-            <Route path="/seller/categories/new" element={<CategoryNew />} />
-            <Route path="/seller/categories/:id/edit" element={<CategoryEdit />} />
-            <Route path="/seller/settings" element={<Settings />} />
-            <Route path="/seller/content" element={<Content />} />
-            <Route path="/seller/reports" element={<Reports />} />
-            <Route path="/seller/integrations" element={<Integrations />} />
+            <Route path="/seller" element={<RequireAuth><Dashboard /></RequireAuth>} />
+            <Route path="/seller/orders" element={<RequireAuth><OrderList /></RequireAuth>} />
+            <Route path="/seller/orders/:orderId" element={<RequireAuth><OrderDetail /></RequireAuth>} />
+            <Route path="/seller/products" element={<RequireAuth><ProductList /></RequireAuth>} />
+            <Route path="/seller/products/new" element={<RequireAuth><ProductEdit /></RequireAuth>} />
+            <Route path="/seller/products/:productId/edit" element={<RequireAuth><ProductEdit /></RequireAuth>} />
+            <Route path="/seller/purchases" element={<RequireAuth><PurchaseList /></RequireAuth>} />
+            <Route path="/seller/purchases/new" element={<RequireAuth><PurchaseNew /></RequireAuth>} />
+            <Route path="/seller/purchases/:purchaseId" element={<RequireAuth><PurchaseDetailPage /></RequireAuth>} />
+            <Route path="/seller/categories" element={<RequireAuth><CategoryList /></RequireAuth>} />
+            <Route path="/seller/clients" element={<RequireAuth><ClientList /></RequireAuth>} />
+            <Route path="/seller/users" element={<RequireAuth><UserList /></RequireAuth>} />
+            <Route path="/seller/users/new" element={<RequireAuth><UserNew /></RequireAuth>} />
+            <Route path="/seller/users/:userId/edit" element={<RequireAuth><UserEdit /></RequireAuth>} />
+            <Route path="/seller/categories/new" element={<RequireAuth><CategoryNew /></RequireAuth>} />
+            <Route path="/seller/categories/:id/edit" element={<RequireAuth><CategoryEdit /></RequireAuth>} />
+            <Route path="/seller/settings" element={<RequireAuth><Settings /></RequireAuth>} />
+            <Route path="/seller/content" element={<RequireAuth><Content /></RequireAuth>} />
+            <Route path="/seller/reports" element={<RequireAuth><Reports /></RequireAuth>} />
+            <Route path="/seller/integrations" element={<RequireAuth><Integrations /></RequireAuth>} />
             <Route path="/diseno" element={<Design />} />
             <Route path="/inspiracion" element={<Inspiration />} />
             <Route path="/nosotros" element={<AboutUs />} />
