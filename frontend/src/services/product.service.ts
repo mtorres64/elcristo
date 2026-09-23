@@ -28,6 +28,7 @@ interface ListProductsParams {
   product_type?: ProductType;
   min_price?: number;
   max_price?: number;
+  featured?: boolean;
   on_sale?: boolean;
   ids?: string;
   page?: number;
