@@ -44,6 +44,7 @@ import { MyOrders } from "./pages/MyOrders";
 import { MyOrderDetail } from "./pages/MyOrderDetail";
 import { OrderList } from "./pages/admin/OrderList";
 import { OrderDetail } from "./pages/admin/OrderDetail";
+import { AlertList } from "./pages/admin/AlertList";
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -81,6 +82,7 @@ export default function App() {
             <Route path="/mis-pedidos/:orderId" element={<MyOrderDetail />} />
             <Route path="/seller" element={<RequireAuth><Dashboard /></RequireAuth>} />
             <Route path="/seller/orders" element={<RequireAuth><OrderList /></RequireAuth>} />
+            <Route path="/seller/alerts" element={<RequireAuth><AlertList /></RequireAuth>} />
             <Route path="/seller/orders/:orderId" element={<RequireAuth><OrderDetail /></RequireAuth>} />
             <Route path="/seller/products" element={<RequireAuth><ProductList /></RequireAuth>} />
             <Route path="/seller/products/new" element={<RequireAuth><ProductEdit /></RequireAuth>} />

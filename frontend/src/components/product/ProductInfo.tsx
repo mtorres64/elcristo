@@ -120,6 +120,13 @@ export function ProductInfo({ product }: { product: ProductDetail }) {
       : 0;
   const outOfStock = sizeStock <= 0;
 
+  // Si se cambia de tamaño/color a una variante con menos stock que la
+  // cantidad ya elegida, hay que bajarla — si no, se puede pedir más de lo
+  // disponible (ver bug: mostraba "9 disponibles" pero dejaba poner 12).
+  useEffect(() => {
+    setQty((q) => Math.max(1, Math.min(q, Math.max(sizeStock, 1))));
+  }, [sizeStock]);
+
   function handleAddToCart() {
     if (outOfStock) return;
     const variantLabel = hasSizeVariants
@@ -322,8 +329,9 @@ export function ProductInfo({ product }: { product: ProductDetail }) {
             {qty}
           </span>
           <button
-            onClick={() => setQty((q) => q + 1)}
-            className="w-10 h-10 flex items-center justify-center text-[#1A1A1A] hover:bg-[#F8F4EE] transition-colors"
+            onClick={() => setQty((q) => Math.min(sizeStock, q + 1))}
+            disabled={qty >= sizeStock}
+            className="w-10 h-10 flex items-center justify-center text-[#1A1A1A] hover:bg-[#F8F4EE] transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
             aria-label="Aumentar cantidad"
           >
             <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">

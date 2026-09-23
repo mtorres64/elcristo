@@ -6,6 +6,7 @@ import { BulkImageSuggestionModal } from "../../components/admin/BulkImageSugges
 import { productService, productImportService } from "../../services/product.service";
 import { useAuth } from "../../context/AuthContext";
 import { useCategories } from "../../hooks/useCategories";
+import { CATEGORY_GROUPS, CATEGORY_GROUP_LABEL } from "../../types/category";
 import { usePageSize } from "../../hooks/usePageSize";
 import { PageSizeSelect } from "../../components/admin/PageSizeSelect";
 import { formatARS } from "../../utils/currency";
@@ -610,6 +611,14 @@ export function ProductList() {
     () => Object.fromEntries(categories.map((c) => [c.category_id, c.name])),
     [categories]
   );
+  const groupedCategories = useMemo(
+    () =>
+      CATEGORY_GROUPS.map((g) => ({
+        ...g,
+        categories: categories.filter((c) => c.group === g.value),
+      })).filter((g) => g.categories.length > 0),
+    [categories]
+  );
 
   const [q, setQ] = useState("");
   const [debouncedQ, setDebouncedQ] = useState("");
@@ -930,10 +939,14 @@ export function ProductList() {
                 className={`${SELECT} w-full sm:w-[180px]`}
               >
                 <option value="">Todas las categorías</option>
-                {categories.map((c) => (
-                  <option key={c.category_id} value={c.category_id}>
-                    {c.name}
-                  </option>
+                {groupedCategories.map((g) => (
+                  <optgroup key={g.value} label={CATEGORY_GROUP_LABEL[g.value]}>
+                    {g.categories.map((c) => (
+                      <option key={c.category_id} value={c.category_id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
               <ChevronDown />

@@ -11,6 +11,7 @@ from app.middleware.auth import AuthMiddleware
 from app.middleware.tenant import TenantMiddleware
 from app.routers import (
     addresses,
+    alerts,
     auth,
     cart,
     categories,
@@ -73,6 +74,7 @@ app.include_router(users.router, prefix="/users", tags=["users"])
 app.include_router(content.router, prefix="/content", tags=["content"])
 app.include_router(integrations.router, prefix="/integrations", tags=["integrations"])
 app.include_router(geocode.router, prefix="/geocode", tags=["geocode"])
+app.include_router(alerts.router, prefix="/alerts", tags=["alerts"])
 
 _uploads_dir = Path("./uploads")
 _uploads_dir.mkdir(exist_ok=True)

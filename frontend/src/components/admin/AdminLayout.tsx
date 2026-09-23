@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { orderService } from "../../services/order.service";
+import { alertService } from "../../services/alert.service";
 
 interface NavItem {
   icon: ReactNode;
@@ -37,12 +38,25 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
   const menuRef = useRef<HTMLDivElement>(null);
   const [pendingOrders, setPendingOrders] = useState(0);
+  const [alertsCount, setAlertsCount] = useState(0);
 
   useEffect(() => {
     orderService
       .list({ tenant_id: user?.tenant_id ?? undefined, status: "pending_payment", page_size: 1 })
       .then((data) => setPendingOrders(data.total))
       .catch(() => {});
+  }, [user?.tenant_id]);
+
+  useEffect(() => {
+    function loadAlerts() {
+      alertService
+        .get()
+        .then((data) => setAlertsCount(data.low_stock_count + data.new_orders_count))
+        .catch(() => {});
+    }
+    loadAlerts();
+    const t = setInterval(loadAlerts, 60_000);
+    return () => clearInterval(t);
   }, [user?.tenant_id]);
 
   useEffect(() => {
@@ -181,15 +195,18 @@ export function AdminLayout({ children }: { children: ReactNode }) {
 
           <div className="flex items-center gap-5 ml-auto">
             {/* Bell */}
-            <button
+            <Link
+              to="/seller/alerts"
               className="relative text-[#6B6B6B] hover:text-[#1A1A1A] transition-colors"
-              aria-label="Notificaciones"
+              aria-label="Alertas"
             >
               <BellIcon />
-              <span className="absolute -top-1.5 -right-1.5 bg-[#DC2626] text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
-                2
-              </span>
-            </button>
+              {alertsCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-[#DC2626] text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                  {alertsCount > 9 ? "9+" : alertsCount}
+                </span>
+              )}
+            </Link>
 
             {/* User menu */}
             <div className="relative" ref={menuRef}>
