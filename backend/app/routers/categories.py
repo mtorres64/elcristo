@@ -154,14 +154,14 @@ async def update_category(category_id: str, body: CategoryUpdate):
 
 @router.post("/{category_id}/image")
 async def upload_category_image(category_id: str, file: UploadFile = File(...)):
-    from app.utils.upload import delete_image, save_image
+    from app.utils.upload import MAX_UPLOAD_IMAGE_BYTES, delete_image, save_image
 
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(400, "Solo se permiten archivos de imagen")
 
     content = await file.read()
-    if len(content) > 5 * 1024 * 1024:
-        raise HTTPException(400, "La imagen no puede superar 5MB")
+    if len(content) > MAX_UPLOAD_IMAGE_BYTES:
+        raise HTTPException(400, "La imagen no puede superar 20MB")
 
     db = get_db()
     try:

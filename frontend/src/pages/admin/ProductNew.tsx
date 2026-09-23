@@ -810,7 +810,7 @@ function ProductImageUploader({
           <span className="text-[#3D6040]">o hacé clic para seleccionar</span>
         </p>
         <p className="text-[10px] text-[#ABABAB] mt-1.5">
-          Formato recomendado: 1:1 o 4:5. Máx 5MB
+          Formato recomendado: 1:1 o 4:5. Máx 20MB
         </p>
       </div>
 

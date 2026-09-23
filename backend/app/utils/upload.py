@@ -18,6 +18,14 @@ logger = logging.getLogger(__name__)
 # ocupa todo el ancho de pantalla y necesita la resolución original.
 DEFAULT_MAX_IMAGE_DIMENSION = 800
 
+# Tamaño máximo del archivo QUE SE SUBE, antes de redimensionar — no del
+# resultado final (que siempre termina mucho más chico gracias al resize a
+# DEFAULT_MAX_IMAGE_DIMENSION). Tiene que ser generoso: una foto de celular
+# moderna sin comprimir fácilmente pesa 8-15MB, y el resize es justamente lo
+# que la deja liviana — un límite bajo acá rechaza la foto antes de que
+# llegue a redimensionarse.
+MAX_UPLOAD_IMAGE_BYTES = 20 * 1024 * 1024
+
 
 def _resize_image(file_content: bytes, max_dimension: int | None) -> bytes:
     """Redimensiona a un máximo de max_dimension x max_dimension (ancho y

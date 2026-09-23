@@ -121,14 +121,14 @@ async def update_hero(body: HeroSettingsUpdate, request: Request):
 
 @router.post("/hero/images")
 async def upload_hero_image(file: UploadFile = File(...)):
-    from app.utils.upload import save_image
+    from app.utils.upload import MAX_UPLOAD_IMAGE_BYTES, save_image
 
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(400, "Solo se permiten archivos de imagen")
 
     content = await file.read()
-    if len(content) > 5 * 1024 * 1024:
-        raise HTTPException(400, "La imagen no puede superar 5MB")
+    if len(content) > MAX_UPLOAD_IMAGE_BYTES:
+        raise HTTPException(400, "La imagen no puede superar 20MB")
 
     url = await save_image(
         content, file.filename or "image", max_dimension=HERO_MAX_IMAGE_DIMENSION
@@ -261,14 +261,14 @@ async def update_about(body: AboutSettingsUpdate, request: Request):
 
 @router.post("/about/images")
 async def upload_about_image(file: UploadFile = File(...)):
-    from app.utils.upload import save_image
+    from app.utils.upload import MAX_UPLOAD_IMAGE_BYTES, save_image
 
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(400, "Solo se permiten archivos de imagen")
 
     content = await file.read()
-    if len(content) > 5 * 1024 * 1024:
-        raise HTTPException(400, "La imagen no puede superar 5MB")
+    if len(content) > MAX_UPLOAD_IMAGE_BYTES:
+        raise HTTPException(400, "La imagen no puede superar 20MB")
 
     url = await save_image(
         content, file.filename or "image", max_dimension=HERO_MAX_IMAGE_DIMENSION
@@ -385,14 +385,14 @@ async def update_inspiration(body: InspirationSettingsUpdate, request: Request):
 
 @router.post("/inspiration/images")
 async def upload_inspiration_image(file: UploadFile = File(...)):
-    from app.utils.upload import save_image
+    from app.utils.upload import MAX_UPLOAD_IMAGE_BYTES, save_image
 
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(400, "Solo se permiten archivos de imagen")
 
     content = await file.read()
-    if len(content) > 5 * 1024 * 1024:
-        raise HTTPException(400, "La imagen no puede superar 5MB")
+    if len(content) > MAX_UPLOAD_IMAGE_BYTES:
+        raise HTTPException(400, "La imagen no puede superar 20MB")
 
     url = await save_image(
         content, file.filename or "image", max_dimension=HERO_MAX_IMAGE_DIMENSION
@@ -509,14 +509,14 @@ async def update_design(body: DesignSettingsUpdate, request: Request):
 
 @router.post("/design/images")
 async def upload_design_image(file: UploadFile = File(...)):
-    from app.utils.upload import save_image
+    from app.utils.upload import MAX_UPLOAD_IMAGE_BYTES, save_image
 
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(400, "Solo se permiten archivos de imagen")
 
     content = await file.read()
-    if len(content) > 5 * 1024 * 1024:
-        raise HTTPException(400, "La imagen no puede superar 5MB")
+    if len(content) > MAX_UPLOAD_IMAGE_BYTES:
+        raise HTTPException(400, "La imagen no puede superar 20MB")
 
     url = await save_image(
         content, file.filename or "image", max_dimension=HERO_MAX_IMAGE_DIMENSION

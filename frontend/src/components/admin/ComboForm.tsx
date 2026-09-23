@@ -335,7 +335,7 @@ export function ComboForm({ productId }: { productId?: string }) {
                   <>Arrastrá y soltá imágenes aquí<br /><span className="text-[#3D6040]">o hacé clic para seleccionar</span></>
                 )}
               </p>
-              <p className="text-[10px] text-[#ABABAB] mt-1.5">Máx 5MB por imagen</p>
+              <p className="text-[10px] text-[#ABABAB] mt-1.5">Máx 20MB por imagen — se redimensiona automáticamente</p>
             </div>
 
             {(images.length > 0 || pendingFiles.length > 0) && (
