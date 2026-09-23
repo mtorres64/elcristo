@@ -7,6 +7,7 @@ import { ProductsCarousel } from "../components/home/ProductsCarousel";
 import { productService } from "../services/product.service";
 import { useCategories } from "../hooks/useCategories";
 import { useCart } from "../hooks/useCart";
+import { ComboBadge } from "../components/product/ComboBadge";
 import { CATEGORY_GROUPS, CATEGORY_GROUP_LABEL, type CategoryGroup } from "../types/category";
 import type { ProductSummary } from "../types/product";
 
@@ -384,7 +385,8 @@ function ProductCard({ product, colorIndex }: { product: ProductSummary; colorIn
   }
 
   return (
-    <Link to={`/products/${product.product_id}`} className="group block">
+    <Link to={`/products/${product.product_id}`} className="group block relative">
+      {product.product_type === "combo" && <ComboBadge />}
       <div
         className={`w-full aspect-square bg-gradient-to-br ${bg} mb-3 relative overflow-hidden rounded-lg`}
       >

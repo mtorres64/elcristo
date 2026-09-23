@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useCart } from "../../hooks/useCart";
 import { productService } from "../../services/product.service";
+import { ComboBadge } from "./ComboBadge";
 import type { ProductSummary } from "../../types/product";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
@@ -170,7 +171,8 @@ function RelatedCard({ product, colorIndex }: { product: ProductSummary; colorIn
   }
 
   return (
-    <Link to={`/products/${product.product_id}`} className="flex-shrink-0 w-[220px] group block">
+    <Link to={`/products/${product.product_id}`} className="flex-shrink-0 w-[220px] group block relative">
+      {product.product_type === "combo" && <ComboBadge />}
       <div className={`w-full aspect-square bg-gradient-to-br ${bg} mb-3 relative overflow-hidden rounded-[5px]`}>
         {product.image_url ? (
           <img

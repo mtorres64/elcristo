@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { useCart } from "../../hooks/useCart";
 import { productService } from "../../services/product.service";
+import { ComboBadge } from "../product/ComboBadge";
 import type { ProductSummary } from "../../types/product";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
@@ -156,8 +157,9 @@ function ProductCard({ product, colorIndex }: { product: ProductSummary; colorIn
   return (
     <Link
       to={`/products/${product.product_id}`}
-      className="flex-shrink-0 w-[220px] group block snap-start"
+      className="flex-shrink-0 w-[220px] group block snap-start relative"
     >
+      {product.product_type === "combo" && <ComboBadge />}
       {/* Imagen o placeholder */}
       <div className={`w-full aspect-square bg-gradient-to-br ${bg} mb-3 relative overflow-hidden rounded-[5px]`}>
         {product.image_url ? (
