@@ -101,6 +101,7 @@ async def _resolve_combo_items(db, doc: dict) -> tuple[list[dict], int]:
             "price": component["price"] if component else 0,
             "stock": comp_stock,
             "quantity": ci["quantity"],
+            "care": component.get("care", {}) if component else {},
         })
     return resolved, (available or 0)
 

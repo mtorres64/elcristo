@@ -154,6 +154,7 @@ class ComboItemDetail(BaseModel):
     price: int
     stock: int
     quantity: int
+    care: dict[str, str] = {}
 
 
 class ProductDetail(ProductSummary):

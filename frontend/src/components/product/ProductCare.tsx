@@ -101,7 +101,7 @@ export function ProductCare({
       <div>
         <h2 className="section-title mb-4">Descripción</h2>
         {description && (
-          <p className="text-sm text-[#6B6B6B] leading-relaxed mb-8">{description}</p>
+          <p className="text-sm text-[#6B6B6B] leading-relaxed mb-8 whitespace-pre-line">{description}</p>
         )}
 
         <div className="divide-y divide-[#E8E2D8]">

@@ -24,6 +24,7 @@ export interface ComboItemDetail extends ComboItem {
   image_url: string | null;
   price: number;
   stock: number;
+  care: Record<string, string>;
 }
 
 export interface ProductSummary {

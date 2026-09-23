@@ -23,6 +23,14 @@ export function ProductDetail() {
       ? Math.round((1 - product.price / product.compare_at_price) * 100)
       : 0;
 
+  // Un combo no tiene cuidados propios cargados — se muestran los del
+  // primer producto que lo integra y sí tenga esa info (en vez de dejar la
+  // sección vacía, que es lo que pasaba antes).
+  const care =
+    product?.care && Object.keys(product.care).length > 0
+      ? product.care
+      : product?.combo_items.find((i) => Object.keys(i.care).length > 0)?.care ?? {};
+
   return (
     <Layout>
       {/* Breadcrumb */}
@@ -104,7 +112,7 @@ export function ProductDetail() {
       {/* Care + Description */}
       <section className="bg-cream">
         <div className="max-w-screen-xl mx-auto px-6 py-12">
-          <ProductCare care={product?.care ?? {}} description={product?.description} />
+          <ProductCare care={care} description={product?.description} />
         </div>
       </section>
 

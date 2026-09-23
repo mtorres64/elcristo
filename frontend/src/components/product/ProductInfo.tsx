@@ -196,7 +196,7 @@ export function ProductInfo({ product }: { product: ProductDetail }) {
 
       {/* Description */}
       {product.description && (
-        <p className="text-sm text-[#6B6B6B] leading-relaxed">{product.description}</p>
+        <p className="text-sm text-[#6B6B6B] leading-relaxed whitespace-pre-line">{product.description}</p>
       )}
 
       <hr className="border-[#E8E2D8]" />

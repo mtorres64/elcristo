@@ -48,7 +48,7 @@ function FeaturedGroupTile({ group }: { group: CategoryGroup }) {
       ) : (
         <div className="absolute inset-0 bg-gradient-to-br from-forest-accent to-forest-deep" />
       )}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent pt-12 pb-4 px-4">
+      <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent pt-12 pb-4 px-4">
         <p className="text-[#D4A017] text-[10px] font-bold uppercase tracking-widest mb-1">
           ★ Destacado
         </p>
