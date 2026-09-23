@@ -17,6 +17,11 @@ class VariantSchema(BaseModel):
     recommended_pot_ids: list[str] = []
 
 
+class ComboItemSchema(BaseModel):
+    product_id: str
+    quantity: int = Field(default=1, ge=1)
+
+
 class ProductCreate(BaseModel):
     title: str = Field(max_length=150)
     short_description: str | None = Field(None, max_length=160)
@@ -39,6 +44,8 @@ class ProductCreate(BaseModel):
     attributes: dict[str, str] = {}
     variants: list[VariantSchema] = []
     recommended_pot_ids: list[str] = []
+    product_type: Literal["simple", "combo"] = "simple"
+    combo_items: list[ComboItemSchema] = []
 
 
 class ProductUpdate(BaseModel):
@@ -65,6 +72,8 @@ class ProductUpdate(BaseModel):
     images: list[str] | None = None
     variants: list[VariantSchema] | None = None
     recommended_pot_ids: list[str] | None = None
+    product_type: Literal["simple", "combo"] | None = None
+    combo_items: list[ComboItemSchema] | None = None
 
 
 class ProductSummary(BaseModel):
@@ -86,6 +95,7 @@ class ProductSummary(BaseModel):
     stock: int = 0
     tags: list[str] = []
     care: dict[str, str] = {}
+    product_type: Literal["simple", "combo"] = "simple"
 
 
 class ImageSuggestionCandidate(BaseModel):
@@ -137,6 +147,15 @@ class BulkConfirmResponse(BaseModel):
     results: list[BulkConfirmResult]
 
 
+class ComboItemDetail(BaseModel):
+    product_id: str
+    title: str
+    image_url: str | None = None
+    price: int
+    stock: int
+    quantity: int
+
+
 class ProductDetail(ProductSummary):
     description: str | None = None
     target_markup_pct: float | None = None
@@ -155,3 +174,4 @@ class ProductDetail(ProductSummary):
     care: dict[str, str] = {}
     attributes: dict[str, str] = {}
     recommended_pot_ids: list[str] = []
+    combo_items: list[ComboItemDetail] = []

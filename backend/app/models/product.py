@@ -18,6 +18,11 @@ class ProductVariant(BaseModel):
     recommended_pot_ids: list[str] = []          # IDs de productos "maceta" sugeridos para este tamaño
 
 
+class ComboItem(BaseModel):
+    product_id: str
+    quantity: int = 1                              # unidades de este producto por combo vendido
+
+
 class ProductDocument(BaseModel):
     id: str | None = Field(None, alias="_id")
     tenant_id: str
@@ -32,13 +37,15 @@ class ProductDocument(BaseModel):
     tax: Literal["iva-21", "iva-10", "exento"] = "iva-21"
     category_id: str | None = None
     images: list[str] = []
-    stock: int = 0
+    stock: int = 0                                 # Ignorado para combos: se calcula de sus componentes
     sku: str | None = None
     status: Literal["draft", "active", "paused", "out_of_stock"] = "draft"
     is_featured: bool = False
     publish_at: datetime | None = None
     variants: list[ProductVariant] = []
     recommended_pot_ids: list[str] = []          # IDs de productos "maceta" sugeridos
+    product_type: Literal["simple", "combo"] = "simple"
+    combo_items: list[ComboItem] = []              # Productos que integran el combo (solo product_type="combo")
     tags: list[str] = []
     weight_grams: int | None = None
     height_cm: int | None = None                   # Altura del producto en cm

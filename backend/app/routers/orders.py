@@ -240,19 +240,42 @@ async def _resolve_shipping(db, tenant_id: str, subtotal: int, body: OrderCreate
     return 0, 0
 
 
+async def _expand_stock_lines(db, items: list[dict]) -> list[tuple[ObjectId, int]]:
+    """Traduce cada línea del pedido al producto cuyo stock hay que tocar de
+    verdad: si la línea es un combo, sus componentes (cantidad por combo ×
+    cantidad vendida) — el combo en sí nunca guarda stock propio. Si es un
+    producto simple, el producto mismo."""
+    expanded: list[tuple[ObjectId, int]] = []
+    for item in items:
+        try:
+            product_oid = ObjectId(item["product_id"])
+        except Exception:
+            continue
+        product = await db.products.find_one({"_id": product_oid})
+        if product and product.get("product_type") == "combo":
+            for combo_item in product.get("combo_items", []):
+                try:
+                    component_oid = ObjectId(combo_item["product_id"])
+                except Exception:
+                    continue
+                expanded.append((component_oid, combo_item.get("quantity", 1) * item["quantity"]))
+        else:
+            expanded.append((product_oid, item["quantity"]))
+    return expanded
+
+
 async def _mark_stock_decremented(db, doc: dict) -> dict:
-    """Descuenta el stock de cada item del pedido `doc` y devuelve el dict de
-    updates a mergear (o {} si ya se había descontado antes). Idempotente vía
-    `stock_decremented` — usado tanto acá (pago síncrono aprobado) como en
-    `update_order_status` (seller marca "paid" a mano) y en el webhook de
-    Getnet (refuerzo eventual), para no descontar dos veces el mismo pedido
-    sin importar por cuál de los tres caminos llegó a "paid"."""
+    """Descuenta el stock de cada item del pedido `doc` (expandiendo combos a
+    sus componentes) y devuelve el dict de updates a mergear (o {} si ya se
+    había descontado antes). Idempotente vía `stock_decremented` — usado
+    tanto acá (pago síncrono aprobado) como en `update_order_status` (seller
+    marca "paid" a mano) y en el webhook de Getnet (refuerzo eventual), para
+    no descontar dos veces el mismo pedido sin importar por cuál de los tres
+    caminos llegó a "paid"."""
     if doc.get("stock_decremented", False):
         return {}
-    for item in doc["items"]:
-        await db.products.update_one(
-            {"_id": ObjectId(item["product_id"])}, {"$inc": {"stock": -item["quantity"]}}
-        )
+    for product_oid, quantity in await _expand_stock_lines(db, doc["items"]):
+        await db.products.update_one({"_id": product_oid}, {"$inc": {"stock": -quantity}})
     return {"stock_decremented": True}
 
 
@@ -425,6 +448,13 @@ async def create_order(body: OrderCreate, request: Request, background: Backgrou
 
     order_items = []
     tenant_ids: set[str] = set()
+    # Cantidad total requerida por producto "real" (el que efectivamente
+    # tiene stock propio): para un combo son sus componentes, cantidad por
+    # combo × cantidad vendida. Se acumula acá — en vez de validar cada línea
+    # del carrito por separado — para no vender de más cuando dos combos
+    # distintos comparten un componente, o un componente se vende suelto y
+    # también dentro de un combo en el mismo pedido.
+    stock_requirements: dict[str, int] = {}
     for item in body.items:
         # El carrito (CartContext, frontend) arma product_id como
         # "<id-real>__<tamaño>__<maceta-o-sin-maceta>" para poder tener una
@@ -443,8 +473,19 @@ async def create_order(body: OrderCreate, request: Request, background: Backgrou
         product = await db.products.find_one({"_id": product_oid, "deleted_at": None})
         if not product:
             raise HTTPException(404, f"Producto no encontrado: {item.title}")
-        if product.get("stock", 0) < item.quantity:
-            raise HTTPException(400, f"Stock insuficiente para \"{product['title']}\"")
+
+        if product.get("product_type") == "combo":
+            if not product.get("combo_items"):
+                raise HTTPException(400, f"\"{product['title']}\" ya no está disponible")
+            for combo_item in product["combo_items"]:
+                stock_requirements[combo_item["product_id"]] = (
+                    stock_requirements.get(combo_item["product_id"], 0)
+                    + combo_item.get("quantity", 1) * item.quantity
+                )
+        else:
+            stock_requirements[base_product_id] = (
+                stock_requirements.get(base_product_id, 0) + item.quantity
+            )
 
         tenant_ids.add(product["tenant_id"])
         order_items.append({
@@ -454,6 +495,17 @@ async def create_order(body: OrderCreate, request: Request, background: Backgrou
             "quantity": item.quantity,
             "image_url": item.image_url,
         })
+
+    for real_product_id, required_qty in stock_requirements.items():
+        try:
+            real_oid = ObjectId(real_product_id)
+        except Exception:
+            raise HTTPException(400, f"ID de producto inválido: {real_product_id}")
+        real_product = await db.products.find_one({"_id": real_oid, "deleted_at": None})
+        if not real_product:
+            raise HTTPException(404, "Uno de los productos del pedido ya no está disponible")
+        if real_product.get("stock", 0) < required_qty:
+            raise HTTPException(400, f"Stock insuficiente para \"{real_product['title']}\"")
 
     if len(tenant_ids) > 1:
         raise HTTPException(400, "Los productos del pedido deben ser de la misma tienda")
@@ -653,10 +705,10 @@ async def update_order_status(order_id: str, body: OrderStatusUpdate, request: R
         if new_status == "refunded":
             updates["payment.status"] = "refunded"
         if current_status in _STOCK_DECREMENTED_STATES and was_decremented:
-            for item in doc["items"]:
+            for product_oid, quantity in await _expand_stock_lines(db, doc["items"]):
                 await db.products.update_one(
-                    {"_id": ObjectId(item["product_id"])},
-                    {"$inc": {"stock": item["quantity"]}},
+                    {"_id": product_oid},
+                    {"$inc": {"stock": quantity}},
                 )
             updates["stock_decremented"] = False
 

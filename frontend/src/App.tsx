@@ -23,6 +23,9 @@ import { ResetPassword } from "./pages/ResetPassword";
 import { VerifyEmail } from "./pages/VerifyEmail";
 import { ProductEdit } from "./pages/admin/ProductEdit";
 import { ProductList } from "./pages/admin/ProductList";
+import { ComboList } from "./pages/admin/ComboList";
+import { ComboNew } from "./pages/admin/ComboNew";
+import { ComboEdit } from "./pages/admin/ComboEdit";
 import { PurchaseList } from "./pages/admin/PurchaseList";
 import { PurchaseNew } from "./pages/admin/PurchaseNew";
 import { PurchaseDetail as PurchaseDetailPage } from "./pages/admin/PurchaseDetail";
@@ -87,6 +90,9 @@ export default function App() {
             <Route path="/seller/products" element={<RequireAuth><ProductList /></RequireAuth>} />
             <Route path="/seller/products/new" element={<RequireAuth><ProductEdit /></RequireAuth>} />
             <Route path="/seller/products/:productId/edit" element={<RequireAuth><ProductEdit /></RequireAuth>} />
+            <Route path="/seller/combos" element={<RequireAuth><ComboList /></RequireAuth>} />
+            <Route path="/seller/combos/new" element={<RequireAuth><ComboNew /></RequireAuth>} />
+            <Route path="/seller/combos/:productId/edit" element={<RequireAuth><ComboEdit /></RequireAuth>} />
             <Route path="/seller/purchases" element={<RequireAuth><PurchaseList /></RequireAuth>} />
             <Route path="/seller/purchases/new" element={<RequireAuth><PurchaseNew /></RequireAuth>} />
             <Route path="/seller/purchases/:purchaseId" element={<RequireAuth><PurchaseDetailPage /></RequireAuth>} />

@@ -2,11 +2,13 @@ import { api } from "./api";
 import type {
   BulkConfirmResult,
   BulkImageSuggestionRow,
+  ComboItem,
   ImageSuggestionResponse,
   ImportJob,
   ImportProductKind,
   ProductDetail,
   ProductSummary,
+  ProductType,
   ProductVariant,
 } from "../types/product";
 
@@ -23,6 +25,7 @@ interface ListProductsParams {
   status?: string;
   category_id?: string;
   category_group?: string;
+  product_type?: ProductType;
   min_price?: number;
   max_price?: number;
   on_sale?: boolean;
@@ -65,6 +68,8 @@ export const productService = {
     attributes?: Record<string, string>;
     variants?: Partial<ProductVariant>[];
     recommended_pot_ids?: string[];
+    product_type?: ProductType;
+    combo_items?: ComboItem[];
   }): Promise<ProductDetail> {
     const res = await api.post("/products", data);
     return res.data;
@@ -104,6 +109,8 @@ export const productService = {
       attributes?: Record<string, string>;
       variants?: Partial<ProductVariant>[];
       recommended_pot_ids?: string[];
+      product_type?: ProductType;
+      combo_items?: ComboItem[];
     }
   ): Promise<ProductDetail> {
     const res = await api.patch(`/products/${productId}`, data);

@@ -12,6 +12,20 @@ export interface ProductVariant {
   recommended_pot_ids: string[];
 }
 
+export type ProductType = "simple" | "combo";
+
+export interface ComboItem {
+  product_id: string;
+  quantity: number;
+}
+
+export interface ComboItemDetail extends ComboItem {
+  title: string;
+  image_url: string | null;
+  price: number;
+  stock: number;
+}
+
 export interface ProductSummary {
   product_id: string;
   tenant_id: string;
@@ -31,6 +45,7 @@ export interface ProductSummary {
   stock: number;
   tags: string[];
   care: Record<string, string>;
+  product_type: ProductType;
 }
 
 /** Las tres plantillas de importación — no comparten propiedades (cuidados
@@ -112,4 +127,5 @@ export interface ProductDetail extends ProductSummary {
   care: Record<string, string>;
   attributes: Record<string, string>;
   recommended_pot_ids: string[];
+  combo_items: ComboItemDetail[];
 }

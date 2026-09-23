@@ -670,6 +670,7 @@ export function ProductList() {
         q: debouncedQ || undefined,
         status: status || undefined,
         category_id: categoryId || undefined,
+        product_type: "simple",
         sort,
         page,
         page_size: pageSize,

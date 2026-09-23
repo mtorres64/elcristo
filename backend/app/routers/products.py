@@ -42,7 +42,7 @@ def _validate_wikimedia_urls(image_urls: list[str]) -> list[str]:
     return image_urls
 
 
-def _to_summary(doc: dict) -> dict:
+def _to_summary(doc: dict, *, stock_override: int | None = None) -> dict:
     return {
         "product_id": str(doc["_id"]),
         "tenant_id": doc["tenant_id"],
@@ -59,19 +59,88 @@ def _to_summary(doc: dict) -> dict:
         "rating_count": doc.get("rating_count", 0),
         "status": doc["status"],
         "category_id": doc.get("category_id"),
-        "stock": doc.get("stock", 0),
+        "stock": stock_override if stock_override is not None else doc.get("stock", 0),
         "tags": doc.get("tags", []),
         "care": doc.get("care", {}),
+        "product_type": doc.get("product_type", "simple"),
     }
 
 
-def _to_detail(doc: dict, category: dict | None = None) -> dict:
-    result = _to_summary(doc)
+async def _resolve_combo_items(db, doc: dict) -> tuple[list[dict], int]:
+    """Resuelve los componentes de un combo contra el catálogo actual y
+    calcula cuántas unidades del combo se pueden vender hoy: el mínimo,
+    entre todos sus componentes, de `stock_del_componente // cantidad_por_combo`.
+    El stock del combo nunca se guarda — siempre se deriva de sus
+    componentes para no desincronizarse cuando esos productos se venden
+    sueltos o en otro combo."""
+    combo_items = doc.get("combo_items", [])
+    if not combo_items:
+        return [], 0
+
+    oids = []
+    for ci in combo_items:
+        try:
+            oids.append(ObjectId(ci["product_id"]))
+        except Exception:
+            continue
+    components = await db.products.find({"_id": {"$in": oids}}).to_list(length=len(oids)) if oids else []
+    components_by_id = {str(c["_id"]): c for c in components}
+
+    resolved = []
+    available: int | None = None
+    for ci in combo_items:
+        component = components_by_id.get(ci["product_id"])
+        comp_stock = component.get("stock", 0) if component else 0
+        qty = max(ci.get("quantity", 1), 1)
+        max_units = comp_stock // qty
+        available = max_units if available is None else min(available, max_units)
+        resolved.append({
+            "product_id": ci["product_id"],
+            "title": component["title"] if component else "Producto no disponible",
+            "image_url": (component.get("images") or [None])[0] if component else None,
+            "price": component["price"] if component else 0,
+            "stock": comp_stock,
+            "quantity": ci["quantity"],
+        })
+    return resolved, (available or 0)
+
+
+async def _validate_combo_items(db, combo_items: list[dict]) -> None:
+    if len(combo_items) < 2:
+        raise HTTPException(400, "Un combo debe incluir al menos 2 productos")
+
+    seen: set[str] = set()
+    oids = []
+    for ci in combo_items:
+        pid = ci["product_id"]
+        if pid in seen:
+            raise HTTPException(400, "Un combo no puede repetir el mismo producto")
+        seen.add(pid)
+        try:
+            oids.append(ObjectId(pid))
+        except Exception:
+            raise HTTPException(400, f"ID de producto inválido en el combo: {pid}")
+
+    docs = await db.products.find({"_id": {"$in": oids}, "deleted_at": None}).to_list(length=len(oids))
+    if len(docs) != len(oids):
+        raise HTTPException(400, "Uno de los productos del combo no existe")
+    if any(d.get("product_type") == "combo" for d in docs):
+        raise HTTPException(400, "Un combo no puede incluir otro combo")
+
+
+async def _to_detail(db, doc: dict, category: dict | None = None) -> dict:
+    is_combo = doc.get("product_type") == "combo"
+    combo_items_resolved: list[dict] = []
+    stock_override = None
+    if is_combo:
+        combo_items_resolved, stock_override = await _resolve_combo_items(db, doc)
+
+    result = _to_summary(doc, stock_override=stock_override)
     result.update({
         "description": doc.get("description"),
         "target_markup_pct": doc.get("target_markup_pct"),
         "images": doc.get("images", []),
-        "stock": doc.get("stock", 0),
+        "stock": result["stock"],
         "variants": doc.get("variants", []),
         "category_id": doc.get("category_id"),
         "category_name": category["name"] if category else None,
@@ -85,6 +154,7 @@ def _to_detail(doc: dict, category: dict | None = None) -> dict:
         "care": doc.get("care", {}),
         "attributes": doc.get("attributes", {}),
         "recommended_pot_ids": doc.get("recommended_pot_ids", []),
+        "combo_items": combo_items_resolved,
     })
     return result
 
@@ -97,6 +167,7 @@ async def list_products(
     category_id: str | None = None,
     category_group: str | None = None,
     status: str | None = None,
+    product_type: str | None = None,
     min_price: int | None = None,
     max_price: int | None = None,
     featured: bool | None = None,
@@ -111,6 +182,14 @@ async def list_products(
     f: dict = {"deleted_at": None}
     if status:
         f["status"] = status
+    if product_type == "simple":
+        # Los productos creados antes de que existieran los combos no tienen
+        # `product_type` guardado en Mongo (el default del modelo sólo aplica
+        # al leerlos con Pydantic, no a lo que ya está en la base) — por eso
+        # "simple" se resuelve como "no es combo" y no como igual a "simple".
+        f["product_type"] = {"$ne": "combo"}
+    elif product_type:
+        f["product_type"] = product_type
 
     tid = tenant_id or request.state.tenant_id
     if tid:
@@ -177,8 +256,16 @@ async def list_products(
     cursor = db.products.find(f).sort(sort_spec).skip(skip).limit(page_size)
     docs = await cursor.to_list(length=page_size)
 
+    items = []
+    for doc in docs:
+        if doc.get("product_type") == "combo":
+            _, combo_stock = await _resolve_combo_items(db, doc)
+            items.append(_to_summary(doc, stock_override=combo_stock))
+        else:
+            items.append(_to_summary(doc))
+
     return {
-        "items": [_to_summary(doc) for doc in docs],
+        "items": items,
         "total": total,
         "page": page,
         "page_size": page_size,
@@ -248,7 +335,7 @@ async def get_product(product_id: str):
         except Exception:
             category = None
 
-    return _to_detail(doc, category)
+    return await _to_detail(db, doc, category)
 
 
 @router.post("", response_model=ProductDetail, status_code=201)
@@ -258,6 +345,9 @@ async def create_product(body: ProductCreate, request: Request):
     db = get_db()
     tenant_id = getattr(request.state, "tenant_id", None) or "default"
     now = datetime.now(UTC)
+
+    if body.product_type == "combo":
+        await _validate_combo_items(db, [ci.model_dump() for ci in body.combo_items])
 
     doc = {
         "tenant_id": tenant_id,
@@ -279,6 +369,8 @@ async def create_product(body: ProductCreate, request: Request):
         "images": [],
         "variants": [v.model_dump() for v in body.variants],
         "recommended_pot_ids": body.recommended_pot_ids,
+        "product_type": body.product_type,
+        "combo_items": [ci.model_dump() for ci in body.combo_items],
         "tags": body.tags,
         "care": body.care,
         "attributes": body.attributes,
@@ -294,7 +386,7 @@ async def create_product(body: ProductCreate, request: Request):
 
     result = await db.products.insert_one(doc)
     doc["_id"] = result.inserted_id
-    return _to_detail(doc)
+    return await _to_detail(db, doc)
 
 
 @router.post("/{product_id}/images")
@@ -476,6 +568,11 @@ async def update_product(product_id: str, body: ProductUpdate, request: Request)
     if not updates:
         raise HTTPException(400, "No hay campos para actualizar")
 
+    effective_type = updates.get("product_type", old_doc.get("product_type", "simple"))
+    if effective_type == "combo":
+        effective_combo_items = updates.get("combo_items", old_doc.get("combo_items", []))
+        await _validate_combo_items(db, effective_combo_items)
+
     updates["updated_at"] = datetime.now(UTC)
 
     await db.products.update_one(f, {"$set": updates})
@@ -488,7 +585,7 @@ async def update_product(product_id: str, body: ProductUpdate, request: Request)
             await delete_image(url)
 
     doc = await db.products.find_one({"_id": oid, "deleted_at": None})
-    return _to_detail(doc)
+    return await _to_detail(db, doc)
 
 
 @router.delete("/{product_id}", status_code=204)

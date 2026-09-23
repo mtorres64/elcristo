@@ -14,6 +14,7 @@ const NAV: NavItem[] = [
   { icon: <DashboardIcon />, label: "Dashboard", path: "/seller" },
   { icon: <OrdersIcon />, label: "Pedidos", path: "/seller/orders" },
   { icon: <ProductsIcon />, label: "Productos", path: "/seller/products" },
+  { icon: <CombosIcon />, label: "Combos", path: "/seller/combos" },
   { icon: <PurchasesIcon />, label: "Compras", path: "/seller/purchases" },
   { icon: <CategoriesIcon />, label: "Categorías", path: "/seller/categories" },
   { icon: <ClientsIcon />, label: "Clientes", path: "/seller/clients" },
@@ -292,6 +293,17 @@ function ProductsIcon() {
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
       <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
       <polyline points="3.27 6.96 12 12.01 20.73 6.96" /><line x1="12" y1="22.08" x2="12" y2="12" />
+    </svg>
+  );
+}
+function CombosIcon() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d="M20 12v7a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-7" />
+      <path d="M22 7H2v5h20z" />
+      <path d="M12 22V7" />
+      <path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z" />
+      <path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z" />
     </svg>
   );
 }
