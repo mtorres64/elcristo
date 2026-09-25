@@ -27,7 +27,7 @@ function TopLink({ to, children }: { to: string; children: React.ReactNode }) {
   return (
     <Link
       to={to}
-      className="text-xs tracking-wide text-[#D5D9D4] hover:text-white transition-colors"
+      className="text-xs font-medium tracking-wide text-[#D5D9D4] border border-[#4A5A4C] rounded-full px-3.5 py-1.5 hover:text-[#111810] hover:bg-white hover:border-white transition-colors"
     >
       {children}
     </Link>
