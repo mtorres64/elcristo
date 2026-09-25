@@ -3,7 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { ARGENTINE_PROVINCES } from "../../types/address";
 import type { AddressInput } from "../../types/address";
-import { geolocateAddress } from "../../utils/geolocation";
+import { geolocateAddress, reverseGeocode } from "../../utils/geolocation";
+import type { GeocodedAddress } from "../../utils/geolocation";
+import { LocationPicker } from "../common/LocationPicker";
 import { normalizeText } from "../../utils/text";
 import { georefService } from "../../services/georef.service";
 
@@ -36,6 +38,8 @@ export function AddressForm({ initial, onCancel, onSave, hasExistingAddresses, o
   const [zipUnknown, setZipUnknown] = useState(initial?.zip_unknown ?? false);
   const [department, setDepartment] = useState(initial?.department ?? "");
   const [isDefault, setIsDefault] = useState(initial?.is_default ?? !hasExistingAddresses);
+  const [lat, setLat] = useState<number | null>(initial?.lat ?? null);
+  const [lng, setLng] = useState<number | null>(initial?.lng ?? null);
   const [locating, setLocating] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -73,56 +77,85 @@ export function AddressForm({ initial, onCancel, onSave, hasExistingAddresses, o
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locality]);
 
+  /** Vuelca en el formulario lo que resolvió el reverse geocoding y guarda el
+   * punto exacto, venga de "Usar mi ubicación" o de un pin puesto en el mapa. */
+  async function applyGeocoded(result: GeocodedAddress) {
+    setLat(result.lat);
+    setLng(result.lng);
+    if (result.street) {
+      setStreet(result.street);
+      setNoNumber(!result.hasNumber);
+    }
+    if (result.province) setProvince(result.province);
+    if (result.locality) {
+      // No alcanza con `localityOptions`: todavía tiene la lista de la
+      // provincia anterior en este mismo render — se pide la de la
+      // provincia recién detectada para clasificar bien de una.
+      const options = result.province
+        ? await georefService.getMunicipios(result.province).catch(() => [])
+        : [];
+      applyLocality(result.locality, options);
+    }
+    if (result.zip) {
+      setZip(result.zip);
+      setZipUnknown(false);
+    }
+    if (result.street) {
+      toast.success("Dirección completada. Revisala antes de guardar.");
+    } else {
+      // Zona sin el nombre de calle cargado en OpenStreetMap: completamos
+      // lo que se pudo (localidad, provincia, CP) y avisamos que falta la calle.
+      toast("Completamos localidad y provincia. Escribí la calle a mano.", { icon: "📍" });
+    }
+  }
+
+  function reportGeoError(err: unknown) {
+    // Los errores propios (país incorrecto, sin datos útiles) traen un
+    // mensaje específico y más útil que el genérico de abajo — se muestra
+    // tal cual en vez de taparlo.
+    const message =
+      err instanceof GeolocationPositionError
+        ? "No pudimos acceder a tu ubicación. Revisá los permisos del navegador."
+        : err instanceof Error && err.message
+          ? err.message
+          : "No pudimos completar la dirección automáticamente. Cargala a mano.";
+    toast.error(message);
+  }
+
   async function handleUseLocation() {
     setLocating(true);
     try {
       const result = await geolocateAddress();
-      setStreet(result.street);
-      setNoNumber(!result.hasNumber);
-      if (result.province) setProvince(result.province);
-      if (result.locality) {
-        // No alcanza con `localityOptions`: todavía tiene la lista de la
-        // provincia anterior en este mismo render — se pide la de la
-        // provincia recién detectada para clasificar bien de una.
-        const options = result.province
-          ? await georefService.getMunicipios(result.province).catch(() => [])
-          : [];
-        applyLocality(result.locality, options);
-      }
-      if (result.zip) {
-        setZip(result.zip);
-        setZipUnknown(false);
-      }
-      if (result.street) {
-        toast.success("Dirección completada. Revisala antes de guardar.");
-      } else {
-        // Zona sin el nombre de calle cargado en OpenStreetMap: completamos
-        // lo que se pudo (localidad, provincia, CP) y avisamos que falta la calle.
-        toast("Completamos localidad y provincia. Escribí la calle a mano.", { icon: "📍" });
-      }
+      await applyGeocoded(result);
     } catch (err) {
-      // Los errores propios (país incorrecto, sin datos útiles) traen un
-      // mensaje específico y más útil que el genérico de abajo — se muestra
-      // tal cual en vez de taparlo.
-      const message =
-        err instanceof GeolocationPositionError
-          ? "No pudimos acceder a tu ubicación. Revisá los permisos del navegador."
-          : err instanceof Error && err.message
-            ? err.message
-            : "No pudimos completar la dirección automáticamente. Cargala a mano.";
-      toast.error(message);
+      reportGeoError(err);
+    } finally {
+      setLocating(false);
+    }
+  }
+
+  async function handlePinChange(newLat: number, newLng: number) {
+    // El pin se mueve y queda guardado aunque el reverse geocoding falle
+    // (ej. pin fuera de Argentina o servicio caído): las coordenadas valen igual.
+    setLat(newLat);
+    setLng(newLng);
+    setLocating(true);
+    try {
+      await applyGeocoded(await reverseGeocode(newLat, newLng));
+    } catch (err) {
+      reportGeoError(err);
     } finally {
       setLocating(false);
     }
   }
 
   const missingRequired =
-    !fullName.trim() || !phone.trim() || !street.trim() || !province || !locality.trim();
+    !fullName.trim() || !phone.trim() || !street.trim() || !province || !locality.trim() || lat == null || lng == null;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (missingRequired) {
-      toast.error("Completá los campos obligatorios");
+      toast.error(lat == null ? "Marcá la ubicación en el mapa" : "Completá los campos obligatorios");
       return;
     }
     setSaving(true);
@@ -138,6 +171,8 @@ export function AddressForm({ initial, onCancel, onSave, hasExistingAddresses, o
         zip: zipUnknown ? null : zip.trim() || null,
         zip_unknown: zipUnknown,
         department: department.trim() || null,
+        lat: lat!,
+        lng: lng!,
         is_default: isDefault,
       });
     } catch {
@@ -158,6 +193,21 @@ export function AddressForm({ initial, onCancel, onSave, hasExistingAddresses, o
         <LocationIcon spinning={locating} />
         {locating ? "Buscando tu ubicación..." : "Usar mi ubicación"}
       </button>
+
+      <div>
+        <label className={LABEL}>
+          Ubicación en el mapa <span className="text-[#B45309] font-normal">(obligatoria)</span>
+        </label>
+        <LocationPicker
+          position={lat != null && lng != null ? [lat, lng] : null}
+          onChange={handlePinChange}
+        />
+        <p className={`text-[11px] mt-1.5 ${lat != null ? "text-[#8A8A8A]" : "text-[#B45309]"}`}>
+          {lat != null
+            ? "Arrastrá el pin o tocá el mapa para ajustar el punto exacto de entrega."
+            : "Tocá el mapa para marcar el punto exacto de entrega."}
+        </p>
+      </div>
 
       <div>
         <label className={LABEL}>Dirección</label>
@@ -350,7 +400,7 @@ export function AddressForm({ initial, onCancel, onSave, hasExistingAddresses, o
         <button
           type="submit"
           disabled={saving || missingRequired}
-          title={missingRequired ? "Completá dirección, localidad y teléfono para guardar" : undefined}
+          title={missingRequired ? "Completá dirección, localidad, teléfono y ubicación en el mapa para guardar" : undefined}
           className="rounded-lg bg-[#1A2B1C] text-white text-sm font-semibold px-6 py-2.5 hover:bg-[#253824] transition-colors disabled:opacity-50"
         >
           {saving ? "Guardando..." : "Guardar"}

@@ -8,6 +8,8 @@ export interface GeocodedAddress {
   province: string | null;
   zip: string;
   hasNumber: boolean;
+  lat: number;
+  lng: number;
 }
 
 function matchProvince(raw: string | undefined): string | null {
@@ -40,6 +42,13 @@ export async function geolocateAddress(): Promise<GeocodedAddress> {
   });
 
   const { latitude, longitude } = position.coords;
+  return reverseGeocode(latitude, longitude);
+}
+
+/** Reverse geocoding de unas coordenadas — lo usan tanto "Usar mi ubicación"
+ * como el pin puesto a mano en el mapa. Devuelve también `lat`/`lng` para que
+ * quien llama guarde exactamente el punto que se resolvió. */
+export async function reverseGeocode(latitude: number, longitude: number): Promise<GeocodedAddress> {
   const res = await api.get("/geocode/reverse", { params: { lat: latitude, lng: longitude } });
   const addr = res.data ?? {};
 
@@ -75,5 +84,7 @@ export async function geolocateAddress(): Promise<GeocodedAddress> {
     province: matchProvince(addr.state),
     zip: addr.postcode || "",
     hasNumber: !!addr.house_number,
+    lat: latitude,
+    lng: longitude,
   };
 }

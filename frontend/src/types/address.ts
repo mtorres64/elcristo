@@ -10,6 +10,8 @@ export interface Address {
   zip: string | null;
   zip_unknown: boolean;
   department: string | null;
+  lat: number | null;
+  lng: number | null;
   is_default: boolean;
   created_at: string;
 }
@@ -25,6 +27,8 @@ export interface AddressInput {
   zip?: string | null;
   zip_unknown?: boolean;
   department?: string | null;
+  lat: number;
+  lng: number;
   is_default?: boolean;
 }
 

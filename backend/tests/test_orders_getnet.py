@@ -37,6 +37,8 @@ def _shipping_address() -> dict:
         "street": "Av. Siempre Viva 123",
         "province": "Buenos Aires",
         "locality": "CABA",
+        "lat": -34.6037,
+        "lng": -58.3816,
     }
 
 

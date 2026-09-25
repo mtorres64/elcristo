@@ -38,6 +38,8 @@ export interface OrderAddress {
   zip: string | null;
   zip_unknown: boolean;
   department: string | null;
+  lat?: number | null;
+  lng?: number | null;
 }
 
 export interface OrderPayment {

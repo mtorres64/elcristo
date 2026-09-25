@@ -23,6 +23,8 @@ def _to_out(doc: dict) -> dict:
         "zip": doc.get("zip"),
         "zip_unknown": doc.get("zip_unknown", False),
         "department": doc.get("department"),
+        "lat": doc.get("lat"),
+        "lng": doc.get("lng"),
         "is_default": doc.get("is_default", False),
         "created_at": doc["created_at"],
     }
@@ -66,6 +68,8 @@ async def create_address(body: AddressCreate, request: Request):
         "zip": None if body.zip_unknown else body.zip,
         "zip_unknown": body.zip_unknown,
         "department": body.department,
+        "lat": body.lat,
+        "lng": body.lng,
         "is_default": make_default,
         "created_at": now,
         "updated_at": now,

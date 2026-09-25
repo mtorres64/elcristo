@@ -16,6 +16,8 @@ class AddressDocument(BaseModel):
     zip: str | None = None
     zip_unknown: bool = False
     department: str | None = None
+    lat: float | None = None
+    lng: float | None = None
     is_default: bool = False
     created_at: datetime
     updated_at: datetime

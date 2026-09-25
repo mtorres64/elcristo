@@ -80,6 +80,8 @@ class OrderAddressOut(BaseModel):
     zip: str | None = None
     zip_unknown: bool
     department: str | None = None
+    lat: float | None = None
+    lng: float | None = None
 
 
 class OrderPaymentOut(BaseModel):

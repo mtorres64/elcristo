@@ -40,6 +40,11 @@ export function AddressCard({
         <p className="text-xs text-[#6B6B6B] mt-0.5">
           {address.locality}, {address.province} {zipLabel ? `(${zipLabel})` : ""}
         </p>
+        {address.lat == null && (
+          <p className="text-[11px] text-[#B45309] mt-1">
+            Falta la ubicación en el mapa. Agregá una nueva dirección marcándola.
+          </p>
+        )}
         <p className="text-xs text-[#8A8A8A] mt-1">
           {address.full_name} · {address.phone_country_code} {address.phone}
         </p>

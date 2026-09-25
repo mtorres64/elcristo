@@ -34,6 +34,8 @@ class OrderAddress(BaseModel):
     zip: str | None = None
     zip_unknown: bool = False
     department: str | None = None
+    lat: float | None = None
+    lng: float | None = None
 
 
 class OrderPayment(BaseModel):

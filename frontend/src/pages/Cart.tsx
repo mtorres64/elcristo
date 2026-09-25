@@ -258,6 +258,11 @@ export function Cart() {
       toast.error("Elegí una dirección de envío");
       return;
     }
+    if (addresses.find((a) => a.address_id === selectedAddressId)?.lat == null) {
+      toast.error("La dirección necesita ubicación en el mapa");
+      setStep("address");
+      return;
+    }
     if (hasShippingOptions && (!shippingChoice || shippingChoice === "other")) {
       toast.error("Elegí una opción de envío válida");
       setStep("address");
@@ -552,6 +557,10 @@ export function Cart() {
                 if (step === "cart") goToAddress();
                 else if (step === "address") {
                   if (!selectedAddressId) { toast.error("Elegí una dirección"); return; }
+                  if (addresses.find((a) => a.address_id === selectedAddressId)?.lat == null) {
+                    toast.error("Esa dirección no tiene ubicación en el mapa. Agregá una nueva marcándola.");
+                    return;
+                  }
                   if (hasShippingOptions && !shippingChoice) { toast.error("Elegí una opción de envío"); return; }
                   if (shippingChoice === "other") { toast.error("Coordiná el envío por WhatsApp antes de continuar"); return; }
                   setStep("payment");

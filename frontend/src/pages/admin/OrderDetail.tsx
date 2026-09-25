@@ -6,6 +6,7 @@ import { orderService } from "../../services/order.service";
 import { ORDER_STATUS_LABEL } from "../../types/order";
 import type { Order, OrderStatus } from "../../types/order";
 import { formatARS } from "../../utils/currency";
+import { LocationViewer } from "../../components/common/LocationPicker";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
@@ -148,6 +149,19 @@ export function OrderDetail() {
               <p className="text-xs text-[#8A8A8A] mt-2">
                 {order.shipping_address.full_name} · {order.shipping_address.phone_country_code} {order.shipping_address.phone}
               </p>
+              {order.shipping_address.lat != null && order.shipping_address.lng != null && (
+                <div className="mt-3">
+                  <LocationViewer lat={order.shipping_address.lat} lng={order.shipping_address.lng} />
+                  <a
+                    href={`https://www.google.com/maps?q=${order.shipping_address.lat},${order.shipping_address.lng}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-block mt-1.5 text-xs font-medium text-[#1A2B1C] hover:underline"
+                  >
+                    Abrir en Google Maps
+                  </a>
+                </div>
+              )}
             </div>
 
             <div className="rounded-lg bg-white border border-[#E8E2D8] p-4">

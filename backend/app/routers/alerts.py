@@ -25,6 +25,8 @@ async def get_alerts(request: Request):
     product_filter: dict = {
         "deleted_at": None,
         "status": "active",
+        # El stock de un combo se calcula de sus componentes, no se controla aquí
+        "product_type": {"$ne": "combo"},
         "stock": {"$lte": LOW_STOCK_THRESHOLD},
     }
     if tenant_id:

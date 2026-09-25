@@ -163,6 +163,77 @@ function ComboRow({ combo, onDelete }: { combo: ProductSummary; onDelete: (id: s
   );
 }
 
+function ComboCardMobile({ combo, onDelete }: { combo: ProductSummary; onDelete: (id: string) => void }) {
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  async function handleDelete() {
+    setDeleting(true);
+    try {
+      await productService.deleteById(combo.product_id);
+      toast.success(`"${combo.title}" eliminado`);
+      onDelete(combo.product_id);
+    } catch {
+      toast.error("No se pudo eliminar el combo");
+      setDeleting(false);
+      setConfirming(false);
+    }
+  }
+
+  return (
+    <div className="px-4 py-3.5 flex flex-col gap-3">
+      <div className="flex items-start gap-3">
+        <ComboThumb src={combo.image_url} title={combo.title} />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            <p className="text-sm font-medium text-[#1A1A1A] leading-snug line-clamp-2">{combo.title}</p>
+            {combo.is_featured && <span className="text-[#D4A017] text-sm shrink-0" title="Destacado">★</span>}
+          </div>
+          {combo.short_description && (
+            <p className="text-[11px] text-[#8A8A8A] line-clamp-1 mt-0.5 leading-relaxed">{combo.short_description}</p>
+          )}
+        </div>
+        <StatusBadge status={combo.status} />
+      </div>
+
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-baseline gap-1.5">
+            <p className="text-sm font-medium text-[#1A1A1A] tabular-nums">{formatARS(combo.price)}</p>
+            {combo.compare_at_price && (
+              <p className="text-[11px] text-[#ABABAB] line-through tabular-nums">{formatARS(combo.compare_at_price)}</p>
+            )}
+          </div>
+          <div className="flex items-center gap-1 text-[11px] text-[#8A8A8A]">
+            Stock <StockBadge stock={combo.stock} />
+          </div>
+        </div>
+
+        {confirming ? (
+          <div className="flex items-center gap-1 shrink-0">
+            <span className="text-xs text-[#6B6B6B] mr-1">¿Eliminar?</span>
+            <button onClick={handleDelete} disabled={deleting} className="px-2 py-1 text-xs font-medium bg-[#DC2626] text-white rounded disabled:opacity-50">
+              {deleting ? "…" : "Sí"}
+            </button>
+            <button onClick={() => setConfirming(false)} disabled={deleting} className="px-2 py-1 text-xs text-[#6B6B6B] border border-[#E8E2D8] rounded">
+              No
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1 shrink-0">
+            <Link to={`/seller/combos/${combo.product_id}/edit`} className="p-1.5 text-[#6B6B6B] hover:text-[#1A2B1C]" title="Editar">
+              <PencilIcon />
+            </Link>
+            <button onClick={() => setConfirming(true)} className="p-1.5 text-[#6B6B6B] hover:text-[#DC2626]" title="Eliminar">
+              <TrashIcon />
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function ComboList() {
   const { user } = useAuth();
   const [q, setQ] = useState("");
@@ -303,7 +374,7 @@ export function ComboList() {
             </div>
           ) : (
             <>
-              <table className="w-full">
+              <table className="w-full hidden sm:table">
                 <thead>
                   <tr className="border-b border-[#E8E2D8] bg-[#F9F8F5]">
                     <th className="w-[58px] px-4 py-3" />
@@ -320,6 +391,13 @@ export function ComboList() {
                   ))}
                 </tbody>
               </table>
+
+              {/* Mobile cards */}
+              <div className="sm:hidden divide-y divide-[#F0EDE8]">
+                {items.map((c) => (
+                  <ComboCardMobile key={c.product_id} combo={c} onDelete={handleRowDelete} />
+                ))}
+              </div>
 
               {pages > 1 && (
                 <div className="flex items-center justify-between gap-4 px-4 py-3 border-t border-[#E8E2D8] flex-wrap">

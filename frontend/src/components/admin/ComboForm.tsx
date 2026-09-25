@@ -183,6 +183,31 @@ export function ComboForm({ productId }: { productId?: string }) {
   }
 
   return (
+    <>
+    {/* Mobile action bar */}
+    <div className="sm:hidden sticky top-0 z-10 bg-white border-b border-[#E8E2D8] px-4 py-3 flex items-center gap-2">
+      <Link
+        to="/seller/combos"
+        className="px-3 py-2 border border-[#E8E2D8] text-sm text-[#4A4A4A] bg-white rounded-lg"
+      >
+        Cancelar
+      </Link>
+      <button
+        onClick={() => handleSubmit(false)}
+        disabled={saving}
+        className="px-3 py-2 border border-[#C8C0B4] text-sm text-[#1A2B1C] font-medium bg-white rounded-lg disabled:opacity-50"
+      >
+        Borrador
+      </button>
+      <button
+        onClick={() => handleSubmit(true)}
+        disabled={saving}
+        className="flex-1 bg-[#1A2B1C] text-white text-xs font-semibold uppercase tracking-widest px-3 py-2.5 hover:bg-[#253824] transition-colors disabled:opacity-50"
+      >
+        {saving ? "Guardando…" : "Publicar"}
+      </button>
+    </div>
+
     <div className="px-4 sm:px-8 py-6 min-h-full">
       {/* Breadcrumb */}
       <nav className="flex items-center gap-2 text-xs text-[#8A8A8A] mb-4">
@@ -205,7 +230,7 @@ export function ComboForm({ productId }: { productId?: string }) {
             Armá una promoción combinando productos existentes a un precio especial
           </p>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="hidden sm:flex items-center gap-2 shrink-0">
           <Link
             to="/seller/combos"
             className="px-4 py-2 border border-[#E8E2D8] text-sm text-[#4A4A4A] bg-white hover:bg-[#F9F8F5] transition-colors"
@@ -401,6 +426,7 @@ export function ComboForm({ productId }: { productId?: string }) {
         </div>
       </div>
     </div>
+    </>
   );
 }
 

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class AddressCreate(BaseModel):
@@ -14,6 +14,8 @@ class AddressCreate(BaseModel):
     zip: str | None = None
     zip_unknown: bool = False
     department: str | None = None
+    lat: float = Field(..., ge=-90, le=90)
+    lng: float = Field(..., ge=-180, le=180)
     is_default: bool = False
 
 
@@ -28,6 +30,8 @@ class AddressUpdate(BaseModel):
     zip: str | None = None
     zip_unknown: bool | None = None
     department: str | None = None
+    lat: float | None = Field(None, ge=-90, le=90)
+    lng: float | None = Field(None, ge=-180, le=180)
     is_default: bool | None = None
 
 
@@ -43,5 +47,7 @@ class AddressResponse(BaseModel):
     zip: str | None = None
     zip_unknown: bool
     department: str | None = None
+    lat: float | None = None
+    lng: float | None = None
     is_default: bool
     created_at: datetime
