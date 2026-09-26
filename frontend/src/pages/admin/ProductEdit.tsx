@@ -1425,12 +1425,12 @@ function SizePricingRow({
         <FormField label="Precio de costo">
           <PrefixInput prefix="$" value={cost} onChange={setCost} />
         </FormField>
-        <FormField label="Precio promocional">
+        <FormField label="Precio sin descuento">
           <div className="relative">
             <PrefixInput prefix="$" value={promo} onChange={setPromo} />
             <button
               className="absolute right-2 top-1/2 -translate-y-1/2 text-[#ABABAB] hover:text-[#DC2626] transition-colors"
-              aria-label="Quitar precio promocional"
+              aria-label="Quitar precio sin descuento"
               onClick={() => setPromo("")}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
