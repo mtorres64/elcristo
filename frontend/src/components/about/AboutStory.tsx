@@ -26,7 +26,7 @@ export function AboutStory({
 }) {
   return (
     <section className="bg-cream py-16 md:py-20">
-      <div className="max-w-screen-xl mx-auto px-6">
+      <div className="max-w-screen-xl mx-auto px-3 sm:px-6">
         {/* Intro */}
         <Reveal className="max-w-2xl mx-auto text-center mb-16 md:mb-20">
           <p className="section-label mb-3 justify-center flex">Quiénes somos</p>

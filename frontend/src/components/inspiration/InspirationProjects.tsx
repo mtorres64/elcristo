@@ -47,7 +47,7 @@ export function InspirationProjects({ projects }: { projects: InspirationProject
               </div>
 
               {/* Ficha del proyecto */}
-              <div className="max-w-screen-xl mx-auto px-6 pt-6 md:pt-8">
+              <div className="max-w-screen-xl mx-auto px-3 sm:px-6 pt-6 md:pt-8">
                 <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3 border-b border-[#EAE4DB] pb-8">
                   <div>
                     {project.location && (

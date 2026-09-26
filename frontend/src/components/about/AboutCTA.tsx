@@ -4,7 +4,7 @@ import { Reveal } from "../common/Reveal";
 export function AboutCTA() {
   return (
     <section className="bg-[#111810]">
-      <div className="max-w-screen-xl mx-auto px-6 py-16 md:py-20 text-center">
+      <div className="max-w-screen-xl mx-auto px-3 sm:px-6 py-16 md:py-20 text-center">
         <Reveal className="max-w-xl mx-auto flex flex-col items-center gap-6">
           <h2 className="font-serif text-3xl md:text-4xl text-white font-normal leading-tight">
             ¿Listo para darle vida verde a tu espacio?

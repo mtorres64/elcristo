@@ -26,7 +26,7 @@ const VALUES = [
 export function AboutValues() {
   return (
     <section className="bg-[#253824]">
-      <div className="max-w-screen-xl mx-auto px-6 py-16 md:py-20">
+      <div className="max-w-screen-xl mx-auto px-3 sm:px-6 py-16 md:py-20">
         <Reveal className="max-w-xl mb-12">
           <p className="text-[10px] uppercase tracking-widest text-[#7A9B7C] font-semibold italic mb-3">
             Lo que nos guía

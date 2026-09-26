@@ -22,7 +22,7 @@ export function OrderConfirmation() {
   if (error) {
     return (
       <Layout>
-        <div className="max-w-screen-xl mx-auto px-6 py-24 text-center">
+        <div className="max-w-screen-xl mx-auto px-3 sm:px-6 py-24 text-center">
           <p className="text-sm text-[#6B6B6B]">No pudimos encontrar ese pedido.</p>
           <Link to="/" className="link-arrow justify-center mt-4">Volver a la tienda</Link>
         </div>
@@ -33,7 +33,7 @@ export function OrderConfirmation() {
   if (!order) {
     return (
       <Layout>
-        <div className="max-w-screen-xl mx-auto px-6 py-24 text-center">
+        <div className="max-w-screen-xl mx-auto px-3 sm:px-6 py-24 text-center">
           <p className="text-sm text-[#8A8A8A]">Cargando pedido...</p>
         </div>
       </Layout>
@@ -42,7 +42,7 @@ export function OrderConfirmation() {
 
   return (
     <Layout>
-      <div className="max-w-screen-xl mx-auto px-6 py-16">
+      <div className="max-w-screen-xl mx-auto px-3 sm:px-6 py-16">
         <div className="max-w-lg mx-auto text-center mb-10">
           <div className="w-14 h-14 rounded-full bg-[#E8F0E8] flex items-center justify-center mx-auto mb-4">
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#3D6040" strokeWidth="2.2">

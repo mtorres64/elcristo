@@ -130,7 +130,7 @@ export function HeroSection() {
 
       {/* Trust badges strip */}
       <div className="bg-white border-t border-[#EAE4DB] py-5">
-        <div className="max-w-screen-xl mx-auto px-6">
+        <div className="max-w-screen-xl mx-auto px-3 sm:px-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 divide-x divide-[#EAE4DB]">
             <TrustBadge icon={<TruckIcon />} text="Envíos a todo el país" />
             <TrustBadge icon={<ShieldIcon />} text="Compra segura y protegida" />
@@ -189,7 +189,7 @@ function SplitSlide({ slide, side }: { slide: HeroSlide; side: "left" | "right" 
       {/* Texto */}
       <div className="relative z-10 max-w-screen-xl mx-auto lg:px-6 h-full">
         <div
-          className={`lg:w-[42%] px-6 lg:px-0 backdrop-blur-sm lg:backdrop-blur-none flex items-center min-h-[630px] py-16 lg:py-24 ${
+          className={`lg:w-[42%] px-3 sm:px-6 lg:px-0 backdrop-blur-sm lg:backdrop-blur-none flex items-center min-h-[630px] py-16 lg:py-24 ${
             isLeft ? "lg:pr-12" : "lg:pl-12 lg:ml-auto"
           }`}
           style={{ backgroundColor: panelBg }}

@@ -25,7 +25,7 @@ export function DesignHero({ title, image }: { title: string; image: string }) {
 
       {/* Breadcrumb */}
       <div className="absolute top-0 left-0 right-0">
-        <div className="max-w-screen-xl mx-auto px-6 py-5">
+        <div className="max-w-screen-xl mx-auto px-3 sm:px-6 py-5">
           <nav className="flex items-center gap-2 text-xs text-white/70">
             <Link to="/" className="hover:text-white transition-colors">
               Inicio
@@ -37,7 +37,7 @@ export function DesignHero({ title, image }: { title: string; image: string }) {
       </div>
 
       {/* Título */}
-      <div className="relative max-w-screen-xl mx-auto px-6 pb-14 md:pb-16 w-full">
+      <div className="relative max-w-screen-xl mx-auto px-3 sm:px-6 pb-14 md:pb-16 w-full">
         <p className="text-[11px] uppercase tracking-widest text-white/80 font-semibold italic mb-3">
           Diseño & Paisajismo
         </p>

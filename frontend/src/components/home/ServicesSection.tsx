@@ -26,7 +26,7 @@ const SERVICES = [
 export function ServicesSection() {
   return (
     <section className="bg-[#253824]">
-      <div className="max-w-screen-xl mx-auto px-6 py-16 lg:py-20">
+      <div className="max-w-screen-xl mx-auto px-3 sm:px-6 py-16 lg:py-20">
         <div className="flex flex-col lg:flex-row gap-12 lg:gap-20 items-start">
           {/* Left — text */}
           <div className="lg:w-2/5 flex flex-col gap-6">

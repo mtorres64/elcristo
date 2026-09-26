@@ -304,7 +304,7 @@ export function Cart() {
   if (itemCount === 0) {
     return (
       <Layout>
-        <div className="max-w-screen-xl mx-auto px-6 py-24 flex flex-col items-center text-center gap-4">
+        <div className="max-w-screen-xl mx-auto px-3 sm:px-6 py-24 flex flex-col items-center text-center gap-4">
           <CartEmptyIcon />
           <h1 className="font-serif text-2xl text-[#1A1A1A]">Tu carrito está vacío</h1>
           <p className="text-sm text-[#6B6B6B] max-w-sm">
@@ -320,7 +320,7 @@ export function Cart() {
 
   return (
     <Layout>
-      <div className="max-w-screen-xl mx-auto px-6 py-10">
+      <div className="max-w-screen-xl mx-auto px-3 sm:px-6 py-10">
         <h1 className="font-serif text-3xl text-[#1A1A1A] mb-6">Carrito de compras</h1>
 
         <div className="mb-8">

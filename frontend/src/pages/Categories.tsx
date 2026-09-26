@@ -16,7 +16,7 @@ export function Categories() {
   return (
     <Layout>
       <section className="bg-cream py-14">
-        <div className="max-w-screen-xl mx-auto px-6">
+        <div className="max-w-screen-xl mx-auto px-3 sm:px-6">
           <div className="mb-10">
             <h1 className="font-serif text-4xl text-[#1A2B1C] mb-2">Todas las Categorías</h1>
             <p className="text-[#6B6B6B] text-sm">

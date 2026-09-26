@@ -27,7 +27,7 @@ export function Contact() {
     <Layout>
       {/* Breadcrumb */}
       <div className="bg-cream border-b border-[#E8E2D8]">
-        <div className="max-w-screen-xl mx-auto px-6 py-3">
+        <div className="max-w-screen-xl mx-auto px-3 sm:px-6 py-3">
           <nav className="flex items-center gap-2 text-xs text-[#8A8A8A]">
             <Link to="/" className="hover:text-[#3D6040] transition-colors">
               Inicio
@@ -39,7 +39,7 @@ export function Contact() {
       </div>
 
       <section className="bg-cream py-14 md:py-20">
-        <div className="max-w-screen-xl mx-auto px-6">
+        <div className="max-w-screen-xl mx-auto px-3 sm:px-6">
           <div className="max-w-2xl mb-12">
             <p className="section-label mb-3">Contacto</p>
             <h1 className="font-serif text-3xl md:text-4xl text-[#1A1A1A] font-normal mb-4">

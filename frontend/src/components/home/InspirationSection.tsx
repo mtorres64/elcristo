@@ -10,7 +10,7 @@ const IMAGES = [
 export function InspirationSection() {
   return (
     <section className="bg-cream py-14">
-      <div className="max-w-screen-xl mx-auto px-6">
+      <div className="max-w-screen-xl mx-auto px-3 sm:px-6">
         {/* Header */}
         <div className="flex items-end justify-between mb-7">
           <div>

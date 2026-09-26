@@ -57,7 +57,7 @@ export function Header() {
 
   return (
     <header className="bg-white border-b border-[#E8E2D8] sticky top-0 z-50">
-      <div className="max-w-screen-xl mx-auto px-6 flex items-center justify-between h-16">
+      <div className="max-w-screen-xl mx-auto px-3 sm:px-6 flex items-center justify-between h-16">
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2.5 shrink-0">
           <img src="/images/logo_verde_line.png" alt="Vivero El Cristo" className="h-[2.025rem] w-auto shrink-0" />

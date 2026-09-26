@@ -61,7 +61,7 @@ export function ProductsCarousel() {
   if (isLoading) {
     return (
       <section className="bg-cream py-14">
-        <div className="max-w-screen-xl mx-auto px-6">
+        <div className="max-w-screen-xl mx-auto px-3 sm:px-6">
           <div className="flex items-center justify-between mb-8">
             <h2 className="section-title">Elegidas para Vos</h2>
           </div>
@@ -85,7 +85,7 @@ export function ProductsCarousel() {
 
   return (
     <section className="bg-cream py-14">
-      <div className="max-w-screen-xl mx-auto px-6">
+      <div className="max-w-screen-xl mx-auto px-3 sm:px-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <h2 className="section-title">Elegidas para Vos</h2>

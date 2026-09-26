@@ -34,7 +34,7 @@ export function MyOrders() {
 
   return (
     <Layout>
-      <div className="max-w-screen-lg mx-auto px-6 py-12">
+      <div className="max-w-screen-lg mx-auto px-3 sm:px-6 py-12">
         <h1 className="font-serif text-3xl text-[#1A1A1A] mb-1">Mis pedidos</h1>
         <p className="text-sm text-[#6B6B6B] mb-8">Historial de tus compras y el estado de cada una.</p>
 

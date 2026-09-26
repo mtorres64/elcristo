@@ -33,6 +33,9 @@ export function LocationPicker({ position, onChange, className = "h-64" }: Props
         center={position ?? DEFAULT_CENTER}
         zoom={position ? 16 : 12}
         style={{ height: "100%", width: "100%" }}
+        // En táctil el arrastre con un dedo movería el mapa y bloquearía el
+        // scroll de la página; el pin se ubica con toque o arrastrando el marker.
+        dragging={!L.Browser.mobile}
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
@@ -78,7 +81,7 @@ function PinLayer({ position, onChange }: Pick<Props, "position" | "onChange">) 
 export function LocationViewer({ lat, lng, className = "h-56" }: { lat: number; lng: number; className?: string }) {
   return (
     <div className={`rounded-lg overflow-hidden border border-[#E8E2D8] ${className}`}>
-      <MapContainer center={[lat, lng]} zoom={16} style={{ height: "100%", width: "100%" }} scrollWheelZoom={false}>
+      <MapContainer center={[lat, lng]} zoom={16} style={{ height: "100%", width: "100%" }} scrollWheelZoom={false} dragging={!L.Browser.mobile}>
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"

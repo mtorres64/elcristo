@@ -13,7 +13,7 @@ export function NewsletterSection() {
 
   return (
     <section className="bg-[#111810]">
-      <div className="max-w-screen-xl mx-auto px-6 py-14">
+      <div className="max-w-screen-xl mx-auto px-3 sm:px-6 py-14">
         <div className="flex flex-col md:flex-row items-center justify-between gap-8">
           {/* Text */}
           <div className="md:max-w-sm">

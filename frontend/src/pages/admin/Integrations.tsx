@@ -289,10 +289,18 @@ export function Integrations() {
               <button
                 type="button"
                 onClick={() => setActiveEnvironment(tab)}
-                className="self-start text-xs font-medium text-[#1A2B1C] hover:underline"
+                className="self-start px-3.5 py-2 rounded-lg border border-[#1A2B1C] text-xs font-semibold text-[#1A2B1C] hover:bg-[#1A2B1C] hover:text-white transition-colors"
               >
                 Usar {tab === "sandbox" ? "Sandbox" : "Producción"} para cobrar en el checkout
               </button>
+            )}
+
+            {activeEnvironment !== data.active_environment && (
+              <p className="text-xs bg-[#FFF8E6] border border-[#F0DDA8] text-[#7A5B00] rounded-lg px-3.5 py-2.5">
+                Cambiaste el ambiente a{" "}
+                <strong>{activeEnvironment === "sandbox" ? "Sandbox" : "Producción"}</strong>, pero
+                todavía no se aplicó: tocá <strong>Guardar cambios</strong>.
+              </p>
             )}
 
             <div>

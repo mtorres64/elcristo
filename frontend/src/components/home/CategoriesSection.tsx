@@ -88,7 +88,7 @@ export function CategoriesSection() {
 
   return (
     <section className="bg-cream py-14">
-      <div className="max-w-screen-xl mx-auto px-6">
+      <div className="max-w-screen-xl mx-auto px-3 sm:px-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-7">
           <h2 className="section-title">Nuestras Categorías</h2>

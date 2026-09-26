@@ -83,7 +83,7 @@ export function MyOrderDetail() {
 
   return (
     <Layout>
-      <div className="max-w-screen-lg mx-auto px-6 py-12">
+      <div className="max-w-screen-lg mx-auto px-3 sm:px-6 py-12">
         <Link
           to="/mis-pedidos"
           className="inline-flex items-center gap-1.5 text-xs uppercase tracking-widest text-[#6B6B6B] hover:text-forest-deep transition-colors mb-6"

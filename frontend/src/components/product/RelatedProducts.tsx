@@ -94,7 +94,7 @@ export function RelatedProducts({
 
   return (
     <section className="bg-cream py-14">
-      <div className="max-w-screen-xl mx-auto px-6">
+      <div className="max-w-screen-xl mx-auto px-3 sm:px-6">
         <div className="flex items-center justify-between mb-8">
           <h2 className="section-title">También te puede interesar</h2>
           <Link to="/products" className="link-arrow">

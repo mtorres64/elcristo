@@ -35,7 +35,7 @@ export function ProductDetail() {
     <Layout>
       {/* Breadcrumb */}
       <div className="bg-cream border-b border-[#E8E2D8]">
-        <div className="max-w-screen-xl mx-auto px-6 py-3">
+        <div className="max-w-screen-xl mx-auto px-3 sm:px-6 py-3">
           <nav className="flex items-center gap-2 text-xs text-[#8A8A8A]" aria-label="Miga de pan">
             <Link to="/" className="hover:text-[#3D6040] transition-colors">
               Inicio
@@ -65,7 +65,7 @@ export function ProductDetail() {
 
       {/* Main product section */}
       <section className="bg-cream">
-        <div className="max-w-screen-xl mx-auto px-6 py-10 lg:py-14">
+        <div className="max-w-screen-xl mx-auto px-3 sm:px-6 py-10 lg:py-14">
           {isLoading && (
             <div className="flex items-center justify-center py-24">
               <span className="text-[#8A8A8A] text-sm">Cargando producto…</span>
@@ -91,7 +91,7 @@ export function ProductDetail() {
 
       {/* Product trust badges */}
       <div className="bg-white border-t border-b border-[#E8E2D8] py-8">
-        <div className="max-w-screen-xl mx-auto px-6">
+        <div className="max-w-screen-xl mx-auto px-3 sm:px-6">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 lg:divide-x lg:divide-[#E8E0D4]">
             <TrustBadge icon={<PersonIcon />} title="Asesoramiento personalizado" />
             <TrustBadge icon={<GuaranteeIcon />} title="Garantía verde" subtitle="7 días" />
@@ -111,7 +111,7 @@ export function ProductDetail() {
 
       {/* Care + Description */}
       <section className="bg-cream">
-        <div className="max-w-screen-xl mx-auto px-6 py-12">
+        <div className="max-w-screen-xl mx-auto px-3 sm:px-6 py-12">
           <ProductCare care={care} description={product?.description} />
         </div>
       </section>

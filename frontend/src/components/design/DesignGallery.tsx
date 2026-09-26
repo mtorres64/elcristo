@@ -45,7 +45,7 @@ export function DesignGallery({ projects }: { projects: DesignProject[] }) {
 
             {/* Velo degradado + ficha integrada a la foto, no un bloque aparte */}
             <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/35 to-transparent pt-24 md:pt-32">
-              <div className="max-w-screen-xl mx-auto px-6 pb-10 md:pb-14">
+              <div className="max-w-screen-xl mx-auto px-3 sm:px-6 pb-10 md:pb-14">
                 {project.location && (
                   <p className="text-[10px] uppercase tracking-widest text-white/70 font-semibold mb-2">
                     {project.location}

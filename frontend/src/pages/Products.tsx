@@ -167,7 +167,7 @@ export function Products() {
   return (
     <Layout>
       <div className="bg-cream min-h-screen">
-        <div className="max-w-screen-xl mx-auto px-6 py-10">
+        <div className="max-w-screen-xl mx-auto px-3 sm:px-6 py-10">
           {/* Header row */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-8">
             {/* Title */}

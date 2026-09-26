@@ -20,7 +20,7 @@ export function Footer() {
   return (
     <footer className="bg-[#111810] text-[#A8B5A9]">
       {/* Main footer */}
-      <div className="max-w-screen-xl mx-auto px-6 py-16 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10">
+      <div className="max-w-screen-xl mx-auto px-3 sm:px-6 py-16 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10">
         {/* Brand col */}
         <div className="lg:col-span-1 flex flex-col gap-5">
           <div className="flex items-center gap-2.5">
@@ -145,7 +145,7 @@ export function Footer() {
 
       {/* Bottom bar */}
       <div className="border-t border-[#1E2E1F] py-5">
-        <div className="max-w-screen-xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-2">
+        <div className="max-w-screen-xl mx-auto px-3 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-2">
           <p className="text-[10px] text-[#4A5A4B]">© 2024 Vivero El Cristo. Todos los derechos reservados.</p>
           <div className="flex items-center gap-4">
             {["Privacidad", "Cookies", "Legales"].map((item) => (

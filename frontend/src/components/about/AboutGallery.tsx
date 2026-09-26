@@ -22,7 +22,7 @@ export function AboutGallery({ photos }: { photos: string[] }) {
 
   return (
     <section className="bg-cream py-16 md:py-20">
-      <div className="max-w-screen-xl mx-auto px-6">
+      <div className="max-w-screen-xl mx-auto px-3 sm:px-6">
         <Reveal className="mb-10">
           <p className="section-label mb-1.5">Detrás de escena</p>
           <h2 className="section-title text-3xl">Así es nuestro día a día</h2>
