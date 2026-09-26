@@ -1,46 +1,24 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-
-const TESTIMONIALS = [
-  {
-    id: 1,
-    text: "Excelente asesoramiento y plantas de primera calidad. Mi jardín quedó increíble.",
-    name: "María Belén R.",
-    location: "Córdoba",
-    initials: "MB",
-    color: "bg-[#8AAB80]",
-  },
-  {
-    id: 2,
-    text: "Cumplieron en todo: el diseño, las plantas y el mantenimiento. Super recomendables.",
-    name: "Diego L.",
-    location: "Rosario, Santa Fe",
-    initials: "DL",
-    color: "bg-[#7A9B90]",
-  },
-  {
-    id: 3,
-    text: "Me ayudaron a diseñar mi patio soñado. 100% profesionales y dedicados.",
-    name: "Agustina M.",
-    location: "Buenos Aires",
-    initials: "AM",
-    color: "bg-[#9A8BAA]",
-  },
-  {
-    id: 4,
-    text: "Servicio impecable. Las plantas llegaron en perfectas condiciones y el diseño superó mis expectativas.",
-    name: "Carlos V.",
-    location: "Mendoza",
-    initials: "CV",
-    color: "bg-[#AA9B7A]",
-  },
-];
+import { contentService } from "../../services/content.service";
+import type { Testimonial } from "../../types/content";
+import { TestimonialCard } from "../testimonials/TestimonialCard";
 
 const VISIBLE = 3;
 
 export function TestimonialsSection() {
+  const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
   const [offset, setOffset] = useState(0);
-  const maxOffset = Math.max(0, TESTIMONIALS.length - VISIBLE);
+  const maxOffset = Math.max(0, testimonials.length - VISIBLE);
+
+  useEffect(() => {
+    contentService
+      .getTestimonials()
+      .then((d) => setTestimonials(d.items))
+      .catch(() => setTestimonials([]));
+  }, []);
+
+  if (testimonials.length === 0) return null;
 
   return (
     <section className="bg-cream py-14">
@@ -70,8 +48,8 @@ export function TestimonialsSection() {
               className="flex gap-4 transition-transform duration-400 ease-out"
               style={{ transform: `translateX(-${offset * (100 / VISIBLE)}%)` }}
             >
-              {TESTIMONIALS.map((t) => (
-                <TestimonialCard key={t.id} testimonial={t} />
+              {testimonials.map((t, i) => (
+                <TestimonialCard key={t.id} testimonial={t} colorIndex={i} className="flex-shrink-0 w-full sm:w-1/2 lg:w-1/3" />
               ))}
             </div>
           </div>
@@ -87,34 +65,6 @@ export function TestimonialsSection() {
         </div>
       </div>
     </section>
-  );
-}
-
-function TestimonialCard({ testimonial }: { testimonial: typeof TESTIMONIALS[0] }) {
-  return (
-    <div className="flex-shrink-0 w-full sm:w-1/2 lg:w-1/3 bg-white p-7 rounded-[8px]">
-      {/* Big quote mark */}
-      <div className="font-serif text-6xl leading-none text-[#E8E0D4] mb-3 select-none">"</div>
-
-      {/* Review text */}
-      <p className="text-sm text-[#4A4A4A] leading-relaxed mb-6">
-        {testimonial.text}
-      </p>
-
-      {/* Divider */}
-      <div className="border-t border-[#EAE4DB] mb-5" />
-
-      {/* Author */}
-      <div className="flex items-center gap-3">
-        <div className={`w-9 h-9 rounded-full ${testimonial.color} flex items-center justify-center text-white text-xs font-bold shrink-0`}>
-          {testimonial.initials}
-        </div>
-        <div>
-          <p className="text-sm font-semibold text-[#1A1A1A] leading-tight">{testimonial.name}</p>
-          <p className="text-[11px] text-[#8A8A8A] mt-0.5">{testimonial.location}</p>
-        </div>
-      </div>
-    </div>
   );
 }
 

@@ -17,6 +17,8 @@ from app.schemas.content import (
     InspirationSettingsUpdate,
     SocialSettings,
     SocialSettingsUpdate,
+    TestimonialsSettings,
+    TestimonialsSettingsUpdate,
 )
 
 router = APIRouter()
@@ -855,3 +857,109 @@ async def update_social(body: SocialSettingsUpdate, request: Request):
     )
 
     return {"links": links}
+
+
+# ─── Testimonios del home ──────────────────────────────────────────
+# Default usado hasta que el tenant carga sus propios testimonios — replica
+# los que estaban hardcodeados en el carrusel del frontend.
+_DEFAULT_TESTIMONIALS = {
+    "items": [
+        {
+            "id": "default-1",
+            "text": "Excelente asesoramiento y plantas de primera calidad. "
+            "Mi jardín quedó increíble.",
+            "name": "María Belén R.",
+            "location": "Córdoba",
+            "image": "",
+        },
+        {
+            "id": "default-2",
+            "text": "Cumplieron en todo: el diseño, las plantas y el mantenimiento. "
+            "Super recomendables.",
+            "name": "Diego L.",
+            "location": "Rosario, Santa Fe",
+            "image": "",
+        },
+        {
+            "id": "default-3",
+            "text": "Me ayudaron a diseñar mi patio soñado. 100% profesionales y dedicados.",
+            "name": "Agustina M.",
+            "location": "Buenos Aires",
+            "image": "",
+        },
+        {
+            "id": "default-4",
+            "text": "Servicio impecable. Las plantas llegaron en perfectas condiciones "
+            "y el diseño superó mis expectativas.",
+            "name": "Carlos V.",
+            "location": "Mendoza",
+            "image": "",
+        },
+    ]
+}
+
+
+@router.get("/testimonials", response_model=TestimonialsSettings)
+async def get_testimonials(request: Request):
+    db = get_db()
+    doc = await db.site_content.find_one(
+        {"tenant_id": _tenant_id(request), "type": "testimonials"}
+    )
+    if not doc:
+        return _DEFAULT_TESTIMONIALS
+    return {"items": doc.get("items", [])}
+
+
+def _testimonial_image_urls(items: list[dict]) -> set[str]:
+    return {i["image"] for i in items if i.get("image")}
+
+
+@router.put("/testimonials", response_model=TestimonialsSettings)
+async def update_testimonials(body: TestimonialsSettingsUpdate, request: Request):
+    from app.utils.upload import delete_image
+
+    tid = _tenant_id(request)
+    items = []
+    for item in body.items:
+        data = item.model_dump()
+        data["id"] = data["id"] or uuid.uuid4().hex
+        items.append(data)
+
+    db = get_db()
+    old_doc = await db.site_content.find_one({"tenant_id": tid, "type": "testimonials"})
+    old_urls = _testimonial_image_urls(old_doc.get("items", [])) if old_doc else set()
+
+    await db.site_content.update_one(
+        {"tenant_id": tid, "type": "testimonials"},
+        {
+            "$set": {"items": items, "updated_at": datetime.now(UTC)},
+            "$setOnInsert": {
+                "tenant_id": tid, "type": "testimonials", "created_at": datetime.now(UTC)
+            },
+        },
+        upsert=True,
+    )
+
+    # Fotos que ya no están en ningún testimonio -> se borran del storage.
+    for url in old_urls - _testimonial_image_urls(items):
+        await delete_image(url)
+
+    return {"items": items}
+
+
+@router.post("/testimonials/images")
+async def upload_testimonial_image(file: UploadFile = File(...)):
+    from app.utils.upload import DEFAULT_MAX_IMAGE_DIMENSION, MAX_UPLOAD_IMAGE_BYTES, save_image
+
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(400, "Solo se permiten archivos de imagen")
+
+    content = await file.read()
+    if len(content) > MAX_UPLOAD_IMAGE_BYTES:
+        raise HTTPException(400, "La imagen no puede superar 20MB")
+
+    # Son avatares chicos: se usa el límite de tamaño estándar, no el del hero.
+    url = await save_image(
+        content, file.filename or "image", max_dimension=DEFAULT_MAX_IMAGE_DIMENSION
+    )
+    return {"url": url}

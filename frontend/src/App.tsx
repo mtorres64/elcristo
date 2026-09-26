@@ -5,6 +5,7 @@ import { RequireAuth } from "./components/auth/RequireAuth";
 import { CartProvider } from "./context/CartContext";
 import { Home } from "./pages/Home";
 import { AboutUs } from "./pages/AboutUs";
+import { Testimonials } from "./pages/Testimonials";
 import { Inspiration } from "./pages/Inspiration";
 import { Design } from "./pages/Design";
 import { Shipping } from "./pages/info/Shipping";
@@ -110,6 +111,7 @@ export default function App() {
             <Route path="/diseno" element={<Design />} />
             <Route path="/inspiracion" element={<Inspiration />} />
             <Route path="/nosotros" element={<AboutUs />} />
+            <Route path="/testimonios" element={<Testimonials />} />
             <Route path="/envios" element={<Shipping />} />
             <Route path="/medios-de-pago" element={<PaymentMethods />} />
             <Route path="/cambios-y-devoluciones" element={<Returns />} />

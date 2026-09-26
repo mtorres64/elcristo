@@ -117,3 +117,16 @@ export interface SocialLink {
 export interface SocialSettings {
   links: SocialLink[];
 }
+
+export interface Testimonial {
+  id: string;
+  text: string;
+  name: string;
+  location: string;
+  /** Foto del cliente (opcional) — sin ella se muestra un avatar con iniciales. */
+  image: string;
+}
+
+export interface TestimonialsSettings {
+  items: Testimonial[];
+}

@@ -202,3 +202,29 @@ class SocialSettings(BaseModel):
 
 class SocialSettingsUpdate(BaseModel):
     links: list[SocialLinkInput] = Field(default_factory=list)
+
+
+# Testimonios de clientes del carrusel del home. La foto es opcional: sin ella
+# el sitio muestra un avatar con las iniciales.
+class Testimonial(BaseModel):
+    id: str
+    text: str = ""
+    name: str = ""
+    location: str = ""
+    image: str = ""
+
+
+class TestimonialInput(BaseModel):
+    id: str | None = None
+    text: str = ""
+    name: str = ""
+    location: str = ""
+    image: str = ""
+
+
+class TestimonialsSettings(BaseModel):
+    items: list[Testimonial] = Field(default_factory=list)
+
+
+class TestimonialsSettingsUpdate(BaseModel):
+    items: list[TestimonialInput] = Field(default_factory=list)

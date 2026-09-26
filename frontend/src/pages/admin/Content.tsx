@@ -5,6 +5,7 @@ import { AboutPageSettings } from "./settings/AboutPageSettings";
 import { InspirationPageSettings } from "./settings/InspirationPageSettings";
 import { DesignPageSettings } from "./settings/DesignPageSettings";
 import { InfoPageSettings } from "./settings/InfoPageSettings";
+import { TestimonialsSettings } from "./settings/TestimonialsSettings";
 import { contentService } from "../../services/content.service";
 import type {
   AboutSettings,
@@ -18,7 +19,7 @@ import type {
  * con agregar una entrada acá y su componente correspondiente abajo.
  * El carrusel del hero vive aparte, en /seller/settings — es apariencia
  * de la tienda, no una página de contenido. */
-type SectionId = "about" | "inspiration" | "design" | InfoPageSlug;
+type SectionId = "about" | "inspiration" | "design" | "testimonials" | InfoPageSlug;
 
 /* Páginas de solo texto del footer ("Información"). Todas comparten el
  * mismo editor autónomo (InfoPageSettings), así que se listan como datos
@@ -35,6 +36,7 @@ const SECTIONS: { id: SectionId; label: string }[] = [
   { id: "about", label: "Sobre Nosotros" },
   { id: "inspiration", label: "Inspiración" },
   { id: "design", label: "Diseño & Paisajismo" },
+  { id: "testimonials", label: "Testimonios" },
   ...INFO_PAGES.map((p) => ({ id: p.slug, label: p.label })),
 ];
 
@@ -249,6 +251,7 @@ export function Content() {
             onSave={handleSaveDesign}
           />
         )}
+        {section === "testimonials" && <TestimonialsSettings />}
         {INFO_PAGES.map(
           (p) =>
             section === p.slug && (

@@ -9,6 +9,8 @@ import type {
   InspirationSettings,
   SocialLink,
   SocialSettings,
+  Testimonial,
+  TestimonialsSettings,
 } from "../types/content";
 
 export const contentService = {
@@ -106,5 +108,24 @@ export const contentService = {
   async updateSocial(links: SocialLink[]): Promise<SocialSettings> {
     const res = await api.put("/content/social", { links });
     return res.data;
+  },
+
+  async getTestimonials(): Promise<TestimonialsSettings> {
+    const res = await api.get("/content/testimonials");
+    return res.data;
+  },
+
+  async updateTestimonials(items: Testimonial[]): Promise<TestimonialsSettings> {
+    const res = await api.put("/content/testimonials", { items });
+    return res.data;
+  },
+
+  async uploadTestimonialImage(file: File): Promise<string> {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await api.post("/content/testimonials/images", form, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return res.data.url as string;
   },
 };
