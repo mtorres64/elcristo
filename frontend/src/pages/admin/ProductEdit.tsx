@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { ImageSourceSheet, useIsTouchDevice } from "../../components/admin/ImageSourceSheet";
 import { AdminLayout } from "../../components/admin/AdminLayout";
 import { PotPicker } from "../../components/admin/PotPicker";
 import { ImageSuggestionModal } from "../../components/admin/ImageSuggestionModal";
@@ -1204,6 +1205,9 @@ function ProductImageUploader({
   onSuggest: () => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const isTouch = useIsTouchDevice();
+  const [sourceOpen, setSourceOpen] = useState(false);
   const items = productId ? images : pendingFiles;
 
   return (
@@ -1217,11 +1221,34 @@ function ProductImageUploader({
         className="hidden"
         onChange={(e) => e.target.files && onFiles(e.target.files)}
       />
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={(e) => {
+          if (e.target.files) onFiles(e.target.files);
+          e.target.value = "";
+        }}
+      />
+      <ImageSourceSheet
+        open={sourceOpen}
+        onClose={() => setSourceOpen(false)}
+        onGallery={() => {
+          setSourceOpen(false);
+          fileInputRef.current?.click();
+        }}
+        onCamera={() => {
+          setSourceOpen(false);
+          cameraInputRef.current?.click();
+        }}
+      />
 
       {/* Drop zone */}
       <div
         className="border-2 border-dashed border-[#D0C8C0] rounded-lg p-6 text-center mb-4 hover:border-[#1A2B1C] transition-colors cursor-pointer group"
-        onClick={() => fileInputRef.current?.click()}
+        onClick={() => (isTouch ? setSourceOpen(true) : fileInputRef.current?.click())}
         onDragOver={(e) => e.preventDefault()}
         onDrop={onDrop}
       >

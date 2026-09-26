@@ -50,6 +50,8 @@ export interface OrderPayment {
   authorization_code: string | null;
   status: string;
   paid_at: string | null;
+  refund_id?: string | null;
+  refunded_at?: string | null;
 }
 
 export interface OrderSummary {
@@ -75,4 +77,18 @@ export interface Order extends OrderSummary {
   tracking_number: string | null;
   notes: string | null;
   updated_at: string;
+}
+
+export type RefundOutcomeKind = "refunded" | "not_required" | "skipped" | "failed" | "unknown";
+
+// Resultado de la devolución en la pasarela al cancelar un pedido cobrado.
+export interface RefundOutcome {
+  outcome: RefundOutcomeKind;
+  message: string;
+  amount: number | null;
+  refund_id: string | null;
+}
+
+export interface OrderStatusUpdateResult extends Order {
+  refund: RefundOutcome | null;
 }

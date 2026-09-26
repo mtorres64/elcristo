@@ -1,3 +1,4 @@
+import logging
 import math
 from datetime import UTC, datetime
 
@@ -12,8 +13,10 @@ from app.schemas.order import (
     OrderCreateResponse,
     OrderDetail,
     OrderStatusUpdate,
+    OrderStatusUpdateResult,
     OrderSummary,
     PaymentCardIn,
+    RefundOutcome,
 )
 from app.schemas.store_settings import ShippingSettings
 from app.utils import getnet_client
@@ -21,6 +24,8 @@ from app.utils.auth_deps import require_user
 from app.utils.card import detect_brand, luhn_is_valid
 from app.utils.crypto import CryptoConfigError, decrypt_secret
 from app.utils.email import resolve_smtp_config, send_email
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -676,7 +681,79 @@ async def get_order(order_id: str, request: Request):
     return _to_detail(doc)
 
 
-@router.patch("/{order_id}/status", response_model=OrderDetail)
+async def _refund_approved_payment(db, doc: dict) -> tuple[RefundOutcome, dict]:
+    """Devuelve el cobro aprobado de `doc` al cancelar el pedido.
+
+    Devuelve `(resultado, updates_de_payment)`. Sólo `resultado.outcome` en
+    ("refunded", "skipped") deja avanzar la cancelación; "failed"/"unknown"
+    la frenan para que el pedido no quede cancelado con la plata sin devolver.
+    """
+    payment = doc["payment"]
+    total = doc["total"]
+
+    if payment.get("provider") != "getnet" or not payment.get("payment_id"):
+        return RefundOutcome(
+            outcome="skipped",
+            message="El cobro no pasó por una pasarela real: se canceló el pedido "
+            "sin devolución automática.",
+        ), {}
+
+    tenant_id = doc["tenant_id"]
+    cfg = await _get_active_getnet_integration(db, tenant_id)
+    if cfg is None:
+        return RefundOutcome(
+            outcome="failed",
+            message="La integración con Getnet está desactivada o sin credenciales. "
+            "Reactivala en Integraciones para poder devolver el pago.",
+            amount=total,
+        ), {}
+    if payment.get("environment") and payment["environment"] != cfg.environment:
+        return RefundOutcome(
+            outcome="failed",
+            message=f"El cobro se hizo en Getnet ({payment['environment']}) pero el "
+            f"ambiente activo es {cfg.environment}. Cambiá el ambiente en "
+            "Integraciones para poder devolverlo.",
+            amount=total,
+        ), {}
+
+    attempts = payment.get("refund_attempts", 0)
+    try:
+        result = await getnet_client.cancel_payment(
+            cfg,
+            tenant_id,
+            payment_id=payment["payment_id"],
+            # Estable ante reintentos "inciertos" (timeout): Getnet no duplica la
+            # devolución. Rota sólo tras un rechazo definitivo.
+            idempotency_key=f"{tenant_id}:{doc['order_number']}:refund:{attempts}",
+            order_number=doc["order_number"],
+            amount_cents=total,
+        )
+    except getnet_client.GetnetRefundError as exc:
+        if exc.uncertain:
+            return RefundOutcome(
+                outcome="unknown",
+                message=f"{exc}. No se sabe si la devolución se ejecutó: verificá en el "
+                "panel de Getnet y, si no figura, volvé a intentar (es seguro reintentar).",
+                amount=total,
+            ), {}
+        return RefundOutcome(outcome="failed", message=str(exc), amount=total), {
+            "payment.refund_attempts": attempts + 1,
+        }
+
+    now = datetime.now(UTC)
+    return RefundOutcome(
+        outcome="refunded",
+        message="Getnet confirmó la devolución. El importe vuelve a la tarjeta del comprador.",
+        amount=total,
+        refund_id=result.refund_id,
+    ), {
+        "payment.status": "refunded",
+        "payment.refund_id": result.refund_id,
+        "payment.refunded_at": now,
+    }
+
+
+@router.patch("/{order_id}/status", response_model=OrderStatusUpdateResult)
 async def update_order_status(order_id: str, body: OrderStatusUpdate, request: Request):
     db = get_db()
     user = require_user(request)
@@ -700,25 +777,57 @@ async def update_order_status(order_id: str, body: OrderStatusUpdate, request: R
         updates["tracking_number"] = body.tracking_number
 
     was_decremented = doc.get("stock_decremented", False)
+    refund: RefundOutcome | None = None
+
+    if new_status == "cancelled" and current_status != "cancelled":
+        if doc["payment"].get("status") == "approved":
+            refund, payment_updates = await _refund_approved_payment(db, doc)
+            if refund.outcome in ("failed", "unknown"):
+                # El pedido no cambia: sólo se guarda el contador de rechazos.
+                if payment_updates:
+                    await db.orders.update_one({"_id": doc["_id"]}, {"$set": payment_updates})
+                    doc = await db.orders.find_one({"_id": doc["_id"]})
+                return {**_to_detail(doc), "refund": refund}
+            updates.update(payment_updates)
+            if refund.outcome == "refunded":
+                # Cancelar un pedido ya cobrado y devuelto termina en "refunded".
+                updates["status"] = "refunded"
+        else:
+            refund = RefundOutcome(
+                outcome="not_required",
+                message="El pedido no tenía un pago aprobado: no hay nada que devolver.",
+            )
 
     if new_status == "paid":
         updates["payment.status"] = "approved"
         updates["payment.paid_at"] = now
         updates.update(await _mark_stock_decremented(db, doc))
-    elif new_status in ("cancelled", "refunded"):
-        if new_status == "refunded":
+    elif updates["status"] in ("cancelled", "refunded"):
+        if updates["status"] == "refunded":
             updates["payment.status"] = "refunded"
-        if current_status in _STOCK_DECREMENTED_STATES and was_decremented:
-            for product_oid, quantity in await _expand_stock_lines(db, doc["items"]):
-                await db.products.update_one(
-                    {"_id": product_oid},
-                    {"$inc": {"stock": quantity}},
-                )
+        restore_stock = current_status in _STOCK_DECREMENTED_STATES and was_decremented
+        if restore_stock:
             updates["stock_decremented"] = False
 
-    await db.orders.update_one({"_id": doc["_id"]}, {"$set": updates})
+    # Filtro por estado actual: dos requests simultáneos (doble click) no pueden
+    # devolver el stock dos veces ni pisarse el resultado.
+    written = await db.orders.update_one(
+        {"_id": doc["_id"], "status": current_status}, {"$set": updates}
+    )
+    if written.matched_count == 0:
+        if refund is not None and refund.outcome == "refunded":
+            logger.error(
+                "Pedido %s: Getnet devolvió el pago pero el estado cambió en paralelo",
+                doc["order_number"],
+            )
+        raise HTTPException(409, "El pedido cambió mientras se procesaba. Recargá e intentá de nuevo.")
+
+    if updates.get("stock_decremented") is False and was_decremented:
+        for product_oid, quantity in await _expand_stock_lines(db, doc["items"]):
+            await db.products.update_one({"_id": product_oid}, {"$inc": {"stock": quantity}})
+
     updated = await db.orders.find_one({"_id": doc["_id"]})
-    return _to_detail(updated)
+    return {**_to_detail(updated), "refund": refund}
 
 
 @router.post("/webhook/mercadopago")

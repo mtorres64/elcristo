@@ -4,9 +4,10 @@ import toast from "react-hot-toast";
 import { AdminLayout } from "../../components/admin/AdminLayout";
 import { orderService } from "../../services/order.service";
 import { ORDER_STATUS_LABEL } from "../../types/order";
-import type { Order, OrderStatus } from "../../types/order";
+import type { Order, OrderStatus, RefundOutcome } from "../../types/order";
 import { formatARS } from "../../utils/currency";
 import { LocationViewer } from "../../components/common/LocationPicker";
+import { RefundModal } from "../../components/admin/RefundModal";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
@@ -30,6 +31,7 @@ export function OrderDetail() {
   const [nextStatus, setNextStatus] = useState<OrderStatus>("pending_payment");
   const [trackingNumber, setTrackingNumber] = useState("");
   const [updating, setUpdating] = useState(false);
+  const [refundModal, setRefundModal] = useState<"confirm" | "processing" | RefundOutcome | null>(null);
 
   function load() {
     if (!orderId) return;
@@ -47,13 +49,30 @@ export function OrderDetail() {
 
   useEffect(load, [orderId]);
 
+  // Cancelar un pedido ya cobrado por Getnet dispara la devolución real: se
+  // pide confirmación y el resultado se muestra en un modal en vez de un toast.
+  function needsRefundModal(o: Order) {
+    return (
+      nextStatus === "cancelled" &&
+      o.status !== "cancelled" &&
+      o.payment.provider === "getnet" &&
+      o.payment.status === "approved"
+    );
+  }
+
   async function handleUpdateStatus() {
     if (!order) return;
+    if (needsRefundModal(order)) {
+      setRefundModal("confirm");
+      return;
+    }
     setUpdating(true);
     try {
       const updated = await orderService.updateStatus(order.order_id, nextStatus, trackingNumber.trim() || null);
       setOrder(updated);
-      toast.success("Pedido actualizado");
+      setNextStatus(updated.status);
+      if (updated.refund?.outcome === "skipped") toast(updated.refund.message);
+      else toast.success("Pedido actualizado");
     } catch (err: unknown) {
       const message =
         (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
@@ -61,6 +80,32 @@ export function OrderDetail() {
       toast.error(message);
     } finally {
       setUpdating(false);
+    }
+  }
+
+  async function handleConfirmRefund() {
+    if (!order) return;
+    setRefundModal("processing");
+    try {
+      const updated = await orderService.updateStatus(order.order_id, "cancelled", trackingNumber.trim() || null);
+      setOrder(updated);
+      setNextStatus(updated.status);
+      setRefundModal(
+        updated.refund ?? { outcome: "failed", message: "Respuesta inesperada del servidor", amount: null, refund_id: null },
+      );
+    } catch (err: unknown) {
+      const res = (err as { response?: { data?: { detail?: string } } })?.response;
+      // Sin respuesta HTTP no sabemos si el backend llegó a pedir la devolución.
+      setRefundModal(
+        res
+          ? { outcome: "failed", message: res.data?.detail ?? "No se pudo procesar la devolución", amount: null, refund_id: null }
+          : {
+              outcome: "unknown",
+              message: "Se perdió la conexión con el servidor. Recargá la página para ver si la devolución se realizó.",
+              amount: null,
+              refund_id: null,
+            },
+      );
     }
   }
 
@@ -226,6 +271,15 @@ export function OrderDetail() {
           </div>
         </div>
       </div>
+
+      {refundModal && (
+        <RefundModal
+          order={order}
+          state={refundModal}
+          onConfirm={handleConfirmRefund}
+          onClose={() => setRefundModal(null)}
+        />
+      )}
     </AdminLayout>
   );
 }

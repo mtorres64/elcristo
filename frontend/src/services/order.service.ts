@@ -1,5 +1,5 @@
 import { api } from "./api";
-import type { Order, OrderStatus, OrderSummary } from "../types/order";
+import type { Order, OrderStatus, OrderStatusUpdateResult, OrderSummary } from "../types/order";
 import type { AddressInput } from "../types/address";
 
 interface PaginatedOrders {
@@ -66,7 +66,7 @@ export const orderService = {
     return res.data;
   },
 
-  async updateStatus(orderId: string, status: OrderStatus, trackingNumber?: string | null): Promise<Order> {
+  async updateStatus(orderId: string, status: OrderStatus, trackingNumber?: string | null): Promise<OrderStatusUpdateResult> {
     const res = await api.patch(`/orders/${orderId}/status`, {
       status,
       tracking_number: trackingNumber ?? null,

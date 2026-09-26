@@ -49,6 +49,9 @@ class OrderPayment(BaseModel):
     environment: Literal["sandbox", "production"] | None = None   # Getnet: ambiente en que se cobró
     status: Literal["pending", "approved", "rejected", "refunded"] = "pending"
     paid_at: datetime | None = None
+    refund_id: str | None = None                                  # Getnet: id de la devolución
+    refunded_at: datetime | None = None
+    refund_attempts: int = 0                                      # rechazos definitivos previos (rota la idempotency key)
 
 
 class OrderDocument(BaseModel):

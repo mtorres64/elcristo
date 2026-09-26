@@ -269,6 +269,132 @@ async def create_payment(
     )
 
 
+class GetnetRefundError(GetnetError):
+    """Falla al devolver un cobro.
+
+    `uncertain=True` significa que NO sabemos si Getnet ejecutó la devolución
+    (timeout, corte de red, estado intermedio): el que llama no debe dar el
+    reembolso por hecho ni por fallido, y el reintento es seguro porque se
+    reusa el mismo `idempotency_key`. `uncertain=False` es un rechazo
+    definitivo (la plata no se movió).
+    """
+
+    def __init__(self, message: str, *, uncertain: bool = False):
+        super().__init__(message)
+        self.uncertain = uncertain
+
+
+# TODO(confirmar contra sandbox real): no se revisó el ejemplo de respuesta de
+# la cancelación en el swagger. Se asumen estos valores; cualquier otro status
+# se trata como "resultado incierto" (nunca como éxito) hasta confirmarlo.
+GETNET_REFUND_OK_STATUSES = {"CANCELED", "CANCELLED", "REFUNDED"}
+GETNET_REFUND_DENIED_STATUSES = {"DENIED", "REJECTED", "ERROR", "FAILED"}
+
+
+@dataclass
+class GetnetRefundResult:
+    refund_id: str | None
+    status: str
+
+
+async def cancel_payment(
+    cfg: GetnetConfig,
+    tenant_id: str,
+    *,
+    payment_id: str,
+    idempotency_key: str,
+    order_number: str,
+    amount_cents: int,
+) -> GetnetRefundResult:
+    """Devuelve (total) un cobro ya aprobado.
+
+    TODO(confirmar contra sandbox real): ruta y body de la cancelación. Se
+    asume `POST /dpm/payments-gwproxy/v2/payments/{payment_id}/cancel` con el
+    mismo envelope que `create_payment` (idempotency_key, request_id, data).
+    Todo lo que dependa de ese contrato está acá, así que confirmarlo es un
+    cambio sólo en esta función y en las constantes de arriba.
+    """
+    try:
+        token = await get_access_token(cfg, tenant_id)
+    except GetnetError as exc:
+        # Falló antes de mandar nada: la devolución seguro no se ejecutó.
+        raise GetnetRefundError(str(exc)) from exc
+
+    body = {
+        "idempotency_key": idempotency_key,
+        "request_id": str(uuid.uuid4()),
+        "order_id": order_number,
+        "data": {"amount": amount_cents},
+    }
+    url = f"{_base_url(cfg)}/dpm/payments-gwproxy/v2/payments/{payment_id}/cancel"
+    headers = {
+        "authorization": f"Bearer {token}",
+        "x-seller-id": cfg.seller_id,
+        "content-type": "application/json",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=_REQUEST_TIMEOUT) as client:
+            resp = await client.post(url, json=body, headers=headers)
+    except httpx.TimeoutException as exc:
+        logger.warning("Getnet refund timeout (tenant=%s, order=%s)", tenant_id, order_number)
+        raise GetnetRefundError(
+            "La pasarela de pago no respondió a tiempo", uncertain=True
+        ) from exc
+    except httpx.HTTPError as exc:
+        logger.warning(
+            "Getnet refund error de red (tenant=%s, order=%s): %s", tenant_id, order_number, exc
+        )
+        raise GetnetRefundError(
+            "Se perdió la conexión con la pasarela de pago", uncertain=True
+        ) from exc
+
+    if not 200 <= resp.status_code < 300:
+        logger.warning(
+            "Getnet refund rechazado (tenant=%s, order=%s, status=%s): %s",
+            tenant_id, order_number, resp.status_code, resp.text[:1000],
+        )
+        try:
+            error_body = resp.json()
+            details = error_body.get("details") or [{}]
+            reason = details[0].get("description_detail") or error_body.get("message")
+        except ValueError:
+            reason = None
+        message = f"La pasarela rechazó la devolución: {reason}" if reason else (
+            f"La pasarela rechazó la devolución (HTTP {resp.status_code})"
+        )
+        # 5xx: el servidor pudo haber procesado el pedido antes de fallar.
+        raise GetnetRefundError(message, uncertain=resp.status_code >= 500)
+
+    try:
+        payload = resp.json()
+    except ValueError as exc:
+        logger.warning(
+            "Getnet refund respuesta no-JSON (tenant=%s, order=%s): %s",
+            tenant_id, order_number, resp.text[:500],
+        )
+        raise GetnetRefundError(
+            "Respuesta ilegible de la pasarela de pago", uncertain=True
+        ) from exc
+
+    status = str(payload.get("status") or "").upper()
+    if status in GETNET_REFUND_OK_STATUSES:
+        return GetnetRefundResult(
+            refund_id=payload.get("cancellation_id") or payload.get("payment_id"),
+            status=status,
+        )
+    logger.warning(
+        "Getnet refund con status no exitoso (tenant=%s, order=%s): %s",
+        tenant_id, order_number, payload,
+    )
+    if status in GETNET_REFUND_DENIED_STATUSES:
+        raise GetnetRefundError(f"La pasarela denegó la devolución (estado {status})")
+    raise GetnetRefundError(
+        f"La devolución quedó en un estado no confirmado ({status or 'desconocido'})",
+        uncertain=True,
+    )
+
+
 @dataclass
 class GetnetTokenizeResult:
     number_token: str

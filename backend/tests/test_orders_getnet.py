@@ -265,3 +265,133 @@ async def test_saved_mock_card_rejected_when_getnet_enabled(db):
     with pytest.raises(HTTPException) as exc_info:
         await orders_router.create_order(body, _FakeRequest(user_id=user_id), BackgroundTasks())
     assert exc_info.value.status_code == 400
+
+
+# --- Cancelación con devolución en Getnet -----------------------------------
+
+
+class _SellerRequest:
+    def __init__(self, *, tenant_id: str):
+        self.state = SimpleNamespace(
+            current_user={"sub": "seller-1", "role": "platform_admin", "tenant_id": tenant_id}
+        )
+
+
+async def _seed_paid_getnet_order(db, monkeypatch, tenant_id: str) -> tuple[str, str]:
+    user_id = await _seed_buyer(db)
+    product_id = await _seed_product(db, tenant_id=tenant_id, price=5000, stock=3)
+    await _enable_getnet(db, tenant_id=tenant_id)
+    _mock_getnet_calls(monkeypatch, payment_result=getnet_client.GetnetPaymentResult(
+        payment_id="pay_123", status="APPROVED", authorization_code="AUTH1",
+        brand="VISA", last4=None,
+    ))
+    result = await orders_router.create_order(
+        _order_body(product_id=product_id, price=5000),
+        _FakeRequest(user_id=user_id), BackgroundTasks(),
+    )
+    return result["order_id"], product_id
+
+
+def _patch_cancel(monkeypatch, *, result=None, error=None) -> list[dict]:
+    calls: list[dict] = []
+
+    async def fake_cancel(cfg, tid, **kwargs):
+        calls.append(kwargs)
+        if error:
+            raise error
+        return result
+
+    monkeypatch.setattr(getnet_client, "cancel_payment", fake_cancel)
+    return calls
+
+
+async def _cancel(order_id: str, tenant_id: str):
+    return await orders_router.update_order_status(
+        order_id, orders_router.OrderStatusUpdate(status="cancelled"),
+        _SellerRequest(tenant_id=tenant_id),
+    )
+
+
+@pytest.mark.asyncio
+async def test_cancel_paid_getnet_order_refunds_and_ends_refunded(db, monkeypatch):
+    tenant_id = "tienda-refund-ok"
+    order_id, product_id = await _seed_paid_getnet_order(db, monkeypatch, tenant_id)
+    calls = _patch_cancel(
+        monkeypatch, result=getnet_client.GetnetRefundResult(refund_id="ref_1", status="CANCELED")
+    )
+
+    res = await _cancel(order_id, tenant_id)
+
+    assert res["status"] == "refunded"
+    assert res["refund"].outcome == "refunded"
+    assert res["refund"].refund_id == "ref_1"
+    assert res["payment"]["status"] == "refunded"
+    assert calls[0]["payment_id"] == "pay_123"
+    assert calls[0]["amount_cents"] == 5000
+    product = await db.products.find_one({"_id": ObjectId(product_id)})
+    assert product["stock"] == 3  # 3 -> 2 al cobrar -> 3 al devolver
+
+
+@pytest.mark.asyncio
+async def test_cancel_rejected_refund_keeps_order_and_rotates_idempotency_key(db, monkeypatch):
+    tenant_id = "tienda-refund-rechazo"
+    order_id, product_id = await _seed_paid_getnet_order(db, monkeypatch, tenant_id)
+    calls = _patch_cancel(
+        monkeypatch, error=getnet_client.GetnetRefundError("La pasarela rechazó la devolución")
+    )
+
+    res = await _cancel(order_id, tenant_id)
+    assert res["status"] == "paid"
+    assert res["refund"].outcome == "failed"
+    assert res["payment"]["status"] == "approved"
+    product = await db.products.find_one({"_id": ObjectId(product_id)})
+    assert product["stock"] == 2  # no se restauró
+
+    await _cancel(order_id, tenant_id)
+    assert calls[0]["idempotency_key"] != calls[1]["idempotency_key"]
+
+
+@pytest.mark.asyncio
+async def test_cancel_uncertain_refund_keeps_order_and_reuses_idempotency_key(db, monkeypatch):
+    tenant_id = "tienda-refund-timeout"
+    order_id, _ = await _seed_paid_getnet_order(db, monkeypatch, tenant_id)
+    calls = _patch_cancel(
+        monkeypatch, error=getnet_client.GetnetRefundError("timeout", uncertain=True)
+    )
+
+    res = await _cancel(order_id, tenant_id)
+    assert res["status"] == "paid"
+    assert res["refund"].outcome == "unknown"
+
+    await _cancel(order_id, tenant_id)
+    assert calls[0]["idempotency_key"] == calls[1]["idempotency_key"]
+
+
+@pytest.mark.asyncio
+async def test_cancel_with_getnet_disabled_fails_without_calling_gateway(db, monkeypatch):
+    tenant_id = "tienda-refund-sin-integracion"
+    order_id, _ = await _seed_paid_getnet_order(db, monkeypatch, tenant_id)
+    await db.tenant_integrations.update_one({"tenant_id": tenant_id}, {"$set": {"enabled": False}})
+    calls = _patch_cancel(monkeypatch)
+
+    res = await _cancel(order_id, tenant_id)
+    assert res["status"] == "paid"
+    assert res["refund"].outcome == "failed"
+    assert calls == []
+
+
+@pytest.mark.asyncio
+async def test_cancel_unpaid_order_needs_no_refund(db, monkeypatch):
+    tenant_id = "tienda-cancel-sin-cobro"
+    user_id = await _seed_buyer(db)
+    product_id = await _seed_product(db, tenant_id=tenant_id)
+    result = await orders_router.create_order(
+        _order_body(product_id=product_id, price=5000, security_code=None),
+        _FakeRequest(user_id=user_id), BackgroundTasks(),
+    )
+    calls = _patch_cancel(monkeypatch)
+
+    res = await _cancel(result["order_id"], tenant_id)
+    assert res["status"] == "cancelled"
+    assert res["refund"].outcome == "not_required"
+    assert calls == []

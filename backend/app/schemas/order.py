@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, field_validator, model_validator
 
@@ -92,6 +93,8 @@ class OrderPaymentOut(BaseModel):
     authorization_code: str | None = None
     status: str
     paid_at: datetime | None = None
+    refund_id: str | None = None
+    refunded_at: datetime | None = None
 
 
 class OrderSummary(BaseModel):
@@ -122,3 +125,24 @@ class OrderDetail(OrderSummary):
 class OrderStatusUpdate(BaseModel):
     status: str
     tracking_number: str | None = None
+
+
+class RefundOutcome(BaseModel):
+    """Resultado de la devolución en la pasarela al cancelar un pedido.
+
+    - refunded: Getnet confirmó la devolución (el pedido pasó a "refunded").
+    - not_required: el pedido no tenía un cobro aprobado, no hay nada que devolver.
+    - skipped: cobro sin pasarela real (mock); se cancela sin devolución automática.
+    - failed: Getnet rechazó la devolución; el pedido NO cambió de estado.
+    - unknown: no se sabe si Getnet la ejecutó; el pedido NO cambió de estado y
+      reintentar es seguro (misma clave de idempotencia).
+    """
+
+    outcome: Literal["refunded", "not_required", "skipped", "failed", "unknown"]
+    message: str
+    amount: int | None = None
+    refund_id: str | None = None
+
+
+class OrderStatusUpdateResult(OrderDetail):
+    refund: RefundOutcome | None = None
