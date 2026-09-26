@@ -1,16 +1,28 @@
 import { useEffect, useState } from "react";
 
+function detectTouch(): boolean {
+  if (typeof window === "undefined") return false;
+  // `pointer: coarse` solo mira el puntero principal: algunos navegadores
+  // móviles (modo "sitio de escritorio", WebViews) lo reportan como fine, así
+  // que se suman any-pointer, puntos táctiles y user agent móvil.
+  return (
+    window.matchMedia?.("(pointer: coarse)").matches ||
+    window.matchMedia?.("(any-pointer: coarse)").matches ||
+    navigator.maxTouchPoints > 0 ||
+    /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
+  ) ?? false;
+}
+
 /** true en dispositivos táctiles (celulares/tablets): ahí tiene sentido
  * preguntar si la foto viene de la galería o de la cámara. En desktop el
  * selector de archivos normal ya alcanza. */
 export function useIsTouchDevice(): boolean {
-  const [touch, setTouch] = useState(() => window.matchMedia?.("(pointer: coarse)").matches ?? false);
+  const [touch, setTouch] = useState(detectTouch);
   useEffect(() => {
-    const mq = window.matchMedia?.("(pointer: coarse)");
-    if (!mq) return;
-    const onChange = () => setTouch(mq.matches);
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
+    const mqs = [window.matchMedia?.("(pointer: coarse)"), window.matchMedia?.("(any-pointer: coarse)")];
+    const onChange = () => setTouch(detectTouch());
+    mqs.forEach((mq) => mq?.addEventListener("change", onChange));
+    return () => mqs.forEach((mq) => mq?.removeEventListener("change", onChange));
   }, []);
   return touch;
 }
