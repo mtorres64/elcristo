@@ -345,6 +345,7 @@ async def google_login(body: GoogleLoginRequest):
     email = info.get("email")
     if not email:
         raise HTTPException(401, "No se pudo obtener el email de Google")
+    email = email.strip().lower()
 
     name = info.get("name") or email.split("@")[0]
     avatar_url = info.get("picture")

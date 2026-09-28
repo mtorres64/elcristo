@@ -7,10 +7,16 @@ def _validate_password_length(v: str) -> str:
     return v
 
 
+def _normalize_email(v: str) -> str:
+    return v.strip().lower()
+
+
 class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
     name: str
+
+    _normalize_email = field_validator("email", mode="before")(_normalize_email)
 
     @field_validator("password")
     @classmethod
@@ -21,6 +27,8 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+
+    _normalize_email = field_validator("email", mode="before")(_normalize_email)
 
 
 class RefreshRequest(BaseModel):
@@ -34,9 +42,13 @@ class VerifyEmailRequest(BaseModel):
 class ResendVerificationRequest(BaseModel):
     email: EmailStr
 
+    _normalize_email = field_validator("email", mode="before")(_normalize_email)
+
 
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
+
+    _normalize_email = field_validator("email", mode="before")(_normalize_email)
 
 
 class ResetPasswordRequest(BaseModel):
