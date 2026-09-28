@@ -18,7 +18,11 @@ async def create_indexes():
     db = client[settings.mongo_db_name]
 
     # users
-    await db.users.create_index([("email", 1)], unique=True)
+    # Único solo entre cuentas activas: al borrar (soft-delete) un usuario,
+    # su email queda libre para volver a registrarse.
+    await db.users.create_index(
+        [("email", 1)], unique=True, partialFilterExpression={"deleted_at": None}
+    )
     await db.users.create_index([("role", 1), ("is_active", 1)])
     print("✓ users")
 

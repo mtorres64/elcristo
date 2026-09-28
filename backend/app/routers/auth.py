@@ -127,9 +127,7 @@ async def _queue_password_reset_email(
 @router.post("/register", response_model=RegisterResponse, status_code=201)
 async def register(body: RegisterRequest, request: Request, background: BackgroundTasks):
     db = get_db()
-    # Sin filtrar por deleted_at: el índice único de `email` es global, así que
-    # un usuario borrado con ese email también bloquea el alta.
-    existing = await db.users.find_one({"email": body.email})
+    existing = await db.users.find_one({"email": body.email, "deleted_at": None})
     if existing:
         raise HTTPException(400, f"Ya existe una cuenta con el email '{body.email}'")
 

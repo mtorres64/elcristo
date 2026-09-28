@@ -115,9 +115,27 @@ export function GetnetPaymentForm({ onCancel, onSave }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      <p className="text-xs text-[#8A8A8A] bg-[#F9F8F5] border border-[#E8E2D8] rounded-lg px-3.5 py-2.5">
-        Pago seguro procesado por Getnet. Tu tarjeta se cobra al confirmar el pedido.
-      </p>
+      <div className="flex items-start gap-3 text-xs text-[#4A4A4A] bg-[#F4F8F4] border border-[#CFE3CF] rounded-lg px-3.5 py-3">
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="#2E5A2E"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="shrink-0"
+          aria-hidden="true"
+        >
+          <path d="M12 3l8 3v6c0 4.5-3.4 8.2-8 9-4.6-.8-8-4.5-8-9V6l8-3z" />
+          <path d="M9 12l2 2 4-4" />
+        </svg>
+        <p className="leading-relaxed">
+          <strong className="text-[#2E5A2E] font-semibold">Pago seguro</strong> procesado por Getnet.
+          Tu tarjeta se cobra al confirmar el pedido.
+        </p>
+      </div>
 
       <div>
         <label className={LABEL}>Número de tarjeta</label>

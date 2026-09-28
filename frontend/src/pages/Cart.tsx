@@ -6,8 +6,6 @@ import { Layout } from "../components/layout/Layout";
 import { Stepper } from "../components/checkout/Stepper";
 import { AddressCard } from "../components/checkout/AddressCard";
 import { AddressForm } from "../components/checkout/AddressForm";
-import { PaymentMethodCard } from "../components/checkout/PaymentMethodCard";
-import { PaymentMethodForm } from "../components/checkout/PaymentMethodForm";
 import { GetnetPaymentForm } from "../components/checkout/GetnetPaymentForm";
 import { OrderSummary } from "../components/checkout/OrderSummary";
 import { ShippingZoneSelector } from "../components/checkout/ShippingZoneSelector";
@@ -16,16 +14,17 @@ import { LowStockNotice } from "../components/shared/LowStockNotice";
 import { useCart } from "../hooks/useCart";
 import { useAuth } from "../hooks/useAuth";
 import { addressService } from "../services/address.service";
-import { paymentService } from "../services/payment.service";
 import { orderService } from "../services/order.service";
 import { integrationsService } from "../services/integrations.service";
 import { storeSettingsService } from "../services/storeSettings.service";
 import type { Address, AddressInput } from "../types/address";
-import type { PaymentCardInput, PaymentMethod } from "../types/payment";
+import type { PaymentCardInput } from "../types/payment";
 import type { GetnetPublicConfig } from "../types/integration";
 import type { ShippingZone } from "../services/storeSettings.service";
 import { formatARS } from "../utils/currency";
 import { normalizeText } from "../utils/text";
+import { useWhatsappBase, withWhatsappMessage } from "../hooks/useWhatsappBase";
+import { SocialIcon } from "../components/social/socialPlatforms";
 
 /** Sugiere la zona cuyo listado de localidades matchea la de la dirección
  * (ver el campo "Localidades/barrios que incluye" en Configuración >
@@ -74,23 +73,21 @@ export function Cart() {
   // cambia de dirección (ver el efecto de auto-match más abajo).
   const [autoSuggestedChoice, setAutoSuggestedChoice] = useState<ShippingChoice>(null);
 
-  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
-  const [loadingPayments, setLoadingPayments] = useState(false);
-  const [selectedPaymentId, setSelectedPaymentId] = useState<string | null>(null);
   const [pendingCard, setPendingCard] = useState<PaymentCardInput | null>(null);
-  const [showPaymentForm, setShowPaymentForm] = useState(false);
 
-  // Si la tienda tiene Getnet activo, el checkout usa GetnetPaymentForm (pide
-  // CVV, cobra de verdad) en vez del formulario mock / tarjetas guardadas
-  // mock — coherente con el guardrail del backend, que rechaza
-  // payment_method_id cuando el tenant cobra con Getnet. La tarjeta cargada
-  // se guarda en el mismo `pendingCard` que ya usaba el flujo mock "no
-  // guardada": misma forma de dato (PaymentCardInput), sólo que acá viene
-  // con `security_code` seteado.
+  // Sin una integración de pago activa (hoy, Getnet), el backend rechaza
+  // cualquier pedido — ya no existe un flujo "mock" que lo deje pasar sin
+  // cobrar de verdad (ver `_resolve_payment` en orders.py). `getnetConfig`
+  // null = todavía cargando; `enabled: false` = la tienda no puede cobrar,
+  // así que el paso de pago bloquea el checkout en vez de ofrecer una
+  // tarjeta que igual no va a poder cobrarse.
   const [getnetConfig, setGetnetConfig] = useState<GetnetPublicConfig | null>(null);
 
   const [notes, setNotes] = useState("");
   const [placingOrder, setPlacingOrder] = useState(false);
+  // La pasarela no pudo procesar el cobro (502): se ofrece pagar por
+  // transferencia coordinando por WhatsApp en vez de dejar al cliente trabado.
+  const [cardPaymentUnavailable, setCardPaymentUnavailable] = useState(false);
 
   const { data: shipping } = useQuery({
     queryKey: ["shipping-settings"],
@@ -101,6 +98,15 @@ export function Cart() {
   // Si el vendedor todavía no configuró ninguna zona, el checkout se
   // comporta como antes (envío "a calcular", sin exigir que se elija nada acá).
   const hasShippingOptions = !!shipping?.zones.length;
+  const whatsappBase = useWhatsappBase(shipping?.whatsapp_number);
+  const transferWaHref = whatsappBase
+    ? withWhatsappMessage(whatsappBase, "Hola! No pude pagar con tarjeta en la tienda y quiero pagar mi pedido por transferencia.")
+    : null;
+  // Mismo número, mensaje distinto: acá el cliente ni llegó a intentar pagar
+  // con tarjeta porque la tienda no tiene ninguna pasarela habilitada.
+  const noPaymentWaHref = whatsappBase
+    ? withWhatsappMessage(whatsappBase, "Hola! Quiero comprar en la tienda, pero no hay ningún método de pago disponible. ¿Cómo hago mi pedido?")
+    : null;
 
   // Costo/descuento mostrados acá son sólo para el resumen — el server
   // recalcula lo mismo a partir de shippingChoice antes de cobrar (ver
@@ -184,21 +190,6 @@ export function Cart() {
       .catch(() => setGetnetConfig({ enabled: false, environment: "sandbox", seller_id: null }));
   }, [step, isAuthenticated]);
 
-  useEffect(() => {
-    if (step !== "payment" || !isAuthenticated || getnetConfig?.enabled) return;
-    setLoadingPayments(true);
-    paymentService
-      .list()
-      .then((list) => {
-        setPaymentMethods(list);
-        const def = list.find((m) => m.is_default) ?? list[0];
-        if (def) setSelectedPaymentId(def.payment_method_id);
-        setShowPaymentForm(list.length === 0);
-      })
-      .catch(() => toast.error("No se pudieron cargar tus tarjetas"))
-      .finally(() => setLoadingPayments(false));
-  }, [step, isAuthenticated, getnetConfig?.enabled]);
-
   function goToAddress() {
     if (!isAuthenticated) {
       navigate("/login", { state: { from: "/cart" } });
@@ -226,33 +217,6 @@ export function Cart() {
     }
   }
 
-  async function handleSavePaymentMethod(card: PaymentCardInput, save: boolean) {
-    if (save) {
-      const created = await paymentService.create(card);
-      setPaymentMethods((prev) => [
-        created,
-        ...prev.map((m) => ({ ...m, is_default: created.is_default ? false : m.is_default })),
-      ]);
-      setSelectedPaymentId(created.payment_method_id);
-      setPendingCard(null);
-    } else {
-      setPendingCard(card);
-      setSelectedPaymentId(null);
-    }
-    setShowPaymentForm(false);
-  }
-
-  async function handleDeletePaymentMethod(paymentMethodId: string) {
-    try {
-      await paymentService.remove(paymentMethodId);
-      setPaymentMethods((prev) => prev.filter((m) => m.payment_method_id !== paymentMethodId));
-      if (selectedPaymentId === paymentMethodId) setSelectedPaymentId(null);
-      toast.success("Tarjeta eliminada");
-    } catch {
-      toast.error("No se pudo eliminar la tarjeta");
-    }
-  }
-
   async function handleConfirmOrder() {
     if (!selectedAddressId) {
       toast.error("Elegí una dirección de envío");
@@ -268,12 +232,17 @@ export function Cart() {
       setStep("address");
       return;
     }
-    if (!selectedPaymentId && !pendingCard) {
+    if (!getnetConfig?.enabled) {
+      toast.error("Esta tienda no tiene un método de pago habilitado por el momento");
+      return;
+    }
+    if (!pendingCard) {
       toast.error("Elegí un método de pago");
       return;
     }
 
     setPlacingOrder(true);
+    setCardPaymentUnavailable(false);
     try {
       const result = await orderService.create({
         items: items.map((i) => ({
@@ -286,16 +255,19 @@ export function Cart() {
         address_id: selectedAddressId,
         shipping_zone_id: shippingChoice && shippingChoice !== "pickup" ? shippingChoice : undefined,
         pickup: shippingChoice === "pickup",
-        payment_method_id: selectedPaymentId ?? undefined,
         payment_card: pendingCard ?? undefined,
-        save_card: false,
         notes: notes.trim() || null,
       });
       clearCart();
       toast.success("¡Pedido creado!");
       navigate(`/pedido/${result.order_id}`);
-    } catch {
-      toast.error("No se pudo crear el pedido. Intentá de nuevo.");
+    } catch (err: unknown) {
+      // 502 = la pasarela de pago falló (no es un rechazo de la tarjeta, que es 402).
+      if ((err as { response?: { status?: number } })?.response?.status === 502) {
+        setCardPaymentUnavailable(true);
+      } else {
+        toast.error("No se pudo crear el pedido. Intentá de nuevo.");
+      }
     } finally {
       setPlacingOrder(false);
     }
@@ -406,19 +378,11 @@ export function Cart() {
 
             {step === "payment" && (
               <div className="rounded-lg border border-[#E8E2D8] bg-white p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-sm font-semibold text-[#1A1A1A]">Elegí un método de pago</h2>
-                  {!getnetConfig?.enabled && !showPaymentForm && (
-                    <button
-                      onClick={() => setShowPaymentForm(true)}
-                      className="text-xs font-semibold text-[#1A2B1C] hover:underline"
-                    >
-                      + Agregar tarjeta
-                    </button>
-                  )}
-                </div>
+                <h2 className="text-sm font-semibold text-[#1A1A1A] mb-4">Elegí un método de pago</h2>
 
-                {getnetConfig?.enabled ? (
+                {getnetConfig === null ? (
+                  <p className="text-sm text-[#8A8A8A] py-8 text-center">Cargando…</p>
+                ) : getnetConfig.enabled ? (
                   pendingCard ? (
                     <div className="flex items-center justify-between gap-3 rounded-lg border border-[#1A2B1C] bg-[#F4F8F4] p-4">
                       <div className="flex items-center gap-3">
@@ -440,32 +404,24 @@ export function Cart() {
                       onSave={async (card) => setPendingCard(card)}
                     />
                   )
-                ) : loadingPayments ? (
-                  <p className="text-sm text-[#8A8A8A] py-8 text-center">Cargando tarjetas...</p>
-                ) : showPaymentForm ? (
-                  <PaymentMethodForm
-                    onCancel={() => setShowPaymentForm(false)}
-                    onSave={handleSavePaymentMethod}
-                  />
                 ) : (
-                  <div className="flex flex-col gap-3">
-                    {pendingCard && (
-                      <div className="flex items-center gap-3 rounded-lg border border-[#1A2B1C] bg-[#F4F8F4] p-4">
-                        <input type="radio" checked readOnly className="w-4 h-4 accent-[#1A2B1C] shrink-0" />
-                        <p className="text-sm text-[#1A1A1A]">
-                          Tarjeta terminada en {pendingCard.card_number.slice(-4)} (no guardada)
-                        </p>
-                      </div>
+                  // Sin una pasarela de pago activa, el backend rechaza cualquier
+                  // pedido (ver `_resolve_payment` en orders.py) — no tiene sentido
+                  // dejar avanzar el checkout, así que se bloquea acá directamente.
+                  <div role="alert" className="rounded-lg border border-[#EAD9B4] bg-[#FBF3E5] p-4 text-sm text-[#8A6D3B] leading-relaxed">
+                    <p className="font-semibold mb-1">Esta tienda no tiene un método de pago habilitado</p>
+                    <p>Todavía no podés completar la compra por acá. Escribinos por WhatsApp y coordinamos tu pedido.</p>
+                    {noPaymentWaHref && (
+                      <a
+                        href={noPaymentWaHref}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 mt-3 px-4 py-2.5 rounded-lg bg-[#1A2B1C] text-white text-xs font-semibold uppercase tracking-widest hover:bg-[#253824] transition-colors"
+                      >
+                        <SocialIcon platform="whatsapp" size={14} />
+                        Consultar por WhatsApp
+                      </a>
                     )}
-                    {paymentMethods.map((m) => (
-                      <PaymentMethodCard
-                        key={m.payment_method_id}
-                        method={m}
-                        selected={selectedPaymentId === m.payment_method_id}
-                        onSelect={() => { setSelectedPaymentId(m.payment_method_id); setPendingCard(null); }}
-                        onDelete={() => handleDeletePaymentMethod(m.payment_method_id)}
-                      />
-                    ))}
                   </div>
                 )}
               </div>
@@ -503,12 +459,7 @@ export function Cart() {
                 )}
 
                 <ReviewBlock title="Método de pago" onEdit={() => setStep("payment")}>
-                  {selectedPaymentId ? (
-                    <p className="text-sm text-[#4A4A4A]">
-                      {paymentMethods.find((m) => m.payment_method_id === selectedPaymentId)?.brand ?? "Tarjeta"}{" "}
-                      terminada en {paymentMethods.find((m) => m.payment_method_id === selectedPaymentId)?.last4}
-                    </p>
-                  ) : pendingCard ? (
+                  {pendingCard ? (
                     <p className="text-sm text-[#4A4A4A]">Tarjeta terminada en {pendingCard.card_number.slice(-4)}</p>
                   ) : (
                     <p className="text-sm text-[#DC2626]">No seleccionaste ningún método de pago</p>
@@ -546,6 +497,30 @@ export function Cart() {
               total={orderTotal}
             />
 
+            {step === "review" && cardPaymentUnavailable && (
+              <div
+                role="alert"
+                className="rounded-lg border border-[#EAD9B4] bg-[#FBF3E5] p-4 text-sm text-[#8A6D3B] leading-relaxed"
+              >
+                <p className="font-semibold mb-1">El pago con tarjeta no está disponible por el momento</p>
+                <p>
+                  No pudimos procesar tu pago. Podés escribirnos por WhatsApp y coordinar el pago de tu pedido
+                  por transferencia.
+                </p>
+                {transferWaHref && (
+                  <a
+                    href={transferWaHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 mt-3 px-4 py-2.5 rounded-lg bg-[#1A2B1C] text-white text-xs font-semibold uppercase tracking-widest hover:bg-[#253824] transition-colors"
+                  >
+                    <SocialIcon platform="whatsapp" size={14} />
+                    Pagar por transferencia
+                  </a>
+                )}
+              </div>
+            )}
+
             <StepActions
               step={step}
               onBack={() => {
@@ -565,7 +540,8 @@ export function Cart() {
                   if (shippingChoice === "other") { toast.error("Coordiná el envío por WhatsApp antes de continuar"); return; }
                   setStep("payment");
                 } else if (step === "payment") {
-                  if (!selectedPaymentId && !pendingCard) { toast.error("Elegí un método de pago"); return; }
+                  if (!getnetConfig?.enabled) { toast.error("Esta tienda no tiene un método de pago habilitado"); return; }
+                  if (!pendingCard) { toast.error("Elegí un método de pago"); return; }
                   setStep("review");
                 }
               }}

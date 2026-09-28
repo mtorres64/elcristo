@@ -101,25 +101,26 @@ def _encryption_key(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_mock_checkout_unchanged_without_getnet(db):
-    """Regresión: un tenant sin integración de Getnet sigue naciendo pending_payment."""
+async def test_checkout_blocked_without_getnet(db):
+    """Sin una pasarela de pago activa, el pedido no se puede crear por
+    ningún medio — ya no existe el flujo "mock" que lo dejaba nacer
+    pending_payment sin cobrar nada."""
     user_id = await _seed_buyer(db)
     tenant_id = "tienda-sin-getnet"
     product_id = await _seed_product(db, tenant_id=tenant_id, price=5000, stock=3)
 
+    before_count = await db.orders.count_documents({})
     body = _order_body(product_id=product_id, price=5000, security_code=None)
-    result = await orders_router.create_order(
-        body, _FakeRequest(user_id=user_id), BackgroundTasks()
-    )
 
-    assert result["status"] == "pending_payment"
+    with pytest.raises(HTTPException) as exc_info:
+        await orders_router.create_order(body, _FakeRequest(user_id=user_id), BackgroundTasks())
+    assert exc_info.value.status_code == 400
 
-    order = await db.orders.find_one({"_id": ObjectId(result["order_id"])})
-    assert order["payment"]["provider"] == "mock"
-    assert order["stock_decremented"] is False
+    after_count = await db.orders.count_documents({})
+    assert after_count == before_count
 
     product = await db.products.find_one({"_id": ObjectId(product_id)})
-    assert product["stock"] == 3  # no se tocó: sólo se descuenta stock en status "paid"
+    assert product["stock"] == 3  # tampoco se tocó el stock
 
 
 @pytest.mark.asyncio
@@ -380,18 +381,40 @@ async def test_cancel_with_getnet_disabled_fails_without_calling_gateway(db, mon
     assert calls == []
 
 
+async def _seed_pending_order(db, *, tenant_id: str, user_id: str, product_id: str, price: int = 5000) -> str:
+    """Pedido "pending_payment" sin pago aprobado, insertado directo (no vía
+    create_order — ya no se puede crear uno así por API, ver
+    `test_checkout_blocked_without_getnet`). Sirve para probar la
+    cancelación de pedidos legados que hayan quedado en ese estado."""
+    now = datetime.now(UTC)
+    result = await db.orders.insert_one({
+        "tenant_id": tenant_id, "buyer_id": user_id, "buyer_name": "Juana Pérez",
+        "buyer_email": "buyer@test.com", "order_number": "ORD-2024-0001",
+        "status": "pending_payment",
+        "items": [
+            {"product_id": product_id, "title": "Maceta de barro", "price": price, "quantity": 1, "image_url": None}
+        ],
+        "subtotal": price, "shipping_cost": 0, "discount": 0, "total": price,
+        "shipping_address": _shipping_address(),
+        "payment": {
+            "provider": "mock", "payment_method_id": None, "brand": "visa", "last4": "1111",
+            "payment_id": None, "preference_id": None, "status": "pending", "paid_at": None,
+        },
+        "tracking_number": None, "notes": None, "stock_decremented": False,
+        "created_at": now, "updated_at": now, "deleted_at": None,
+    })
+    return str(result.inserted_id)
+
+
 @pytest.mark.asyncio
 async def test_cancel_unpaid_order_needs_no_refund(db, monkeypatch):
     tenant_id = "tienda-cancel-sin-cobro"
     user_id = await _seed_buyer(db)
     product_id = await _seed_product(db, tenant_id=tenant_id)
-    result = await orders_router.create_order(
-        _order_body(product_id=product_id, price=5000, security_code=None),
-        _FakeRequest(user_id=user_id), BackgroundTasks(),
-    )
+    order_id = await _seed_pending_order(db, tenant_id=tenant_id, user_id=user_id, product_id=product_id)
     calls = _patch_cancel(monkeypatch)
 
-    res = await _cancel(result["order_id"], tenant_id)
+    res = await _cancel(order_id, tenant_id)
     assert res["status"] == "cancelled"
     assert res["refund"].outcome == "not_required"
     assert calls == []

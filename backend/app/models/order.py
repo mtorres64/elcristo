@@ -66,6 +66,8 @@ class OrderDocument(BaseModel):
     subtotal: int                  # centavos
     shipping_cost: int = 0         # centavos, calculado en base a Configuración > Envíos
     discount: int = 0              # centavos (ej: descuento por retiro en el local)
+    pickup: bool = False           # true si el comprador eligió retirar en el local
+    shipping_zone_name: str | None = None  # snapshot del nombre de la zona elegida (si no fue pickup)
     total: int                     # centavos
     shipping_address: OrderAddress
     payment: OrderPayment

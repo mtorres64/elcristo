@@ -77,9 +77,7 @@ async def list_users(
 async def create_user(body: UserCreate):
     db = get_db()
 
-    # El índice único de `email` es global (no filtra por deleted_at): un
-    # usuario borrado con ese email también bloquea el alta.
-    existing = await db.users.find_one({"email": body.email})
+    existing = await db.users.find_one({"email": body.email, "deleted_at": None})
     if existing:
         raise HTTPException(400, f"Ya existe un usuario con el email '{body.email}'")
 

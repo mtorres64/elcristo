@@ -82,6 +82,8 @@ def _to_detail(doc: dict) -> dict:
         "subtotal": doc["subtotal"],
         "shipping_cost": doc.get("shipping_cost", 0),
         "discount": doc.get("discount", 0),
+        "pickup": doc.get("pickup", False),
+        "shipping_zone_name": doc.get("shipping_zone_name"),
         "shipping_address": doc["shipping_address"],
         "payment": doc["payment"],
         "tracking_number": doc.get("tracking_number"),
@@ -223,28 +225,30 @@ async def _resolve_address(db, user_id: str, body: OrderCreate) -> dict:
     return doc
 
 
-async def _resolve_shipping(db, tenant_id: str, subtotal: int, body: OrderCreate) -> tuple[int, int]:
+async def _resolve_shipping(db, tenant_id: str, subtotal: int, body: OrderCreate) -> tuple[int, int, str | None]:
     """Recalcula costo de envío y descuento en el server a partir de
     Configuración > Envíos — nunca se confía en un monto que mande el
-    cliente. Devuelve (shipping_cost, discount), ambos en centavos."""
+    cliente. Devuelve (shipping_cost, discount, shipping_zone_name), los dos
+    primeros en centavos. El nombre de zona se guarda en la orden para poder
+    explicar más tarde por qué el envío salió gratis o con descuento."""
     doc = await db.store_settings.find_one({"tenant_id": tenant_id})
     shipping_cfg = ShippingSettings(**(doc or {}).get("shipping", {}))
 
     if body.pickup:
         discount = round(subtotal * shipping_cfg.pickup_discount_pct / 100)
-        return 0, discount
+        return 0, discount, None
 
     if body.shipping_zone_id:
         zone = next((z for z in shipping_cfg.zones if z.id == body.shipping_zone_id), None)
         if not zone:
             raise HTTPException(400, "La zona de envío elegida ya no está disponible")
         if zone.free_from is not None and subtotal >= zone.free_from:
-            return 0, 0
-        return zone.cost, 0
+            return 0, 0, zone.name
+        return zone.cost, 0, zone.name
 
     # Ni retiro ni zona: localidad fuera de las zonas configuradas — el envío
     # queda en 0 y se coordina a mano con el vendedor (ver ShippingRatesCard).
-    return 0, 0
+    return 0, 0, None
 
 
 async def _expand_stock_lines(db, items: list[dict]) -> list[tuple[ObjectId, int]]:
@@ -367,81 +371,38 @@ async def _charge_with_getnet(
 
 
 async def _resolve_payment(
-    db, tenant_id: str, order_number: str, total: int, buyer: dict, user_id: str, body: OrderCreate
+    db, tenant_id: str, order_number: str, total: int, buyer: dict, body: OrderCreate
 ) -> dict:
+    """Cobra el pedido — o rechaza crearlo si la tienda no puede cobrar de verdad.
+
+    Antes existía acá un flujo "mock" que dejaba nacer el pedido
+    `pending_payment` sin ninguna pasarela conectada, para coordinar el pago
+    por fuera. Se sacó a pedido explícito: un pedido sin una integración de
+    pago activa (hoy, Getnet) ya no se puede crear por ningún medio — el
+    checkout tiene que estar bloqueado en el frontend antes de llegar acá,
+    pero esta validación es la que de verdad importa (nunca confiar sólo en
+    el frontend)."""
     integration = await _get_active_getnet_integration(db, tenant_id)
-    if integration:
-        # Una tarjeta "guardada" hoy es mock (last4/brand sin token real, ver
-        # payment_methods.py): no sirve para cobrar de verdad, así que con
-        # Getnet activo sólo se acepta una tarjeta nueva en el mismo request.
-        if not body.payment_card:
-            raise HTTPException(400, "Esta tienda cobra con Getnet: falta la tarjeta")
-        card = body.payment_card
-        if not luhn_is_valid(card.card_number):
-            raise HTTPException(400, "Número de tarjeta inválido")
-        if not card.security_code:
-            raise HTTPException(400, "Falta el código de seguridad")
-        return await _charge_with_getnet(
-            db, integration, tenant_id, order_number, total, buyer, card
+    if not integration:
+        raise HTTPException(
+            400,
+            "Esta tienda no tiene un método de pago habilitado por el momento. "
+            "Contactá al vendedor para coordinar tu compra.",
         )
 
-    if body.payment_method_id:
-        try:
-            oid = ObjectId(body.payment_method_id)
-        except Exception:
-            raise HTTPException(400, "ID de método de pago inválido")
-        pm = await db.payment_methods.find_one({"_id": oid, "user_id": user_id, "deleted_at": None})
-        if not pm:
-            raise HTTPException(404, "Método de pago no encontrado")
-        return {
-            "provider": "mock",
-            "payment_method_id": str(pm["_id"]),
-            "brand": pm["brand"],
-            "last4": pm["last4"],
-            "payment_id": None,
-            "preference_id": None,
-            "status": "pending",
-            "paid_at": None,
-        }
-
+    # Una tarjeta "guardada" hoy es mock (last4/brand sin token real, ver
+    # payment_methods.py): no sirve para cobrar de verdad, así que con
+    # Getnet activo sólo se acepta una tarjeta nueva en el mismo request.
+    if not body.payment_card:
+        raise HTTPException(400, "Esta tienda cobra con Getnet: falta la tarjeta")
     card = body.payment_card
     if not luhn_is_valid(card.card_number):
         raise HTTPException(400, "Número de tarjeta inválido")
-    brand = detect_brand(card.card_number)
-    last4 = card.card_number[-4:]
-    payment_method_id = None
-
-    if body.save_card:
-        now = datetime.now(UTC)
-        existing_count = await db.payment_methods.count_documents(
-            {"user_id": user_id, "deleted_at": None}
-        )
-        doc = {
-            "user_id": user_id,
-            "type": "card",
-            "brand": brand,
-            "holder_name": card.holder_name,
-            "last4": last4,
-            "exp_month": card.exp_month,
-            "exp_year": card.exp_year,
-            "is_default": existing_count == 0,
-            "created_at": now,
-            "updated_at": now,
-            "deleted_at": None,
-        }
-        result = await db.payment_methods.insert_one(doc)
-        payment_method_id = str(result.inserted_id)
-
-    return {
-        "provider": "mock",
-        "payment_method_id": payment_method_id,
-        "brand": brand,
-        "last4": last4,
-        "payment_id": None,
-        "preference_id": None,
-        "status": "pending",
-        "paid_at": None,
-    }
+    if not card.security_code:
+        raise HTTPException(400, "Falta el código de seguridad")
+    return await _charge_with_getnet(
+        db, integration, tenant_id, order_number, total, buyer, card
+    )
 
 
 @router.post("", response_model=OrderCreateResponse, status_code=201)
@@ -525,7 +486,7 @@ async def create_order(body: OrderCreate, request: Request, background: Backgrou
         raise HTTPException(404, "Usuario no encontrado")
 
     subtotal = sum(i["price"] * i["quantity"] for i in order_items)
-    shipping_cost, discount = await _resolve_shipping(db, tenant_id, subtotal, body)
+    shipping_cost, discount, shipping_zone_name = await _resolve_shipping(db, tenant_id, subtotal, body)
     total = subtotal + shipping_cost - discount
 
     now = datetime.now(UTC)
@@ -534,14 +495,15 @@ async def create_order(body: OrderCreate, request: Request, background: Backgrou
     order_number = f"ORD-{year}-{count_this_year + 1:04d}"
 
     # Se resuelve DESPUÉS de calcular total/order_number/buyer: Getnet necesita
-    # el order_number (idempotency_key) y el total (monto a cobrar) y los datos
-    # del comprador para el request de cobro. Si el tenant no tiene Getnet
-    # activo, el comportamiento es idéntico al de antes (mock, status "pending").
-    payment = await _resolve_payment(db, tenant_id, order_number, total, buyer, user_id, body)
+    # el order_number (idempotency_key), el total (monto a cobrar) y los datos
+    # del comprador para el request de cobro. Sin una integración de pago
+    # activa, esto lanza un 400 y el pedido no llega a crearse (ver
+    # `_resolve_payment`).
+    payment = await _resolve_payment(db, tenant_id, order_number, total, buyer, body)
 
-    # Con Getnet (auth+captura inmediata) el pedido puede nacer ya pago; con
-    # el flujo mock (o cualquier otro proveedor todavía sin cobro real) sigue
-    # naciendo pending_payment exactamente como antes.
+    # Getnet cobra con auth+captura inmediata: si `_resolve_payment` no lanzó,
+    # el pago ya está aprobado y el pedido nace pago. (Ningún proveedor deja
+    # hoy un estado intermedio "pending" — ver comentario de `_resolve_payment`.)
     initial_status = "paid" if payment["status"] == "approved" else "pending_payment"
 
     order_doc = {
@@ -555,6 +517,8 @@ async def create_order(body: OrderCreate, request: Request, background: Backgrou
         "subtotal": subtotal,
         "shipping_cost": shipping_cost,
         "discount": discount,
+        "pickup": body.pickup,
+        "shipping_zone_name": shipping_zone_name,
         "total": total,
         "shipping_address": {
             "full_name": address["full_name"],

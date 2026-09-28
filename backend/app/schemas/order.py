@@ -115,6 +115,8 @@ class OrderDetail(OrderSummary):
     subtotal: int
     shipping_cost: int
     discount: int
+    pickup: bool = False
+    shipping_zone_name: str | None = None
     shipping_address: OrderAddressOut
     payment: OrderPaymentOut
     tracking_number: str | None = None

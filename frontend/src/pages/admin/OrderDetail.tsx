@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
+import { ImageOff } from "lucide-react";
 import { AdminLayout } from "../../components/admin/AdminLayout";
 import { orderService } from "../../services/order.service";
 import { ORDER_STATUS_LABEL } from "../../types/order";
 import type { Order, OrderStatus, RefundOutcome } from "../../types/order";
 import { formatARS } from "../../utils/currency";
+import { getDiscountNote, getShippingNote } from "../../utils/orderExplain";
 import { LocationViewer } from "../../components/common/LocationPicker";
 import { RefundModal } from "../../components/admin/RefundModal";
 
@@ -154,13 +156,15 @@ export function OrderDetail() {
               <div className="divide-y divide-[#F0EDE8]">
                 {order.items.map((item, i) => (
                   <div key={i} className="flex items-center gap-4 px-4 py-3">
-                    <div className="w-12 h-12 rounded-md overflow-hidden bg-[#F0EDE8] shrink-0">
-                      {item.image_url && (
+                    <div className="w-12 h-12 rounded-md overflow-hidden bg-[#F0EDE8] shrink-0 flex items-center justify-center">
+                      {item.image_url ? (
                         <img
                           src={item.image_url.startsWith("/uploads") ? `${API_BASE}${item.image_url}` : item.image_url}
                           alt=""
                           className="w-full h-full object-cover"
                         />
+                      ) : (
+                        <ImageOff className="w-5 h-5 text-[#ABABAB]" />
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -173,8 +177,14 @@ export function OrderDetail() {
               </div>
               <div className="px-4 py-3 border-t border-[#E8E2D8] flex flex-col gap-1.5 items-end">
                 <TotalRow label="Subtotal" value={formatARS(order.subtotal)} />
-                <TotalRow label="Envío" value={order.shipping_cost > 0 ? formatARS(order.shipping_cost) : "Gratis"} />
-                {order.discount > 0 && <TotalRow label="Descuento" value={`-${formatARS(order.discount)}`} />}
+                <TotalRow
+                  label="Envío"
+                  value={order.shipping_cost > 0 ? formatARS(order.shipping_cost) : "Gratis"}
+                  note={getShippingNote(order)}
+                />
+                {order.discount > 0 && (
+                  <TotalRow label="Descuento" value={`-${formatARS(order.discount)}`} note={getDiscountNote(order)} />
+                )}
                 <TotalRow label="Total" value={formatARS(order.total)} bold />
               </div>
             </div>
@@ -284,11 +294,24 @@ export function OrderDetail() {
   );
 }
 
-function TotalRow({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
+function TotalRow({
+  label,
+  value,
+  note,
+  bold,
+}: {
+  label: string;
+  value: string;
+  note?: string | null;
+  bold?: boolean;
+}) {
   return (
-    <div className="flex items-center gap-6 text-sm">
-      <span className={bold ? "font-semibold text-[#1A1A1A]" : "text-[#6B6B6B]"}>{label}</span>
-      <span className={bold ? "font-bold text-[#1A1A1A]" : "text-[#4A4A4A]"}>{value}</span>
+    <div className="flex flex-col items-end gap-0.5">
+      <div className="flex items-center gap-6 text-sm">
+        <span className={bold ? "font-semibold text-[#1A1A1A]" : "text-[#6B6B6B]"}>{label}</span>
+        <span className={bold ? "font-bold text-[#1A1A1A]" : "text-[#4A4A4A]"}>{value}</span>
+      </div>
+      {note && <span className="text-[11px] text-[#8A8A8A]">{note}</span>}
     </div>
   );
 }

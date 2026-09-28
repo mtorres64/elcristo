@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
+import { ImageOff } from "lucide-react";
 import { Layout } from "../components/layout/Layout";
 import { OrderStatusBadge } from "../components/order/OrderStatusBadge";
 import { useAuth } from "../hooks/useAuth";
@@ -7,6 +8,7 @@ import { orderService } from "../services/order.service";
 import { ORDER_STATUS_LABEL } from "../types/order";
 import type { Order, OrderStatus } from "../types/order";
 import { formatARS } from "../utils/currency";
+import { getDiscountNote, getShippingNote } from "../utils/orderExplain";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
@@ -136,8 +138,8 @@ export function MyOrderDetail() {
                   <div className="divide-y divide-[#F0EDE8]">
                     {order.items.map((item, i) => (
                       <div key={i} className="flex items-center gap-4 px-4 py-3">
-                        <div className="w-12 h-12 rounded-md overflow-hidden bg-[#F0EDE8] shrink-0">
-                          {item.image_url && (
+                        <div className="w-12 h-12 rounded-md overflow-hidden bg-[#F0EDE8] shrink-0 flex items-center justify-center">
+                          {item.image_url ? (
                             <img
                               src={
                                 item.image_url.startsWith("/uploads")
@@ -147,6 +149,8 @@ export function MyOrderDetail() {
                               alt=""
                               className="w-full h-full object-cover"
                             />
+                          ) : (
+                            <ImageOff className="w-5 h-5 text-[#ABABAB]" />
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -164,9 +168,10 @@ export function MyOrderDetail() {
                     <Row
                       label="Envío"
                       value={order.shipping_cost > 0 ? formatARS(order.shipping_cost) : "Gratis"}
+                      note={getShippingNote(order)}
                     />
                     {order.discount > 0 && (
-                      <Row label="Descuento" value={`-${formatARS(order.discount)}`} />
+                      <Row label="Descuento" value={`-${formatARS(order.discount)}`} note={getDiscountNote(order)} />
                     )}
                     <Row label="Total" value={formatARS(order.total)} bold />
                   </div>
@@ -226,11 +231,24 @@ export function MyOrderDetail() {
   );
 }
 
-function Row({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
+function Row({
+  label,
+  value,
+  note,
+  bold,
+}: {
+  label: string;
+  value: string;
+  note?: string | null;
+  bold?: boolean;
+}) {
   return (
-    <div className="flex items-center gap-6 text-sm">
-      <span className={bold ? "font-semibold text-[#1A1A1A]" : "text-[#6B6B6B]"}>{label}</span>
-      <span className={bold ? "font-bold text-[#1A1A1A]" : "text-[#4A4A4A]"}>{value}</span>
+    <div className="flex flex-col items-end gap-0.5">
+      <div className="flex items-center gap-6 text-sm">
+        <span className={bold ? "font-semibold text-[#1A1A1A]" : "text-[#6B6B6B]"}>{label}</span>
+        <span className={bold ? "font-bold text-[#1A1A1A]" : "text-[#4A4A4A]"}>{value}</span>
+      </div>
+      {note && <span className="text-[11px] text-[#8A8A8A]">{note}</span>}
     </div>
   );
 }

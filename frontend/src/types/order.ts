@@ -72,6 +72,8 @@ export interface Order extends OrderSummary {
   subtotal: number;
   shipping_cost: number;
   discount: number;
+  pickup: boolean;
+  shipping_zone_name: string | null;
   shipping_address: OrderAddress;
   payment: OrderPayment;
   tracking_number: string | null;
