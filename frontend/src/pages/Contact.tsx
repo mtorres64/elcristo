@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Layout } from "../components/layout/Layout";
+import { storeSettingsService } from "../services/storeSettings.service";
+import { useWhatsappBase } from "../hooks/useWhatsappBase";
 
 const ADDRESS = "Av. Aconquija 1200, San Miguel de Tucumán, Tucumán";
 const MAPS_EMBED_SRC = `https://www.google.com/maps?q=${encodeURIComponent(ADDRESS)}&output=embed`;
@@ -9,6 +11,15 @@ const MAPS_LINK = `https://www.google.com/maps/search/?api=1&query=${encodeURICo
 export function Contact() {
   const [form, setForm] = useState({ name: "", email: "", phone: "", message: "" });
   const [submitted, setSubmitted] = useState(false);
+  const [whatsappNumber, setWhatsappNumber] = useState<string | undefined>();
+  const whatsappBase = useWhatsappBase(whatsappNumber);
+
+  useEffect(() => {
+    storeSettingsService
+      .getShipping()
+      .then((d) => setWhatsappNumber(d.whatsapp_number))
+      .catch(() => {});
+  }, []);
 
   function handleChange(field: keyof typeof form, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -139,17 +150,19 @@ export function Contact() {
                     Cómo llegar
                   </a>
                 </InfoRow>
-                <InfoRow icon={<WhatsAppIcon />}>
-                  <span className="text-sm text-[#1A1A1A]">Escribinos por WhatsApp</span>
-                  <a
-                    href="https://wa.me/5438123456789"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-xs text-[#3D6040] hover:underline mt-0.5 inline-block"
-                  >
-                    +54 381 2345 6789
-                  </a>
-                </InfoRow>
+                {whatsappBase && (
+                  <InfoRow icon={<WhatsAppIcon />}>
+                    <span className="text-sm text-[#1A1A1A]">Escribinos por WhatsApp</span>
+                    <a
+                      href={whatsappBase}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs text-[#3D6040] hover:underline mt-0.5 inline-block"
+                    >
+                      {whatsappNumber ? `+${whatsappNumber}` : "Abrir chat"}
+                    </a>
+                  </InfoRow>
+                )}
                 <InfoRow icon={<MailIcon />}>
                   <a href="mailto:viveroelcristo@gmail.com" className="text-sm text-[#1A1A1A] hover:text-[#3D6040]">
                     viveroelcristo@gmail.com

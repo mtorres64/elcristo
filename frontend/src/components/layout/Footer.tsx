@@ -1,19 +1,27 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { contentService } from "../../services/content.service";
+import { storeSettingsService } from "../../services/storeSettings.service";
 import { useCategories } from "../../hooks/useCategories";
 import { CATEGORY_GROUPS } from "../../types/category";
 import { SOCIAL_PLATFORMS, SocialIcon } from "../social/socialPlatforms";
 import type { SocialLink as SocialLinkItem } from "../../types/content";
+import { useWhatsappBase } from "../../hooks/useWhatsappBase";
 
 export function Footer() {
   const [social, setSocial] = useState<SocialLinkItem[]>([]);
+  const [whatsappNumber, setWhatsappNumber] = useState<string | undefined>();
   const { categories } = useCategories(100);
+  const whatsappBase = useWhatsappBase(whatsappNumber);
 
   useEffect(() => {
     contentService
       .getSocial()
       .then((d) => setSocial(d.links.filter((l) => l.url)))
+      .catch(() => {});
+    storeSettingsService
+      .getShipping()
+      .then((d) => setWhatsappNumber(d.whatsapp_number))
       .catch(() => {});
   }, []);
 
@@ -130,10 +138,25 @@ export function Footer() {
         <div>
           <h4 className="text-[10px] uppercase tracking-widest text-white font-semibold mb-5">¿Necesitás Ayuda?</h4>
           <ul className="flex flex-col gap-4">
-            <li className="flex items-start gap-2.5">
-              <span className="text-[#5A7A5C] mt-0.5 shrink-0"><WhatsAppIcon /></span>
-              <span className="text-xs text-[#7A8A7B]">Escribinos por WhatsApp<br /><span className="text-[#A8B5A9]">+54 381 2345 6789</span></span>
-            </li>
+            {whatsappBase && (
+              <li className="flex items-start gap-2.5">
+                <span className="text-[#5A7A5C] mt-0.5 shrink-0"><WhatsAppIcon /></span>
+                <a
+                  href={whatsappBase}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-[#7A8A7B] hover:text-white transition-colors"
+                >
+                  Escribinos por WhatsApp
+                  {whatsappNumber && (
+                    <>
+                      <br />
+                      <span className="text-[#A8B5A9]">+{whatsappNumber}</span>
+                    </>
+                  )}
+                </a>
+              </li>
+            )}
             <li className="flex items-start gap-2.5">
               <span className="text-[#5A7A5C] mt-0.5 shrink-0"><MailIcon /></span>
               <span className="text-xs text-[#7A8A7B]">viveroelcristo@gmail.com</span>

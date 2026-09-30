@@ -1,19 +1,14 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { AdminLayout } from "../../components/admin/AdminLayout";
 import { useAuth } from "../../context/AuthContext";
 import { formatARS } from "../../utils/currency";
+import { reportService } from "../../services/reports.service";
+import { orderService } from "../../services/order.service";
+import { alertService } from "../../services/alert.service";
+import { userService } from "../../services/user.service";
 
-// ─────────────────────────────────────────────────────────────────
-// Datos hardcodeados hasta que exista el endpoint de analytics
-// (ver docs/roadmap.md → Fase 4 "Analytics: ventas por día/semana/mes").
-// Cuando se conecte la API, extraer a un hook `useDashboardStats`
-// (ver convención en docs/ui-ux-guidelines.md, sección "Convenciones de componentes").
-// ─────────────────────────────────────────────────────────────────
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_DAYS = 60;
-const AVG_TICKET = 2_150_000; // centavos ($21.500 ARS), acorde al catálogo del vivero
 
 interface DaySales {
   date: Date;
@@ -21,38 +16,28 @@ interface DaySales {
   revenue: number; // centavos
 }
 
-// PRNG determinístico: mismos datos en cada render, sin depender de Math.random
-function mulberry32(seed: number) {
-  let state = seed;
-  return function random() {
-    state |= 0;
-    state = (state + 0x6d2b79f5) | 0;
-    let t = Math.imul(state ^ (state >>> 15), 1 | state);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
+function toISODate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-function generateSalesHistory(days: number): DaySales[] {
-  const random = mulberry32(2026_08_07);
+/** Trae los últimos `days` días de `sales.by_day` de /reports/overview
+ * (ya viene un punto por día, completo, sin huecos que rellenar). */
+async function fetchSalesHistory(days: number, tenantId: string | undefined): Promise<DaySales[]> {
   const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const from = new Date(today);
+  from.setDate(from.getDate() - (days - 1));
 
-  const history: DaySales[] = [];
-  for (let i = days - 1; i >= 0; i--) {
-    const date = new Date(today.getTime() - i * DAY_MS);
-    const dow = date.getDay(); // 0 = domingo
-    const weekendBoost = dow === 0 || dow === 6 ? 1.35 : 1;
-    const trend = 1 + (days - i) / (days * 5); // leve crecimiento sostenido
-    const noise = 0.65 + random() * 0.7;
+  const overview = await reportService.overview({
+    from: toISODate(from),
+    to: toISODate(today),
+    tenant_id: tenantId,
+  });
 
-    const orders = Math.max(1, Math.round(8 * weekendBoost * trend * noise));
-    const ticketNoise = 0.8 + random() * 0.4;
-    const revenue = Math.round((orders * AVG_TICKET * ticketNoise) / 1000) * 1000;
-
-    history.push({ date, orders, revenue });
-  }
-  return history;
+  return overview.sales.by_day.map((d) => ({
+    date: new Date(`${d.date}T00:00:00`),
+    orders: d.orders,
+    revenue: d.revenue,
+  }));
 }
 
 // ─── Iconos ─────────────────────────────────────────────────────
@@ -426,26 +411,58 @@ function SalesTable({ data }: { data: DaySales[] }) {
 
 // ─── Página ──────────────────────────────────────────────────────
 
+const NEW_CLIENTS_WINDOW_DAYS = 30;
+
 export function Dashboard() {
   const { user } = useAuth();
   const [range, setRange] = useState<30 | 60>(30);
   const [view, setView] = useState<"chart" | "table">("chart");
 
-  const fullHistory = useMemo(() => generateSalesHistory(MAX_DAYS), []);
-  const visible = useMemo(() => fullHistory.slice(-range), [fullHistory, range]);
+  const [fullHistory, setFullHistory] = useState<DaySales[] | null>(null);
+  const [pendingOrders, setPendingOrders] = useState<number | null>(null);
+  const [lowStockCount, setLowStockCount] = useState<number | null>(null);
+  const [newClients, setNewClients] = useState<number | null>(null);
 
-  const today = fullHistory[fullHistory.length - 1];
-  const yesterday = fullHistory[fullHistory.length - 2];
+  useEffect(() => {
+    let alive = true;
+    fetchSalesHistory(MAX_DAYS, user?.tenant_id ?? undefined)
+      .then((h) => alive && setFullHistory(h))
+      .catch(() => alive && setFullHistory([]));
+    return () => {
+      alive = false;
+    };
+  }, [user?.tenant_id]);
+
+  useEffect(() => {
+    let alive = true;
+    orderService
+      .list({ status: "paid", tenant_id: user?.tenant_id ?? undefined, page_size: 1 })
+      .then((d) => alive && setPendingOrders(d.total))
+      .catch(() => alive && setPendingOrders(0));
+    alertService
+      .get()
+      .then((d) => alive && setLowStockCount(d.low_stock_count))
+      .catch(() => alive && setLowStockCount(0));
+    const since = Date.now() - NEW_CLIENTS_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+    userService
+      .list({ role: "buyer", sort: "newest", page_size: 100 })
+      .then((d) => alive && setNewClients(d.items.filter((c) => new Date(c.created_at).getTime() >= since).length))
+      .catch(() => alive && setNewClients(0));
+    return () => {
+      alive = false;
+    };
+  }, [user?.tenant_id]);
+
+  const visible = useMemo(() => (fullHistory ?? []).slice(-range), [fullHistory, range]);
+
+  const loading = fullHistory === null;
+  const today = fullHistory?.[fullHistory.length - 1] ?? { date: new Date(), orders: 0, revenue: 0 };
+  const yesterday = fullHistory?.[fullHistory.length - 2] ?? { date: new Date(), orders: 0, revenue: 0 };
   const todayDelta = yesterday.revenue === 0 ? 0 : ((today.revenue - yesterday.revenue) / yesterday.revenue) * 100;
-  const sparklineValues = fullHistory.slice(-14).map((d) => d.revenue);
+  const sparklineValues = (fullHistory ?? []).slice(-14).map((d) => d.revenue);
 
   const totalRevenue = visible.reduce((sum, d) => sum + d.revenue, 0);
-  const avgPerDay = Math.round(totalRevenue / visible.length);
-
-  // Métricas derivadas de forma liviana a partir del día actual, hasta tener endpoints reales
-  const pendingOrders = Math.round(today.orders * 0.55) + 3;
-  const lowStockCount = 3;
-  const newClients = 14;
+  const avgPerDay = visible.length ? Math.round(totalRevenue / visible.length) : 0;
 
   const firstName = user?.name?.split(" ")[0] ?? "Vendedor";
 
@@ -467,15 +484,15 @@ export function Dashboard() {
           <StatCard
             icon={<SalesIcon />}
             label="Ventas de hoy"
-            value={formatARS(today.revenue)}
-            deltaLabel={`${todayDelta >= 0 ? "+" : ""}${todayDelta.toFixed(1)}% vs. ayer`}
+            value={loading ? "—" : formatARS(today.revenue)}
+            deltaLabel={loading ? undefined : `${todayDelta >= 0 ? "+" : ""}${todayDelta.toFixed(1)}% vs. ayer`}
             deltaUp={todayDelta >= 0}
             sparkline={sparklineValues}
           />
           <StatCard
             icon={<ClipboardIcon />}
             label="Pedidos pendientes"
-            value={String(pendingOrders)}
+            value={pendingOrders === null ? "—" : String(pendingOrders)}
             deltaLabel="Esperando preparación"
             deltaUp
             to="/seller/orders"
@@ -483,7 +500,7 @@ export function Dashboard() {
           <StatCard
             icon={<WarningIcon />}
             label="Stock bajo"
-            value={String(lowStockCount)}
+            value={lowStockCount === null ? "—" : String(lowStockCount)}
             deltaLabel="Revisar inventario"
             deltaUp={false}
             to="/seller/products"
@@ -491,7 +508,7 @@ export function Dashboard() {
           <StatCard
             icon={<UsersIcon />}
             label="Clientes nuevos"
-            value={String(newClients)}
+            value={newClients === null ? "—" : String(newClients)}
             deltaLabel="Últimos 30 días"
             deltaUp
             to="/seller/clients"
@@ -513,7 +530,7 @@ export function Dashboard() {
               label="Pedidos"
               description="Preparar y despachar ventas"
               to="/seller/orders"
-              badge={pendingOrders}
+              badge={pendingOrders ?? 0}
             />
             <QuickLinkCard
               icon={<ClientsShortcutIcon />}
@@ -596,7 +613,13 @@ export function Dashboard() {
             </div>
           </div>
 
-          {view === "chart" ? <SalesBarChart data={visible} /> : <SalesTable data={visible} />}
+          {loading ? (
+            <p className="text-sm text-[#8A8A8A] py-12 text-center">Cargando ventas…</p>
+          ) : view === "chart" ? (
+            <SalesBarChart data={visible} />
+          ) : (
+            <SalesTable data={visible} />
+          )}
         </div>
       </div>
     </AdminLayout>
