@@ -7,6 +7,7 @@ import { Stepper } from "../components/checkout/Stepper";
 import { AddressCard } from "../components/checkout/AddressCard";
 import { AddressForm } from "../components/checkout/AddressForm";
 import { GetnetPaymentForm } from "../components/checkout/GetnetPaymentForm";
+import { InstallmentPicker } from "../components/checkout/InstallmentPicker";
 import { OrderSummary } from "../components/checkout/OrderSummary";
 import { ShippingZoneSelector } from "../components/checkout/ShippingZoneSelector";
 import type { ShippingChoice } from "../components/checkout/ShippingZoneSelector";
@@ -18,6 +19,7 @@ import { orderService } from "../services/order.service";
 import { integrationsService } from "../services/integrations.service";
 import { storeSettingsService } from "../services/storeSettings.service";
 import type { Address, AddressInput } from "../types/address";
+import type { InstallmentPlan } from "../types/order";
 import type { PaymentCardInput } from "../types/payment";
 import type { GetnetPublicConfig } from "../types/integration";
 import type { ShippingZone } from "../services/storeSettings.service";
@@ -74,6 +76,13 @@ export function Cart() {
   const [autoSuggestedChoice, setAutoSuggestedChoice] = useState<ShippingChoice>(null);
 
   const [pendingCard, setPendingCard] = useState<PaymentCardInput | null>(null);
+  // Cuotas disponibles para `pendingCard` — se cotizan apenas se carga la
+  // tarjeta (ver el `onSave` de GetnetPaymentForm más abajo). null = todavía
+  // no se cotizó o la cotización falló (se sigue pudiendo pagar en 1 pago);
+  // `selectedInstallment` null = 1 pago, sin cuotas.
+  const [installmentPlans, setInstallmentPlans] = useState<InstallmentPlan[] | null>(null);
+  const [loadingInstallments, setLoadingInstallments] = useState(false);
+  const [selectedInstallment, setSelectedInstallment] = useState<InstallmentPlan | null>(null);
 
   // Sin una integración de pago activa (hoy, Getnet), el backend rechaza
   // cualquier pedido — ya no existe un flujo "mock" que lo deje pasar sin
@@ -217,6 +226,29 @@ export function Cart() {
     }
   }
 
+  async function handleCardSaved(card: PaymentCardInput) {
+    setPendingCard(card);
+    setSelectedInstallment(null);
+    setInstallmentPlans(null);
+    setLoadingInstallments(true);
+    try {
+      const plans = await orderService.quoteInstallments(card.card_number.slice(0, 6), orderTotal);
+      setInstallmentPlans(plans);
+    } catch {
+      // Sin cuotas disponibles (tarjeta sin planes, o la pasarela no
+      // respondió): se sigue pudiendo pagar en 1 pago, no bloquea el checkout.
+      setInstallmentPlans([]);
+    } finally {
+      setLoadingInstallments(false);
+    }
+  }
+
+  function handleChangeCard() {
+    setPendingCard(null);
+    setInstallmentPlans(null);
+    setSelectedInstallment(null);
+  }
+
   async function handleConfirmOrder() {
     if (!selectedAddressId) {
       toast.error("Elegí una dirección de envío");
@@ -256,6 +288,7 @@ export function Cart() {
         shipping_zone_id: shippingChoice && shippingChoice !== "pickup" ? shippingChoice : undefined,
         pickup: shippingChoice === "pickup",
         payment_card: pendingCard ?? undefined,
+        installment: selectedInstallment ?? undefined,
         notes: notes.trim() || null,
       });
       clearCart();
@@ -384,25 +417,37 @@ export function Cart() {
                   <p className="text-sm text-[#8A8A8A] py-8 text-center">Cargando…</p>
                 ) : getnetConfig.enabled ? (
                   pendingCard ? (
-                    <div className="flex items-center justify-between gap-3 rounded-lg border border-[#1A2B1C] bg-[#F4F8F4] p-4">
-                      <div className="flex items-center gap-3">
-                        <input type="radio" checked readOnly className="w-4 h-4 accent-[#1A2B1C] shrink-0" />
-                        <p className="text-sm text-[#1A1A1A]">
-                          Tarjeta terminada en {pendingCard.card_number.slice(-4)}
-                        </p>
+                    <div>
+                      <div className="flex items-center justify-between gap-3 rounded-lg border border-[#1A2B1C] bg-[#F4F8F4] p-4">
+                        <div className="flex items-center gap-3">
+                          <input type="radio" checked readOnly className="w-4 h-4 accent-[#1A2B1C] shrink-0" />
+                          <p className="text-sm text-[#1A1A1A]">
+                            Tarjeta terminada en {pendingCard.card_number.slice(-4)}
+                          </p>
+                        </div>
+                        <button
+                          onClick={handleChangeCard}
+                          className="text-xs font-semibold text-[#1A2B1C] hover:underline shrink-0"
+                        >
+                          Cambiar
+                        </button>
                       </div>
-                      <button
-                        onClick={() => setPendingCard(null)}
-                        className="text-xs font-semibold text-[#1A2B1C] hover:underline shrink-0"
-                      >
-                        Cambiar
-                      </button>
+
+                      {loadingInstallments ? (
+                        <p className="text-xs text-[#8A8A8A] mt-3">Consultando cuotas disponibles…</p>
+                      ) : (
+                        installmentPlans && (
+                          <InstallmentPicker
+                            plans={installmentPlans}
+                            amount={orderTotal}
+                            value={selectedInstallment}
+                            onChange={setSelectedInstallment}
+                          />
+                        )
+                      )}
                     </div>
                   ) : (
-                    <GetnetPaymentForm
-                      onCancel={() => {}}
-                      onSave={async (card) => setPendingCard(card)}
-                    />
+                    <GetnetPaymentForm onCancel={() => {}} onSave={handleCardSaved} />
                   )
                 ) : (
                   // Sin una pasarela de pago activa, el backend rechaza cualquier
@@ -460,7 +505,16 @@ export function Cart() {
 
                 <ReviewBlock title="Método de pago" onEdit={() => setStep("payment")}>
                   {pendingCard ? (
-                    <p className="text-sm text-[#4A4A4A]">Tarjeta terminada en {pendingCard.card_number.slice(-4)}</p>
+                    <p className="text-sm text-[#4A4A4A]">
+                      Tarjeta terminada en {pendingCard.card_number.slice(-4)}
+                      {selectedInstallment && (
+                        <>
+                          <br />
+                          {selectedInstallment.number_installments} cuotas de{" "}
+                          {formatARS(selectedInstallment.installment_amount)} ({formatARS(selectedInstallment.total_amount)} en la tarjeta)
+                        </>
+                      )}
+                    </p>
                   ) : (
                     <p className="text-sm text-[#DC2626]">No seleccionaste ningún método de pago</p>
                   )}
@@ -542,6 +596,7 @@ export function Cart() {
                 } else if (step === "payment") {
                   if (!getnetConfig?.enabled) { toast.error("Esta tienda no tiene un método de pago habilitado"); return; }
                   if (!pendingCard) { toast.error("Elegí un método de pago"); return; }
+                  if (loadingInstallments) { toast.error("Esperá a que terminen de cargar las cuotas"); return; }
                   setStep("review");
                 }
               }}

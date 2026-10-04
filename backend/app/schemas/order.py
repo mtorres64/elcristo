@@ -32,6 +32,59 @@ class PaymentCardIn(BaseModel):
         return v.replace(" ", "").replace("-", "")
 
 
+class InstallmentQuoteRequest(BaseModel):
+    """Pedido de cotización de cuotas — se manda antes de crear la orden,
+    apenas el comprador cargó la tarjeta (ver `GET /orders/installment-quotes`
+    y el TODO de `getnet_client.get_installment_quotes`)."""
+
+    card_bin: str          # primeros 6 a 8 dígitos de la tarjeta, sin el resto del PAN
+    amount: int             # centavos, total del carrito (sin interés)
+
+    @field_validator("card_bin")
+    @classmethod
+    def validate_bin(cls, v: str) -> str:
+        digits = v.strip()
+        if not digits.isdigit() or not (6 <= len(digits) <= 8):
+            raise ValueError("BIN de tarjeta inválido")
+        return digits
+
+    @field_validator("amount")
+    @classmethod
+    def validate_amount(cls, v: int) -> int:
+        if v <= 0:
+            raise ValueError("Monto inválido")
+        return v
+
+
+class InstallmentPlanOut(BaseModel):
+    number_installments: int
+    installment_type: Literal["no_interest", "with_interest"]
+    installment_schema: str
+    quote_id: str
+    installment_amount: int    # centavos, cuota
+    total_amount: int          # centavos, lo que termina cobrando la tarjeta
+    interest_amount: int       # centavos, total_amount - el monto cotizado
+
+
+class InstallmentQuoteResponse(BaseModel):
+    plans: list[InstallmentPlanOut]
+
+
+class InstallmentSelectionIn(BaseModel):
+    """El plan elegido por el comprador, eco de un `InstallmentPlanOut` — se
+    reenvía tal cual al crear la orden."""
+
+    number_installments: int
+    installment_type: Literal["no_interest", "with_interest"]
+    installment_schema: str
+    quote_id: str
+    # Informativo (para mostrar en el detalle del pedido): no es lo que se le
+    # manda a Getnet para cobrar (eso sigue siendo `total`, sin interés — ver
+    # `_charge_with_getnet`); Getnet calcula el monto real con interés a
+    # partir del `quote_id`.
+    total_amount: int
+
+
 class OrderCreate(BaseModel):
     items: list[OrderItemIn]
 
@@ -51,6 +104,7 @@ class OrderCreate(BaseModel):
     payment_method_id: str | None = None
     payment_card: PaymentCardIn | None = None
     save_card: bool = False
+    installment: InstallmentSelectionIn | None = None
 
     notes: str | None = None
 
@@ -95,6 +149,11 @@ class OrderPaymentOut(BaseModel):
     paid_at: datetime | None = None
     refund_id: str | None = None
     refunded_at: datetime | None = None
+    # Sólo si se pagó en cuotas (ver InstallmentSelectionIn): cantidad de
+    # cuotas y lo que realmente se le cobró a la tarjeta (con interés, si el
+    # plan lo tenía) — `total` de la orden nunca incluye este interés.
+    installments: int | None = None
+    installment_total: int | None = None
 
 
 class OrderSummary(BaseModel):

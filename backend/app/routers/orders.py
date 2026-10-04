@@ -9,6 +9,9 @@ from app.config import settings
 from app.database import get_db
 from app.schemas.common import PaginatedResponse
 from app.schemas.order import (
+    InstallmentQuoteRequest,
+    InstallmentQuoteResponse,
+    InstallmentSelectionIn,
     OrderCreate,
     OrderCreateResponse,
     OrderDetail,
@@ -312,6 +315,15 @@ async def _get_active_getnet_integration(db, tenant_id: str) -> getnet_client.Ge
     )
 
 
+def _installment_selection(body: InstallmentSelectionIn) -> getnet_client.GetnetInstallmentSelection:
+    return getnet_client.GetnetInstallmentSelection(
+        number_installments=body.number_installments,
+        installment_type=body.installment_type,
+        plan_schema=body.installment_schema,
+        quote_id=body.quote_id,
+    )
+
+
 async def _charge_with_getnet(
     db,
     cfg: getnet_client.GetnetConfig,
@@ -320,6 +332,7 @@ async def _charge_with_getnet(
     total: int,
     buyer: dict,
     card: PaymentCardIn,
+    installment: InstallmentSelectionIn | None,
 ) -> dict:
     """Tokeniza y cobra en dos llamadas server-to-server a Getnet.
 
@@ -329,6 +342,12 @@ async def _charge_with_getnet(
     salir de esta función. Lo mismo el CVV (`card.security_code`), que ni
     siquiera viaja a `tokenize_card` (Getnet no lo pide para tokenizar), sólo
     al cobro final.
+
+    `amount_cents` sigue siendo `total` (sin interés) incluso con cuotas con
+    interés: es Getnet quien calcula el monto real a cobrar a partir del
+    `quote_id` del plan elegido (ver `get_installment_quotes`) — el pedido
+    registra el total "limpio", el interés sólo se guarda de forma
+    informativa en `installment_total` para mostrarlo en el detalle.
     """
     brand = detect_brand(card.card_number)
     last4 = card.card_number[-4:]
@@ -348,6 +367,7 @@ async def _charge_with_getnet(
             holder_name=card.holder_name,
             security_code=card.security_code,
             device_session_id=None,
+            installment=_installment_selection(installment) if installment else None,
         )
     except getnet_client.GetnetError as exc:
         raise HTTPException(502, str(exc)) from exc
@@ -367,6 +387,8 @@ async def _charge_with_getnet(
         "environment": cfg.environment,
         "status": "approved",
         "paid_at": now,
+        "installments": installment.number_installments if installment else None,
+        "installment_total": installment.total_amount if installment else None,
     }
 
 
@@ -401,8 +423,53 @@ async def _resolve_payment(
     if not card.security_code:
         raise HTTPException(400, "Falta el código de seguridad")
     return await _charge_with_getnet(
-        db, integration, tenant_id, order_number, total, buyer, card
+        db, integration, tenant_id, order_number, total, buyer, card, body.installment
     )
+
+
+@router.post("/installment-quotes", response_model=InstallmentQuoteResponse)
+async def installment_quotes(body: InstallmentQuoteRequest, request: Request):
+    """Cotiza los planes de cuotas disponibles para una tarjeta, antes de
+    crear la orden (ver GetnetPaymentForm/Cart.tsx en el frontend: se llama
+    apenas el comprador carga la tarjeta, en el paso de pago del checkout).
+
+    No hay un producto/orden todavía de dónde sacar el tenant (a diferencia
+    de `create_order`, que lo deriva de los productos del carrito), así que
+    se usa el mismo fallback que el resto de los endpoints públicos sin ese
+    contexto (ver `products.py`)."""
+    require_user(request)
+    db = get_db()
+    tenant_id = getattr(request.state, "tenant_id", None) or "default"
+
+    integration = await _get_active_getnet_integration(db, tenant_id)
+    if not integration:
+        raise HTTPException(400, "Esta tienda no tiene un método de pago habilitado por el momento")
+
+    try:
+        plans = await getnet_client.get_installment_quotes(
+            integration,
+            tenant_id,
+            amount_cents=body.amount,
+            currency="ARS",
+            card_bin=body.card_bin,
+        )
+    except getnet_client.GetnetError as exc:
+        raise HTTPException(502, str(exc)) from exc
+
+    return {
+        "plans": [
+            {
+                "number_installments": p.number_installments,
+                "installment_type": p.installment_type,
+                "installment_schema": p.plan_schema,
+                "quote_id": p.quote_id,
+                "installment_amount": p.installment_amount_cents,
+                "total_amount": p.total_amount_cents,
+                "interest_amount": p.interest_amount_cents,
+            }
+            for p in plans
+        ]
+    }
 
 
 @router.post("", response_model=OrderCreateResponse, status_code=201)

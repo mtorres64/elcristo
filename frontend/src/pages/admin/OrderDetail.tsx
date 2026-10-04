@@ -224,6 +224,13 @@ export function OrderDetail() {
               <p className="text-sm text-[#1A1A1A]">
                 {order.payment.brand ?? "Tarjeta"} terminada en {order.payment.last4 ?? "----"}
               </p>
+              {order.payment.installments && order.payment.installments > 1 && (
+                <p className="text-xs text-[#8A8A8A] mt-1">
+                  {order.payment.installments} cuotas
+                  {order.payment.installment_total != null &&
+                    ` · ${formatARS(order.payment.installment_total)} cobrados en la tarjeta (interés no incluido en el total del pedido)`}
+                </p>
+              )}
               <p className="text-xs text-[#8A8A8A] mt-1">
                 Estado del pago: {order.payment.status} · Proveedor: {order.payment.provider}
                 {order.payment.provider === "mock" && " (sin pasarela real conectada todavía)"}

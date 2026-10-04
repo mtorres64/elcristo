@@ -52,6 +52,8 @@ class OrderPayment(BaseModel):
     refund_id: str | None = None                                  # Getnet: id de la devolución
     refunded_at: datetime | None = None
     refund_attempts: int = 0                                      # rechazos definitivos previos (rota la idempotency key)
+    installments: int | None = None                               # cantidad de cuotas, si se pagó en cuotas
+    installment_total: int | None = None                          # centavos cobrados a la tarjeta con interés (>= total de la orden)
 
 
 class OrderDocument(BaseModel):

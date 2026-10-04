@@ -153,6 +153,19 @@ class GetnetPaymentResult:
     last4: str | None
 
 
+InstallmentType = Literal["no_interest", "with_interest"]
+
+
+@dataclass
+class GetnetInstallmentSelection:
+    """El plan que eligió el comprador, tal como hay que reenviarlo en `create_payment`
+    (ver `get_installment_quotes` más abajo, que es lo que lo genera)."""
+    number_installments: int
+    installment_type: InstallmentType
+    plan_schema: str
+    quote_id: str
+
+
 async def create_payment(
     cfg: GetnetConfig,
     tenant_id: str,
@@ -168,12 +181,36 @@ async def create_payment(
     holder_name: str,
     security_code: str,
     device_session_id: str | None,
+    installment: GetnetInstallmentSelection | None = None,
 ) -> GetnetPaymentResult:
     """Cobra con auth+captura inmediata usando el `number_token` que devolvió
     `tokenize_card` (nunca recibe ni ve el PAN acá — sólo el token, más los
     datos de tarjeta que Getnet exige igual en cada cobro: vencimiento,
-    titular y CVV, ninguno de los cuales se persiste en ningún lado)."""
+    titular y CVV, ninguno de los cuales se persiste en ningún lado).
+
+    `installment`, si viene, es el plan que ya cotizó `get_installment_quotes`
+    (mismo TODO de ahí: el shape de `additional_data.installment` no está
+    confirmado contra sandbox real, es la mejor lectura de la doc pública).
+    Sin `installment` se cobra en un solo pago, como antes."""
     token = await get_access_token(cfg, tenant_id)
+
+    transaction_type = GETNET_SINGLE_STEP_TRANSACTION_TYPE
+    number_installments = 1
+    additional_data: dict = (
+        {"device": {"session_id": device_session_id}} if device_session_id else {}
+    )
+    if installment:
+        transaction_type = (
+            "INSTALL_WITH_INTEREST"
+            if installment.installment_type == "with_interest"
+            else "INSTALL_NO_INTEREST"
+        )
+        number_installments = installment.number_installments
+        additional_data["installment"] = {
+            "schema": installment.plan_schema,
+            "type": installment.installment_type,
+            "quote_id": installment.quote_id,
+        }
 
     body = {
         "idempotency_key": idempotency_key,
@@ -188,8 +225,8 @@ async def create_payment(
             "customer": customer,
             "payment": {
                 "payment_method": GETNET_SINGLE_STEP_PAYMENT_METHOD,
-                "transaction_type": GETNET_SINGLE_STEP_TRANSACTION_TYPE,
-                "number_installments": 1,
+                "transaction_type": transaction_type,
+                "number_installments": number_installments,
                 "card": {
                     "number_token": number_token,
                     # Confirmado en el ejemplo real del spec: mes de 2 dígitos
@@ -201,9 +238,7 @@ async def create_payment(
                     "security_code": security_code,
                 },
             },
-            "additional_data": (
-                {"device": {"session_id": device_session_id}} if device_session_id else {}
-            ),
+            "additional_data": additional_data,
         },
     }
     url = f"{_base_url(cfg)}/dpm/payments-gwproxy/v2/payments"
@@ -444,6 +479,106 @@ async def tokenize_card(
     if not number_token:
         raise GetnetError("Respuesta inesperada de Getnet al tokenizar la tarjeta")
     return GetnetTokenizeResult(number_token=number_token)
+
+
+@dataclass
+class GetnetInstallmentPlan:
+    number_installments: int
+    installment_type: InstallmentType
+    plan_schema: str
+    quote_id: str
+    installment_amount_cents: int
+    total_amount_cents: int      # lo que termina cobrándose en la tarjeta (con interés si aplica)
+    interest_amount_cents: int   # total_amount_cents - el monto cotizado, siempre >= 0
+
+
+async def get_installment_quotes(
+    cfg: GetnetConfig,
+    tenant_id: str,
+    *,
+    amount_cents: int,
+    currency: str,
+    card_bin: str,
+) -> list[GetnetInstallmentPlan]:
+    """Cotiza los planes de cuotas disponibles para un BIN de tarjeta y un monto.
+
+    TODO(confirmar contra sandbox real) — A DIFERENCIA del resto de este
+    archivo, este endpoint NO se confirmó contra un ejemplo real de swagger:
+    sólo hay resúmenes de la documentación pública de Getnet
+    (docs.globalgetnet.com, sección "Installments"), sin un ejemplo de
+    response verificado, porque el comercio todavía no tiene credenciales de
+    sandbox. Se asume, a partir de esa documentación:
+    - Ruta: POST {base}/dpm/payments-gwproxy/v2/payments/quotes (mismo base
+      path que `create_payment`; la doc menciona este endpoint pero sin
+      mostrar la ruta completa con el host).
+    - Body: {"card_bin": <6-8 dígitos>, "data": {"amount": <centavos>, "currency": ...}}.
+    - Response: una lista de planes (se acepta tanto una lista en la raíz
+      como {"installment_plans": [...]} o {"plans": [...]}, por las dudas),
+      cada uno con (al menos) `number_installments`, `schema`, `type`
+      ("no_interest"/"with_interest") y `quote_id` — estos cuatro si están
+      confirmados por la doc. El monto total con interés ya incluido NO está
+      confirmado con qué nombre viaja: se prueban `total_amount` y `amount`
+      en ese orden, y si ninguno viene se asume sin interés (total = lo cotizado).
+    Cuando haya sandbox real: confirmar todo lo de arriba acá, y el shape de
+    `additional_data.installment` en `create_payment` (mismo TODO ahí).
+    """
+    token = await get_access_token(cfg, tenant_id)
+    body = {
+        "card_bin": card_bin,
+        "data": {"amount": amount_cents, "currency": currency},
+    }
+    url = f"{_base_url(cfg)}/dpm/payments-gwproxy/v2/payments/quotes"
+    headers = {
+        "authorization": f"Bearer {token}",
+        "x-seller-id": cfg.seller_id,
+        "content-type": "application/json",
+    }
+    try:
+        async with httpx.AsyncClient(timeout=_REQUEST_TIMEOUT) as client:
+            resp = await client.post(url, json=body, headers=headers)
+    except httpx.TimeoutException as exc:
+        raise GetnetError("La consulta de cuotas no respondió a tiempo") from exc
+    except httpx.HTTPError as exc:
+        logger.warning("Getnet quotes error de red (tenant=%s): %s", tenant_id, exc)
+        raise GetnetError("No se pudo consultar las cuotas disponibles") from exc
+
+    if resp.status_code != 200:
+        logger.warning(
+            "Getnet quotes rechazado (tenant=%s, status=%s): %s",
+            tenant_id, resp.status_code, resp.text[:500],
+        )
+        raise GetnetError("No se pudieron obtener las cuotas disponibles para esta tarjeta")
+
+    payload = resp.json()
+    if isinstance(payload, list):
+        raw_plans = payload
+    elif isinstance(payload, dict):
+        raw_plans = payload.get("installment_plans") or payload.get("plans") or []
+    else:
+        raw_plans = []
+
+    plans: list[GetnetInstallmentPlan] = []
+    for raw in raw_plans:
+        n = raw.get("number_installments")
+        quote_id = raw.get("quote_id")
+        if not n or not quote_id:
+            continue
+        total = raw.get("total_amount") or raw.get("amount") or amount_cents
+        plans.append(
+            GetnetInstallmentPlan(
+                number_installments=n,
+                installment_type="with_interest" if raw.get("type") == "with_interest" else "no_interest",
+                plan_schema=raw.get("schema", ""),
+                quote_id=quote_id,
+                installment_amount_cents=round(total / n),
+                total_amount_cents=total,
+                interest_amount_cents=max(total - amount_cents, 0),
+            )
+        )
+    if not plans:
+        logger.warning("Getnet quotes sin planes reconocidos (tenant=%s): %s", tenant_id, payload)
+        raise GetnetError("No hay planes de cuotas disponibles para esta tarjeta")
+    return plans
 
 
 @dataclass

@@ -1,5 +1,5 @@
 import { api } from "./api";
-import type { Order, OrderStatus, OrderStatusUpdateResult, OrderSummary } from "../types/order";
+import type { InstallmentPlan, InstallmentSelection, Order, OrderStatus, OrderStatusUpdateResult, OrderSummary } from "../types/order";
 import type { AddressInput } from "../types/address";
 
 interface PaginatedOrders {
@@ -38,6 +38,7 @@ interface CreateOrderData {
     security_code?: string;
   };
   save_card?: boolean;
+  installment?: InstallmentSelection;
   notes?: string | null;
 }
 
@@ -54,6 +55,15 @@ export const orderService = {
   async create(data: CreateOrderData): Promise<{ order_id: string; order_number: string; status: OrderStatus; total: number }> {
     const res = await api.post("/orders", data);
     return res.data;
+  },
+
+  /** Cotiza los planes de cuotas disponibles para una tarjeta y un monto —
+   * se llama apenas el comprador carga la tarjeta, antes de confirmar el
+   * pedido (ver GetnetPaymentForm/Cart.tsx). `card_bin`: primeros 6 a 8
+   * dígitos de la tarjeta (nunca el PAN completo). */
+  async quoteInstallments(cardBin: string, amount: number): Promise<InstallmentPlan[]> {
+    const res = await api.post("/orders/installment-quotes", { card_bin: cardBin, amount });
+    return res.data.plans;
   },
 
   async list(params: ListOrdersParams = {}): Promise<PaginatedOrders> {
