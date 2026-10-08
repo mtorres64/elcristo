@@ -201,7 +201,13 @@ async def create_payment_intent(
         "authorization": f"Bearer {token}",
         "x-seller-id": cfg.seller_id,
         "country": "AR",
-        "tenant": "AR",
+        # El seller_id con ceros a la izquierda (como lo completa el portal,
+        # "0000094009") ya se probó y falló. El mail original de Getnet
+        # siempre lo escribe sin ceros ("seller: 94009") — puede que el
+        # padding a 10 dígitos sea sólo cosmético del portal y la API
+        # espere el número tal cual. `lstrip("0")` saca los ceros iniciales
+        # sin asumir que el seller_id siempre tiene ese padding.
+        "tenant": cfg.seller_id.lstrip("0") or cfg.seller_id,
         "content-type": "application/json",
     }
 
