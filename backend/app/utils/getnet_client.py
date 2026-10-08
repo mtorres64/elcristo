@@ -173,15 +173,15 @@ async def create_payment_intent(
     notificación con el pedido sin depender de nada que ellos generen.
 
     El manual no muestra los headers del request (sólo el body) — probado
-    contra la cuenta real, Getnet rechaza el request sin `country` y
-    `tenant` ("Invalid Headers": "\"country\" and \"tenant\" headers are
-    required"). `country` es el país del comercio (hoy siempre "AR" — no
-    hay forma de saberlo de otro lado, ver TODO de `currency` más abajo);
-    `tenant` no está confirmado qué valor espera exactamente, se prueba con
-    `cfg.seller_id` (mismo identificador que ya se usa en `x-seller-id`) por
-    ser el dato que más sentido tiene como "de qué comercio es este
-    request" — si Getnet lo sigue rechazando, el próximo error debería
-    decir con qué valor lo esperaba.
+    contra la cuenta real:
+    - Sin `country`/`tenant`: 400 "Invalid Headers" (los pide a los dos).
+    - Con `tenant` = seller_id: 400 "\"tenant\" header must be valid tenant"
+      — no es el número de comercio.
+    `country` ("AR") no volvió a generar error, así que se asume correcto.
+    Para `tenant` se prueba ahora con el mismo "AR" (Getnet opera varios
+    países bajo la misma plataforma — "tenant" probablemente particiona por
+    país, no por comercio). Si lo vuelve a rechazar, el mensaje de error
+    debería decir qué formato espera.
     """
     token = await get_access_token(cfg, tenant_id)
     body = {
@@ -201,7 +201,7 @@ async def create_payment_intent(
         "authorization": f"Bearer {token}",
         "x-seller-id": cfg.seller_id,
         "country": "AR",
-        "tenant": cfg.seller_id,
+        "tenant": "AR",
         "content-type": "application/json",
     }
 
