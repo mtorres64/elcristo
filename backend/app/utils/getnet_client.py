@@ -172,16 +172,18 @@ async def create_payment_intent(
     pedido — Getnet lo devuelve tal cual en el webhook, así enlazamos la
     notificación con el pedido sin depender de nada que ellos generen.
 
-    El manual no muestra los headers del request (sólo el body) — probado
-    contra la cuenta real:
-    - Sin `country`/`tenant`: 400 "Invalid Headers" (los pide a los dos).
-    - Con `tenant` = seller_id: 400 "\"tenant\" header must be valid tenant"
-      — no es el número de comercio.
-    `country` ("AR") no volvió a generar error, así que se asume correcto.
-    Para `tenant` se prueba ahora con el mismo "AR" (Getnet opera varios
-    países bajo la misma plataforma — "tenant" probablemente particiona por
-    país, no por comercio). Si lo vuelve a rechazar, el mensaje de error
-    debería decir qué formato espera.
+    El manual no muestra los headers del request (sólo el body) — se fue
+    confirmando a los golpes contra la cuenta real (seller 94009):
+    - `country`: "AR" — confirmado (nunca generó error).
+    - `tenant`: NO es el seller_id (con o sin ceros a la izquierda) ni el
+      código de país — es "santander" (Getnet Argentina es la marca de
+      pagos de Banco Santander). Confirmado: con este valor dejó de
+      rechazar por `tenant`.
+    - `x-seller-id`: pese al nombre, NO es el "Seller ID" numérico del
+      portal (ese es el `tenant`, aparentemente) — Getnet exige un GUID acá
+      ("x-seller-id must be a valid guid"). El Client ID tiene forma
+      `cid_<guid>` (ej. `cid_fc29cdab-60a6-4278-92bf-e84d65c31ae1`): se
+      manda esa parte, sacándole el prefijo `cid_`.
     """
     token = await get_access_token(cfg, tenant_id)
     body = {
@@ -197,17 +199,13 @@ async def create_payment_intent(
         },
     }
     url = f"{_base_url(cfg)}/digital-checkout/v1/payment-intent"
+    # El Client ID guardado tiene forma "cid_<guid>" — el GUID que pide
+    # x-seller-id es esa parte, sin el prefijo.
+    seller_guid = cfg.client_id.removeprefix("cid_")
     headers = {
         "authorization": f"Bearer {token}",
-        "x-seller-id": cfg.seller_id,
+        "x-seller-id": seller_guid,
         "country": "AR",
-        # Variantes ya probadas y rechazadas: seller_id (con y sin ceros a
-        # la izquierda), "AR", nombre del comercio ("Vivero El Cristo").
-        # Getnet Argentina es la marca de pagos de Banco Santander — "tenant"
-        # podría identificar la plataforma/holder, no el comercio.
-        # TODO: si esto tampoco confirma, escribirle a Getnet
-        # (consultasecommerce@getnet.com.ar) — ya no quedan variantes
-        # razonables para adivinar.
         "tenant": "santander",
         "content-type": "application/json",
     }
