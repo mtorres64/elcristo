@@ -1,5 +1,5 @@
 import { api } from "./api";
-import type { InstallmentPlan, InstallmentSelection, Order, OrderStatus, OrderStatusUpdateResult, OrderSummary } from "../types/order";
+import type { Order, OrderStatus, OrderStatusUpdateResult, OrderSummary } from "../types/order";
 import type { AddressInput } from "../types/address";
 
 interface PaginatedOrders {
@@ -27,18 +27,9 @@ interface CreateOrderData {
   // Configuración > Envíos, esto sólo indica la elección.
   shipping_zone_id?: string;
   pickup?: boolean;
-  payment_method_id?: string;
-  payment_card?: {
-    card_number: string;
-    holder_name: string;
-    exp_month: number;
-    exp_year: number;
-    // Sólo se manda con Getnet activo (GetnetPaymentForm) — el backend tokeniza
-    // y cobra server-to-server; el flujo mock nunca lo pide ni lo persiste.
-    security_code?: string;
-  };
-  save_card?: boolean;
-  installment?: InstallmentSelection;
+  // No se manda ningún dato de tarjeta: con Web Checkout, Getnet aloja el
+  // formulario de pago (ver `checkout_url` en la respuesta de `create`) — el
+  // backend nunca ve el número de tarjeta.
   notes?: string | null;
 }
 
@@ -52,18 +43,13 @@ interface ListOrdersParams {
 }
 
 export const orderService = {
-  async create(data: CreateOrderData): Promise<{ order_id: string; order_number: string; status: OrderStatus; total: number }> {
+  /** Crea el pedido (nace `pending_payment`) y devuelve `checkout_url`: hay
+   * que redirigir el navegador ahí para que el comprador complete el pago
+   * en la página alojada por Getnet (Web Checkout). El pedido sólo pasa a
+   * "paid" cuando llega el webhook — nunca en esta misma request. */
+  async create(data: CreateOrderData): Promise<{ order_id: string; order_number: string; status: OrderStatus; total: number; checkout_url: string }> {
     const res = await api.post("/orders", data);
     return res.data;
-  },
-
-  /** Cotiza los planes de cuotas disponibles para una tarjeta y un monto —
-   * se llama apenas el comprador carga la tarjeta, antes de confirmar el
-   * pedido (ver GetnetPaymentForm/Cart.tsx). `card_bin`: primeros 6 a 8
-   * dígitos de la tarjeta (nunca el PAN completo). */
-  async quoteInstallments(cardBin: string, amount: number): Promise<InstallmentPlan[]> {
-    const res = await api.post("/orders/installment-quotes", { card_bin: cardBin, amount });
-    return res.data.plans;
   },
 
   async list(params: ListOrdersParams = {}): Promise<PaginatedOrders> {

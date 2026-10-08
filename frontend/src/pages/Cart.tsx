@@ -6,8 +6,6 @@ import { Layout } from "../components/layout/Layout";
 import { Stepper } from "../components/checkout/Stepper";
 import { AddressCard } from "../components/checkout/AddressCard";
 import { AddressForm } from "../components/checkout/AddressForm";
-import { GetnetPaymentForm } from "../components/checkout/GetnetPaymentForm";
-import { InstallmentPicker } from "../components/checkout/InstallmentPicker";
 import { OrderSummary } from "../components/checkout/OrderSummary";
 import { ShippingZoneSelector } from "../components/checkout/ShippingZoneSelector";
 import type { ShippingChoice } from "../components/checkout/ShippingZoneSelector";
@@ -19,8 +17,6 @@ import { orderService } from "../services/order.service";
 import { integrationsService } from "../services/integrations.service";
 import { storeSettingsService } from "../services/storeSettings.service";
 import type { Address, AddressInput } from "../types/address";
-import type { InstallmentPlan } from "../types/order";
-import type { PaymentCardInput } from "../types/payment";
 import type { GetnetPublicConfig } from "../types/integration";
 import type { ShippingZone } from "../services/storeSettings.service";
 import { formatARS } from "../utils/currency";
@@ -75,26 +71,16 @@ export function Cart() {
   // cambia de dirección (ver el efecto de auto-match más abajo).
   const [autoSuggestedChoice, setAutoSuggestedChoice] = useState<ShippingChoice>(null);
 
-  const [pendingCard, setPendingCard] = useState<PaymentCardInput | null>(null);
-  // Cuotas disponibles para `pendingCard` — se cotizan apenas se carga la
-  // tarjeta (ver el `onSave` de GetnetPaymentForm más abajo). null = todavía
-  // no se cotizó o la cotización falló (se sigue pudiendo pagar en 1 pago);
-  // `selectedInstallment` null = 1 pago, sin cuotas.
-  const [installmentPlans, setInstallmentPlans] = useState<InstallmentPlan[] | null>(null);
-  const [loadingInstallments, setLoadingInstallments] = useState(false);
-  const [selectedInstallment, setSelectedInstallment] = useState<InstallmentPlan | null>(null);
-
   // Sin una integración de pago activa (hoy, Getnet), el backend rechaza
   // cualquier pedido — ya no existe un flujo "mock" que lo deje pasar sin
-  // cobrar de verdad (ver `_resolve_payment` en orders.py). `getnetConfig`
-  // null = todavía cargando; `enabled: false` = la tienda no puede cobrar,
-  // así que el paso de pago bloquea el checkout en vez de ofrecer una
-  // tarjeta que igual no va a poder cobrarse.
+  // cobrar de verdad. `getnetConfig` null = todavía cargando; `enabled:
+  // false` = la tienda no puede cobrar, así que el paso de pago bloquea el
+  // checkout en vez de dejar avanzar hacia un pago que igual no va a andar.
   const [getnetConfig, setGetnetConfig] = useState<GetnetPublicConfig | null>(null);
 
   const [notes, setNotes] = useState("");
   const [placingOrder, setPlacingOrder] = useState(false);
-  // La pasarela no pudo procesar el cobro (502): se ofrece pagar por
+  // La pasarela no pudo iniciar el pago (502): se ofrece pagar por
   // transferencia coordinando por WhatsApp en vez de dejar al cliente trabado.
   const [cardPaymentUnavailable, setCardPaymentUnavailable] = useState(false);
 
@@ -226,29 +212,6 @@ export function Cart() {
     }
   }
 
-  async function handleCardSaved(card: PaymentCardInput) {
-    setPendingCard(card);
-    setSelectedInstallment(null);
-    setInstallmentPlans(null);
-    setLoadingInstallments(true);
-    try {
-      const plans = await orderService.quoteInstallments(card.card_number.slice(0, 6), orderTotal);
-      setInstallmentPlans(plans);
-    } catch {
-      // Sin cuotas disponibles (tarjeta sin planes, o la pasarela no
-      // respondió): se sigue pudiendo pagar en 1 pago, no bloquea el checkout.
-      setInstallmentPlans([]);
-    } finally {
-      setLoadingInstallments(false);
-    }
-  }
-
-  function handleChangeCard() {
-    setPendingCard(null);
-    setInstallmentPlans(null);
-    setSelectedInstallment(null);
-  }
-
   async function handleConfirmOrder() {
     if (!selectedAddressId) {
       toast.error("Elegí una dirección de envío");
@@ -268,10 +231,6 @@ export function Cart() {
       toast.error("Esta tienda no tiene un método de pago habilitado por el momento");
       return;
     }
-    if (!pendingCard) {
-      toast.error("Elegí un método de pago");
-      return;
-    }
 
     setPlacingOrder(true);
     setCardPaymentUnavailable(false);
@@ -287,15 +246,16 @@ export function Cart() {
         address_id: selectedAddressId,
         shipping_zone_id: shippingChoice && shippingChoice !== "pickup" ? shippingChoice : undefined,
         pickup: shippingChoice === "pickup",
-        payment_card: pendingCard ?? undefined,
-        installment: selectedInstallment ?? undefined,
         notes: notes.trim() || null,
       });
+      // El pedido ya quedó creado (pending_payment) — el pago en sí pasa en
+      // una página alojada por Getnet, no acá. Se sale de la SPA a propósito
+      // (navegación completa, no `navigate` de react-router).
       clearCart();
-      toast.success("¡Pedido creado!");
-      navigate(`/pedido/${result.order_id}`);
+      window.location.href = result.checkout_url;
     } catch (err: unknown) {
-      // 502 = la pasarela de pago falló (no es un rechazo de la tarjeta, que es 402).
+      // 502 = la pasarela no pudo iniciar el pago (no es un rechazo de la
+      // tarjeta — eso ni siquiera se sabe todavía en este punto del flujo).
       if ((err as { response?: { status?: number } })?.response?.status === 502) {
         setCardPaymentUnavailable(true);
       } else {
@@ -411,48 +371,32 @@ export function Cart() {
 
             {step === "payment" && (
               <div className="rounded-lg border border-[#E8E2D8] bg-white p-5">
-                <h2 className="text-sm font-semibold text-[#1A1A1A] mb-4">Elegí un método de pago</h2>
+                <h2 className="text-sm font-semibold text-[#1A1A1A] mb-4">Método de pago</h2>
 
                 {getnetConfig === null ? (
                   <p className="text-sm text-[#8A8A8A] py-8 text-center">Cargando…</p>
                 ) : getnetConfig.enabled ? (
-                  pendingCard ? (
-                    <div>
-                      <div className="flex items-center justify-between gap-3 rounded-lg border border-[#1A2B1C] bg-[#F4F8F4] p-4">
-                        <div className="flex items-center gap-3">
-                          <input type="radio" checked readOnly className="w-4 h-4 accent-[#1A2B1C] shrink-0" />
-                          <p className="text-sm text-[#1A1A1A]">
-                            Tarjeta terminada en {pendingCard.card_number.slice(-4)}
-                          </p>
-                        </div>
-                        <button
-                          onClick={handleChangeCard}
-                          className="text-xs font-semibold text-[#1A2B1C] hover:underline shrink-0"
-                        >
-                          Cambiar
-                        </button>
-                      </div>
-
-                      {loadingInstallments ? (
-                        <p className="text-xs text-[#8A8A8A] mt-3">Consultando cuotas disponibles…</p>
-                      ) : (
-                        installmentPlans && (
-                          <InstallmentPicker
-                            plans={installmentPlans}
-                            amount={orderTotal}
-                            value={selectedInstallment}
-                            onChange={setSelectedInstallment}
-                          />
-                        )
-                      )}
-                    </div>
-                  ) : (
-                    <GetnetPaymentForm onCancel={() => {}} onSave={handleCardSaved} />
-                  )
+                  // Con Web Checkout la tarjeta se carga en una página de
+                  // Getnet, no acá — no hay formulario propio que mostrar.
+                  <div className="flex items-start gap-3 rounded-lg border border-[#CFE3CF] bg-[#F4F8F4] p-4">
+                    <svg
+                      width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2E5A2E"
+                      strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
+                      className="shrink-0 mt-0.5" aria-hidden="true"
+                    >
+                      <path d="M12 3l8 3v6c0 4.5-3.4 8.2-8 9-4.6-.8-8-4.5-8-9V6l8-3z" />
+                      <path d="M9 12l2 2 4-4" />
+                    </svg>
+                    <p className="text-sm text-[#1A1A1A] leading-relaxed">
+                      Al confirmar el pedido te vamos a redirigir a una página segura de{" "}
+                      <strong>Getnet</strong> para cargar la tarjeta y elegir las cuotas. Volvés a
+                      Vivero El Cristo apenas termine el pago.
+                    </p>
+                  </div>
                 ) : (
                   // Sin una pasarela de pago activa, el backend rechaza cualquier
-                  // pedido (ver `_resolve_payment` en orders.py) — no tiene sentido
-                  // dejar avanzar el checkout, así que se bloquea acá directamente.
+                  // pedido — no tiene sentido dejar avanzar el checkout, así que
+                  // se bloquea acá directamente.
                   <div role="alert" className="rounded-lg border border-[#EAD9B4] bg-[#FBF3E5] p-4 text-sm text-[#8A6D3B] leading-relaxed">
                     <p className="font-semibold mb-1">Esta tienda no tiene un método de pago habilitado</p>
                     <p>Todavía no podés completar la compra por acá. Escribinos por WhatsApp y coordinamos tu pedido.</p>
@@ -504,20 +448,9 @@ export function Cart() {
                 )}
 
                 <ReviewBlock title="Método de pago" onEdit={() => setStep("payment")}>
-                  {pendingCard ? (
-                    <p className="text-sm text-[#4A4A4A]">
-                      Tarjeta terminada en {pendingCard.card_number.slice(-4)}
-                      {selectedInstallment && (
-                        <>
-                          <br />
-                          {selectedInstallment.number_installments} cuotas de{" "}
-                          {formatARS(selectedInstallment.installment_amount)} ({formatARS(selectedInstallment.total_amount)} en la tarjeta)
-                        </>
-                      )}
-                    </p>
-                  ) : (
-                    <p className="text-sm text-[#DC2626]">No seleccionaste ningún método de pago</p>
-                  )}
+                  <p className="text-sm text-[#4A4A4A]">
+                    Tarjeta — se carga en el siguiente paso, en una página segura de Getnet.
+                  </p>
                 </ReviewBlock>
 
                 <div>
@@ -595,8 +528,6 @@ export function Cart() {
                   setStep("payment");
                 } else if (step === "payment") {
                   if (!getnetConfig?.enabled) { toast.error("Esta tienda no tiene un método de pago habilitado"); return; }
-                  if (!pendingCard) { toast.error("Elegí un método de pago"); return; }
-                  if (loadingInstallments) { toast.error("Esperá a que terminen de cargar las cuotas"); return; }
                   setStep("review");
                 }
               }}

@@ -205,15 +205,10 @@ export function MyOrderDetail() {
                     Pago
                   </p>
                   <p className="text-sm text-[#1A1A1A]">
-                    {order.payment.brand ?? "Tarjeta"} terminada en {order.payment.last4 ?? "----"}
+                    {order.payment.last4
+                      ? `${order.payment.brand ?? "Tarjeta"} terminada en ${order.payment.last4}`
+                      : "Tarjeta"}
                   </p>
-                  {order.payment.installments && order.payment.installments > 1 && (
-                    <p className="text-xs text-[#8A8A8A] mt-1">
-                      {order.payment.installments} cuotas
-                      {order.payment.installment_total != null &&
-                        ` · ${formatARS(order.payment.installment_total)} en la tarjeta`}
-                    </p>
-                  )}
                   <p className="text-xs text-[#8A8A8A] mt-1">
                     {order.payment.status === "approved"
                       ? "Pago confirmado"

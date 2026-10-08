@@ -1,24 +1,34 @@
-"""Cliente HTTP para la Regional API (SEP) de Getnet.
+"""Cliente HTTP para Web Checkout de Getnet.
 
-Documentación: docs.globalgetnet.com. Todavía no tenemos credenciales reales
-(el comercio está gestionando el alta del canal online sobre su cuenta
-existente — ya tiene Posnet físico), así que varios detalles exactos del
-contrato quedan marcados como TODO acá, concentrados en este único archivo
-para que confirmarlos contra sandbox sea un cambio quirúrgico.
+Confirmado contra el "Manual de pruebas Web Checkout" que mandó Getnet (no
+hay ambiente de sandbox: las credenciales de la cuenta 94009 son directo de
+producción). A diferencia de la Regional API (que se evaluó antes y se
+descartó: esta cuenta no la tiene habilitada), acá Getnet aloja el
+formulario de pago — la tarjeta nunca pasa por nuestro backend ni por
+nuestro frontend.
 
-Flujo que implementa este módulo (auth + captura en un solo paso, con
-tokenización client-side — la tarjeta nunca pasa por nuestro backend):
+Flujo que implementa este módulo:
 1. `get_access_token`: OAuth2 client_credentials -> Bearer token (cacheado en
-   memoria del proceso, no en Mongo).
-2. `create_payment`: cobra usando el token de tarjeta que ya tokenizó el
-   frontend contra Getnet.
+   memoria del proceso, no en Mongo). Mismo endpoint que ya estaba confirmado.
+2. `create_payment_intent`: arranca el pago — Getnet devuelve un
+   `checkout_url` al que hay que redirigir al comprador para que complete el
+   pago en una página alojada por Getnet.
 3. `parse_webhook_payload` / `verify_webhook_signature`: para la notificación
-   asíncrona que refuerza/corrige el resultado síncrono de `create_payment`.
+   asíncrona con el resultado real del pago — es la ÚNICA fuente de verdad
+   (el manual es explícito: "no depender del redirect para confirmar el
+   estado de una operación").
+
+Lo que el manual aclara que NO se puede hacer desde la API (importante,
+porque es lo contrario de lo que se había armado antes de tener el manual):
+- Elegir cuotas por transacción (se configuran una única vez en el Getnet
+  Portal, por marca de tarjeta).
+- Pedir un reembolso (se hace a mano desde el Getnet Portal).
+- Mandar las URLs de éxito/error/webhook por request (son fijas, se
+  configuran en el portal).
 """
 
 import logging
 import time
-import uuid
 from dataclasses import dataclass
 from typing import Literal
 
@@ -29,17 +39,13 @@ logger = logging.getLogger(__name__)
 Environment = Literal["sandbox", "production"]
 
 BASE_URLS: dict[Environment, str] = {
+    # No hay sandbox real para esta cuenta (ver manual) — se deja el entry
+    # por si en el futuro Getnet lo habilita; hoy sólo se usa "production".
     "sandbox": "https://api-sbx.globalgetnet.com",
     "production": "https://api.globalgetnet.com",
 }
 
-# Confirmados contra el spec real (swagger de Regional API, sección Payments,
-# ejemplo "Create - Authorize" con tarjeta): auth+captura en un solo paso usa
-# payment_method="CREDIT" (o "DEBIT") + transaction_type="FULL".
-GETNET_SINGLE_STEP_PAYMENT_METHOD = "CREDIT"
-GETNET_SINGLE_STEP_TRANSACTION_TYPE = "FULL"
-
-# Confirmado contra el ejemplo de respuesta real del spec: "status": "APPROVED".
+# Confirmado en el manual (sección 4, ejemplo de webhook real).
 GETNET_APPROVED_STATUSES = {"APPROVED"}
 
 _REQUEST_TIMEOUT = httpx.Timeout(15.0, connect=5.0)
@@ -92,8 +98,7 @@ async def get_access_token(
         if cached and cached[1] > time.time():
             return cached[0]
 
-    # Confirmado contra el spec real (swagger de Regional API, tag
-    # Authentication): POST {base}/authentication/oauth2/access_token,
+    # Confirmado en el manual: POST {base}/authentication/oauth2/access_token,
     # credenciales en el header Authorization como Basic client_id:client_secret
     # (base64), body application/x-www-form-urlencoded con grant_type=client_credentials.
     url = f"{_base_url(cfg)}/authentication/oauth2/access_token"
@@ -117,13 +122,6 @@ async def get_access_token(
             "Getnet auth rechazado (tenant=%s, env=%s, status=%s): %s",
             tenant_id, cfg.environment, resp.status_code, resp.text[:500],
         )
-        # Se incluye el status code y un extracto de la respuesta de Getnet
-        # (no sólo un mensaje genérico): esto lo ve el seller/admin en el
-        # botón "Probar conexión" y es la única forma de distinguir "URL de
-        # endpoint equivocada" (404), "formato de auth equivocado" (400) o
-        # "credenciales realmente incorrectas" (401) sin acceso a los logs
-        # del servidor — crítico mientras el endpoint exacto de Getnet
-        # (arriba, TODO) todavía no está confirmado contra sandbox real.
         detail = (
             f" — Getnet respondió {resp.status_code}: {snippet}"
             if snippet
@@ -145,103 +143,54 @@ async def get_access_token(
 
 
 @dataclass
-class GetnetPaymentResult:
-    payment_id: str
-    status: str
-    authorization_code: str | None
-    brand: str | None
-    last4: str | None
+class GetnetPaymentIntentResult:
+    checkout_url: str
+    # El manual no muestra este campo en la respuesta de creación (sólo lo
+    # confirma como parte del payload del webhook) — se guarda si viene, pero
+    # no se asume presente.
+    payment_intent_id: str | None
 
 
-InstallmentType = Literal["no_interest", "with_interest"]
-
-
-@dataclass
-class GetnetInstallmentSelection:
-    """El plan que eligió el comprador, tal como hay que reenviarlo en `create_payment`
-    (ver `get_installment_quotes` más abajo, que es lo que lo genera)."""
-    number_installments: int
-    installment_type: InstallmentType
-    plan_schema: str
-    quote_id: str
-
-
-async def create_payment(
+async def create_payment_intent(
     cfg: GetnetConfig,
     tenant_id: str,
     *,
-    idempotency_key: str,
-    order_number: str,
+    order_id: str,
     amount_cents: int,
     currency: str,
-    customer: dict,
-    number_token: str,
-    exp_month: int,
-    exp_year: int,
-    holder_name: str,
-    security_code: str,
-    device_session_id: str | None,
-    installment: GetnetInstallmentSelection | None = None,
-) -> GetnetPaymentResult:
-    """Cobra con auth+captura inmediata usando el `number_token` que devolvió
-    `tokenize_card` (nunca recibe ni ve el PAN acá — sólo el token, más los
-    datos de tarjeta que Getnet exige igual en cada cobro: vencimiento,
-    titular y CVV, ninguno de los cuales se persiste en ningún lado).
+    first_name: str,
+    last_name: str,
+    email: str,
+) -> GetnetPaymentIntentResult:
+    """Arranca un pago de Web Checkout: Getnet devuelve una URL a la que hay
+    que redirigir al comprador para que cargue la tarjeta en una página
+    alojada por Getnet (nunca en la nuestra).
 
-    `installment`, si viene, es el plan que ya cotizó `get_installment_quotes`
-    (mismo TODO de ahí: el shape de `additional_data.installment` no está
-    confirmado contra sandbox real, es la mejor lectura de la doc pública).
-    Sin `installment` se cobra en un solo pago, como antes."""
+    Confirmado contra el manual real de Getnet (sección 2 y 3): POST
+    {base}/digital-checkout/v1/payment-intent, con el body de acá abajo
+    (ejemplo literal del manual). `order_id` es nuestro propio número de
+    pedido — Getnet lo devuelve tal cual en el webhook, así enlazamos la
+    notificación con el pedido sin depender de nada que ellos generen.
+
+    El manual no muestra los headers del request (sólo el body) — se manda
+    `x-seller-id` igual que en la autenticación, por continuidad con el
+    resto de la cuenta; si Getnet lo ignora no debería romper nada, pero no
+    está confirmado que haga falta.
+    """
     token = await get_access_token(cfg, tenant_id)
-
-    transaction_type = GETNET_SINGLE_STEP_TRANSACTION_TYPE
-    number_installments = 1
-    additional_data: dict = (
-        {"device": {"session_id": device_session_id}} if device_session_id else {}
-    )
-    if installment:
-        transaction_type = (
-            "INSTALL_WITH_INTEREST"
-            if installment.installment_type == "with_interest"
-            else "INSTALL_NO_INTEREST"
-        )
-        number_installments = installment.number_installments
-        additional_data["installment"] = {
-            "schema": installment.plan_schema,
-            "type": installment.installment_type,
-            "quote_id": installment.quote_id,
-        }
-
     body = {
-        "idempotency_key": idempotency_key,
-        # Presente en todos los ejemplos del spec real junto a idempotency_key;
-        # se usa un UUID propio por request (no reutiliza idempotency_key, que
-        # debe repetirse en un reintento — request_id no tiene ese requisito).
-        "request_id": str(uuid.uuid4()),
-        "order_id": order_number,
-        "data": {
-            "amount": amount_cents,
+        "order_id": order_id,
+        "customer": {
+            "first_name": first_name,
+            "last_name": last_name,
+            "email": email,
+        },
+        "payment": {
             "currency": currency,
-            "customer": customer,
-            "payment": {
-                "payment_method": GETNET_SINGLE_STEP_PAYMENT_METHOD,
-                "transaction_type": transaction_type,
-                "number_installments": number_installments,
-                "card": {
-                    "number_token": number_token,
-                    # Confirmado en el ejemplo real del spec: mes de 2 dígitos
-                    # con cero a la izquierda ("09", "12") y año de 2 dígitos
-                    # ("30" para 2030) — ambos como string.
-                    "expiration_month": f"{exp_month:02d}",
-                    "expiration_year": f"{exp_year % 100:02d}",
-                    "cardholder_name": holder_name,
-                    "security_code": security_code,
-                },
-            },
-            "additional_data": additional_data,
+            "amount": amount_cents,
         },
     }
-    url = f"{_base_url(cfg)}/dpm/payments-gwproxy/v2/payments"
+    url = f"{_base_url(cfg)}/digital-checkout/v1/payment-intent"
     headers = {
         "authorization": f"Bearer {token}",
         "x-seller-id": cfg.seller_id,
@@ -252,29 +201,22 @@ async def create_payment(
         async with httpx.AsyncClient(timeout=_REQUEST_TIMEOUT) as client:
             resp = await client.post(url, json=body, headers=headers)
     except httpx.TimeoutException as exc:
-        logger.warning(
-            "Getnet payment timeout (tenant=%s, order=%s)", tenant_id, order_number
-        )
+        logger.warning("Getnet payment-intent timeout (tenant=%s, order=%s)", tenant_id, order_id)
         raise GetnetError("La pasarela de pago no respondió a tiempo") from exc
     except httpx.HTTPError as exc:
         logger.warning(
-            "Getnet payment error de red (tenant=%s, order=%s): %s", tenant_id, order_number, exc
+            "Getnet payment-intent error de red (tenant=%s, order=%s): %s", tenant_id, order_id, exc
         )
         raise GetnetError("No se pudo conectar con la pasarela de pago") from exc
 
-    if resp.status_code != 200:
+    if resp.status_code not in (200, 201):
         logger.warning(
-            "Getnet payment rechazado (tenant=%s, order=%s, status=%s): %s",
-            tenant_id, order_number, resp.status_code, resp.text[:1000],
+            "Getnet payment-intent rechazado (tenant=%s, order=%s, status=%s): %s",
+            tenant_id, order_id, resp.status_code, resp.text[:1000],
         )
-        # Forma de error confirmada en el spec real: {message, name, status_code,
-        # details: [{status, error_code, description, description_detail}]}.
-        # Se prioriza `description_detail` (el más específico) para que el
-        # seller vea la causa real en vez de un genérico.
         try:
             error_body = resp.json()
-            details = error_body.get("details") or [{}]
-            reason = details[0].get("description_detail") or error_body.get("message")
+            reason = error_body.get("message") or error_body.get("error")
         except ValueError:
             reason = None
         message = f"La pasarela de pago rechazó la operación: {reason}" if reason else (
@@ -282,341 +224,55 @@ async def create_payment(
         )
         raise GetnetError(message)
 
-    # Confirmado en el spec real (ejemplo de respuesta 200): payment_id,
-    # status, brand y authorization_code van todos en la raíz del payload,
-    # no anidados bajo "card".
     payload = resp.json()
-    payment_id = payload.get("payment_id")
-    status = payload.get("status")
-    if not payment_id or not status:
+    # El manual describe el campo como "checkout_url" en el texto del flujo
+    # (sección 3) pero no muestra el JSON de respuesta completo — se prueba
+    # también "redirect_url"/"url" por si el nombre real difiere.
+    checkout_url = payload.get("checkout_url") or payload.get("redirect_url") or payload.get("url")
+    if not checkout_url:
         logger.warning(
-            "Getnet payment respuesta inesperada (tenant=%s, order=%s): %s",
-            tenant_id, order_number, payload,
+            "Getnet payment-intent respuesta sin checkout_url (tenant=%s, order=%s): %s",
+            tenant_id, order_id, payload,
         )
         raise GetnetError("Respuesta inesperada de la pasarela de pago")
 
-    return GetnetPaymentResult(
-        payment_id=payment_id,
-        status=status,
-        authorization_code=payload.get("authorization_code"),
-        brand=payload.get("brand"),
-        last4=None,
+    return GetnetPaymentIntentResult(
+        checkout_url=checkout_url,
+        payment_intent_id=payload.get("payment_intent_id"),
     )
-
-
-class GetnetRefundError(GetnetError):
-    """Falla al devolver un cobro.
-
-    `uncertain=True` significa que NO sabemos si Getnet ejecutó la devolución
-    (timeout, corte de red, estado intermedio): el que llama no debe dar el
-    reembolso por hecho ni por fallido, y el reintento es seguro porque se
-    reusa el mismo `idempotency_key`. `uncertain=False` es un rechazo
-    definitivo (la plata no se movió).
-    """
-
-    def __init__(self, message: str, *, uncertain: bool = False):
-        super().__init__(message)
-        self.uncertain = uncertain
-
-
-# TODO(confirmar contra sandbox real): no se revisó el ejemplo de respuesta de
-# la cancelación en el swagger. Se asumen estos valores; cualquier otro status
-# se trata como "resultado incierto" (nunca como éxito) hasta confirmarlo.
-GETNET_REFUND_OK_STATUSES = {"CANCELED", "CANCELLED", "REFUNDED"}
-GETNET_REFUND_DENIED_STATUSES = {"DENIED", "REJECTED", "ERROR", "FAILED"}
-
-
-@dataclass
-class GetnetRefundResult:
-    refund_id: str | None
-    status: str
-
-
-async def cancel_payment(
-    cfg: GetnetConfig,
-    tenant_id: str,
-    *,
-    payment_id: str,
-    idempotency_key: str,
-    order_number: str,
-    amount_cents: int,
-) -> GetnetRefundResult:
-    """Devuelve (total) un cobro ya aprobado.
-
-    TODO(confirmar contra sandbox real): ruta y body de la cancelación. Se
-    asume `POST /dpm/payments-gwproxy/v2/payments/{payment_id}/cancel` con el
-    mismo envelope que `create_payment` (idempotency_key, request_id, data).
-    Todo lo que dependa de ese contrato está acá, así que confirmarlo es un
-    cambio sólo en esta función y en las constantes de arriba.
-    """
-    try:
-        token = await get_access_token(cfg, tenant_id)
-    except GetnetError as exc:
-        # Falló antes de mandar nada: la devolución seguro no se ejecutó.
-        raise GetnetRefundError(str(exc)) from exc
-
-    body = {
-        "idempotency_key": idempotency_key,
-        "request_id": str(uuid.uuid4()),
-        "order_id": order_number,
-        "data": {"amount": amount_cents},
-    }
-    url = f"{_base_url(cfg)}/dpm/payments-gwproxy/v2/payments/{payment_id}/cancel"
-    headers = {
-        "authorization": f"Bearer {token}",
-        "x-seller-id": cfg.seller_id,
-        "content-type": "application/json",
-    }
-
-    try:
-        async with httpx.AsyncClient(timeout=_REQUEST_TIMEOUT) as client:
-            resp = await client.post(url, json=body, headers=headers)
-    except httpx.TimeoutException as exc:
-        logger.warning("Getnet refund timeout (tenant=%s, order=%s)", tenant_id, order_number)
-        raise GetnetRefundError(
-            "La pasarela de pago no respondió a tiempo", uncertain=True
-        ) from exc
-    except httpx.HTTPError as exc:
-        logger.warning(
-            "Getnet refund error de red (tenant=%s, order=%s): %s", tenant_id, order_number, exc
-        )
-        raise GetnetRefundError(
-            "Se perdió la conexión con la pasarela de pago", uncertain=True
-        ) from exc
-
-    if not 200 <= resp.status_code < 300:
-        logger.warning(
-            "Getnet refund rechazado (tenant=%s, order=%s, status=%s): %s",
-            tenant_id, order_number, resp.status_code, resp.text[:1000],
-        )
-        try:
-            error_body = resp.json()
-            details = error_body.get("details") or [{}]
-            reason = details[0].get("description_detail") or error_body.get("message")
-        except ValueError:
-            reason = None
-        message = f"La pasarela rechazó la devolución: {reason}" if reason else (
-            f"La pasarela rechazó la devolución (HTTP {resp.status_code})"
-        )
-        # 5xx: el servidor pudo haber procesado el pedido antes de fallar.
-        raise GetnetRefundError(message, uncertain=resp.status_code >= 500)
-
-    try:
-        payload = resp.json()
-    except ValueError as exc:
-        logger.warning(
-            "Getnet refund respuesta no-JSON (tenant=%s, order=%s): %s",
-            tenant_id, order_number, resp.text[:500],
-        )
-        raise GetnetRefundError(
-            "Respuesta ilegible de la pasarela de pago", uncertain=True
-        ) from exc
-
-    status = str(payload.get("status") or "").upper()
-    if status in GETNET_REFUND_OK_STATUSES:
-        return GetnetRefundResult(
-            refund_id=payload.get("cancellation_id") or payload.get("payment_id"),
-            status=status,
-        )
-    logger.warning(
-        "Getnet refund con status no exitoso (tenant=%s, order=%s): %s",
-        tenant_id, order_number, payload,
-    )
-    if status in GETNET_REFUND_DENIED_STATUSES:
-        raise GetnetRefundError(f"La pasarela denegó la devolución (estado {status})")
-    raise GetnetRefundError(
-        f"La devolución quedó en un estado no confirmado ({status or 'desconocido'})",
-        uncertain=True,
-    )
-
-
-@dataclass
-class GetnetTokenizeResult:
-    number_token: str
-
-
-async def tokenize_card(
-    cfg: GetnetConfig, tenant_id: str, *, card_number: str, customer_id: str | None = None
-) -> GetnetTokenizeResult:
-    """Tokeniza un número de tarjeta contra Getnet (server-to-server).
-
-    Confirmado en el spec real: POST {base}/dpm/cofre-gw-proxy/v1/tokens/card,
-    requiere el mismo Bearer token que el resto de la API — Getnet no expone
-    una clave pública separada para tokenizar directo desde el browser. Por
-    eso el número de tarjeta pasa transitoriamente por nuestro backend (nunca
-    se persiste) para intercambiarlo acá por un `number_token`. El CVV NO se
-    manda a este endpoint (no hace falta para tokenizar, sólo al pagar).
-    """
-    token = await get_access_token(cfg, tenant_id)
-    body: dict = {"card_number": card_number}
-    if customer_id:
-        body["customer_id"] = customer_id
-
-    url = f"{_base_url(cfg)}/dpm/cofre-gw-proxy/v1/tokens/card"
-    headers = {
-        "authorization": f"Bearer {token}",
-        "x-seller-id": cfg.seller_id,
-        "content-type": "application/json",
-    }
-    try:
-        async with httpx.AsyncClient(timeout=_REQUEST_TIMEOUT) as client:
-            resp = await client.post(url, json=body, headers=headers)
-    except httpx.TimeoutException as exc:
-        raise GetnetError("La tokenización de la tarjeta no respondió a tiempo") from exc
-    except httpx.HTTPError as exc:
-        logger.warning("Getnet tokenize error de red (tenant=%s): %s", tenant_id, exc)
-        raise GetnetError("No se pudo conectar con la pasarela de pago") from exc
-
-    if resp.status_code != 200:
-        logger.warning(
-            "Getnet tokenize rechazado (tenant=%s, status=%s): %s",
-            tenant_id, resp.status_code, resp.text[:500],
-        )
-        raise GetnetError("No se pudo tokenizar la tarjeta")
-
-    payload = resp.json()
-    number_token = payload.get("number_token")
-    if not number_token:
-        raise GetnetError("Respuesta inesperada de Getnet al tokenizar la tarjeta")
-    return GetnetTokenizeResult(number_token=number_token)
-
-
-@dataclass
-class GetnetInstallmentPlan:
-    number_installments: int
-    installment_type: InstallmentType
-    plan_schema: str
-    quote_id: str
-    installment_amount_cents: int
-    total_amount_cents: int      # lo que termina cobrándose en la tarjeta (con interés si aplica)
-    interest_amount_cents: int   # total_amount_cents - el monto cotizado, siempre >= 0
-
-
-async def get_installment_quotes(
-    cfg: GetnetConfig,
-    tenant_id: str,
-    *,
-    amount_cents: int,
-    currency: str,
-    card_bin: str,
-) -> list[GetnetInstallmentPlan]:
-    """Cotiza los planes de cuotas disponibles para un BIN de tarjeta y un monto.
-
-    TODO(confirmar contra sandbox real) — A DIFERENCIA del resto de este
-    archivo, este endpoint NO se confirmó contra un ejemplo real de swagger:
-    sólo hay resúmenes de la documentación pública de Getnet
-    (docs.globalgetnet.com, sección "Installments"), sin un ejemplo de
-    response verificado, porque el comercio todavía no tiene credenciales de
-    sandbox. Se asume, a partir de esa documentación:
-    - Ruta: POST {base}/dpm/payments-gwproxy/v2/payments/quotes (mismo base
-      path que `create_payment`; la doc menciona este endpoint pero sin
-      mostrar la ruta completa con el host).
-    - Body: {"card_bin": <6-8 dígitos>, "data": {"amount": <centavos>, "currency": ...}}.
-    - Response: una lista de planes (se acepta tanto una lista en la raíz
-      como {"installment_plans": [...]} o {"plans": [...]}, por las dudas),
-      cada uno con (al menos) `number_installments`, `schema`, `type`
-      ("no_interest"/"with_interest") y `quote_id` — estos cuatro si están
-      confirmados por la doc. El monto total con interés ya incluido NO está
-      confirmado con qué nombre viaja: se prueban `total_amount` y `amount`
-      en ese orden, y si ninguno viene se asume sin interés (total = lo cotizado).
-    Cuando haya sandbox real: confirmar todo lo de arriba acá, y el shape de
-    `additional_data.installment` en `create_payment` (mismo TODO ahí).
-    """
-    token = await get_access_token(cfg, tenant_id)
-    body = {
-        "card_bin": card_bin,
-        "data": {"amount": amount_cents, "currency": currency},
-    }
-    url = f"{_base_url(cfg)}/dpm/payments-gwproxy/v2/payments/quotes"
-    headers = {
-        "authorization": f"Bearer {token}",
-        "x-seller-id": cfg.seller_id,
-        "content-type": "application/json",
-    }
-    try:
-        async with httpx.AsyncClient(timeout=_REQUEST_TIMEOUT) as client:
-            resp = await client.post(url, json=body, headers=headers)
-    except httpx.TimeoutException as exc:
-        raise GetnetError("La consulta de cuotas no respondió a tiempo") from exc
-    except httpx.HTTPError as exc:
-        logger.warning("Getnet quotes error de red (tenant=%s): %s", tenant_id, exc)
-        raise GetnetError("No se pudo consultar las cuotas disponibles") from exc
-
-    if resp.status_code != 200:
-        logger.warning(
-            "Getnet quotes rechazado (tenant=%s, status=%s): %s",
-            tenant_id, resp.status_code, resp.text[:500],
-        )
-        raise GetnetError("No se pudieron obtener las cuotas disponibles para esta tarjeta")
-
-    payload = resp.json()
-    if isinstance(payload, list):
-        raw_plans = payload
-    elif isinstance(payload, dict):
-        raw_plans = payload.get("installment_plans") or payload.get("plans") or []
-    else:
-        raw_plans = []
-
-    plans: list[GetnetInstallmentPlan] = []
-    for raw in raw_plans:
-        n = raw.get("number_installments")
-        quote_id = raw.get("quote_id")
-        if not n or not quote_id:
-            continue
-        total = raw.get("total_amount") or raw.get("amount") or amount_cents
-        plans.append(
-            GetnetInstallmentPlan(
-                number_installments=n,
-                installment_type="with_interest" if raw.get("type") == "with_interest" else "no_interest",
-                plan_schema=raw.get("schema", ""),
-                quote_id=quote_id,
-                installment_amount_cents=round(total / n),
-                total_amount_cents=total,
-                interest_amount_cents=max(total - amount_cents, 0),
-            )
-        )
-    if not plans:
-        logger.warning("Getnet quotes sin planes reconocidos (tenant=%s): %s", tenant_id, payload)
-        raise GetnetError("No hay planes de cuotas disponibles para esta tarjeta")
-    return plans
 
 
 @dataclass
 class GetnetWebhookEvent:
-    payment_id: str
-    order_number: str | None
+    order_id: str
+    payment_intent_id: str
     status: str
 
 
 def parse_webhook_payload(raw: dict) -> GetnetWebhookEvent | None:
     """Interpreta el body de una notificación de Getnet.
 
-    TODO(confirmar contra sandbox real): shape exacto del payload de webhook.
-    Se asume por ahora la misma forma que la respuesta síncrona de
-    create_payment (`payment_id`, `order_id`, `status`), ya que no se
-    encontró un ejemplo confirmado de notificación en la documentación
-    pública ya revisada. Devuelve None (en vez de levantar) ante un payload
-    no reconocido para que el router pueda hacer ACK igual y loggear el
-    payload crudo — así se puede inspeccionar el shape real la primera vez
-    que llegue un webhook de sandbox de verdad.
+    Confirmado contra el ejemplo real del manual (sección 4):
+    {"order_id": "12345", "payment_intent_id": "abc123", "status": "APPROVED"}.
+    Devuelve None (en vez de levantar) ante un payload no reconocido para que
+    el router pueda hacer ACK igual y loggear el payload crudo.
     """
-    payment_id = raw.get("payment_id")
+    order_id = raw.get("order_id")
+    payment_intent_id = raw.get("payment_intent_id")
     status = raw.get("status")
-    if not payment_id or not status:
+    if not order_id or not payment_intent_id or not status:
         logger.warning("Getnet webhook con shape no reconocido: %s", raw)
         return None
-    return GetnetWebhookEvent(
-        payment_id=payment_id, order_number=raw.get("order_id"), status=status
-    )
+    return GetnetWebhookEvent(order_id=order_id, payment_intent_id=payment_intent_id, status=status)
 
 
 def verify_webhook_signature(headers: dict, raw_body: bytes, expected_seller_id: str) -> bool:
-    """TODO: no se encontró documentación confirmada de un mecanismo de firma
-    (HMAC u otro) para webhooks de la Regional API/SEP. Hasta confirmarlo,
-    esta verificación es deliberadamente débil (sólo matchea x-seller-id si
-    viene en los headers) — el router que la usa debe loggear headers y
-    payload crudos del primer webhook real de sandbox que llegue, para poder
-    reforzar esta función con el mecanismo real."""
+    """TODO: el manual no documenta un mecanismo de firma (HMAC u otro) para
+    el webhook de Web Checkout. Hasta confirmarlo con Getnet, esta
+    verificación es deliberadamente débil (sólo matchea x-seller-id si viene
+    en los headers) — el router que la usa loggea headers y payload crudos
+    de cada webhook real para poder reforzar esta función apenas se sepa el
+    mecanismo real (preguntar a consultasecommerce@getnet.com.ar)."""
     seller_header = headers.get("x-seller-id")
     if seller_header is None:
         return True

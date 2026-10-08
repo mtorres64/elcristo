@@ -41,9 +41,9 @@ class OrderAddress(BaseModel):
 class OrderPayment(BaseModel):
     provider: Literal["mock", "mercadopago", "getnet"] = "mock"
     payment_method_id: str | None = None
-    brand: str | None = None
-    last4: str | None = None
-    payment_id: str | None = None
+    brand: str | None = None                                      # Web Checkout nunca lo informa (Getnet aloja la tarjeta)
+    last4: str | None = None                                      # ídem
+    payment_id: str | None = None                                 # Getnet: payment_intent_id (lo confirma el webhook)
     preference_id: str | None = None
     authorization_code: str | None = None                         # Getnet: código de autorización
     environment: Literal["sandbox", "production"] | None = None   # Getnet: ambiente en que se cobró
@@ -52,8 +52,6 @@ class OrderPayment(BaseModel):
     refund_id: str | None = None                                  # Getnet: id de la devolución
     refunded_at: datetime | None = None
     refund_attempts: int = 0                                      # rechazos definitivos previos (rota la idempotency key)
-    installments: int | None = None                               # cantidad de cuotas, si se pagó en cuotas
-    installment_total: int | None = None                          # centavos cobrados a la tarjeta con interés (>= total de la orden)
 
 
 class OrderDocument(BaseModel):

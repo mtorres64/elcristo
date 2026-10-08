@@ -222,15 +222,10 @@ export function OrderDetail() {
             <div className="rounded-lg bg-white border border-[#E8E2D8] p-4">
               <p className="text-xs font-semibold text-[#6B6B6B] uppercase tracking-wider mb-2">Pago</p>
               <p className="text-sm text-[#1A1A1A]">
-                {order.payment.brand ?? "Tarjeta"} terminada en {order.payment.last4 ?? "----"}
+                {order.payment.last4
+                  ? `${order.payment.brand ?? "Tarjeta"} terminada en ${order.payment.last4}`
+                  : "Tarjeta (cargada en Getnet — no vemos marca ni últimos dígitos)"}
               </p>
-              {order.payment.installments && order.payment.installments > 1 && (
-                <p className="text-xs text-[#8A8A8A] mt-1">
-                  {order.payment.installments} cuotas
-                  {order.payment.installment_total != null &&
-                    ` · ${formatARS(order.payment.installment_total)} cobrados en la tarjeta (interés no incluido en el total del pedido)`}
-                </p>
-              )}
               <p className="text-xs text-[#8A8A8A] mt-1">
                 Estado del pago: {order.payment.status} · Proveedor: {order.payment.provider}
                 {order.payment.provider === "mock" && " (sin pasarela real conectada todavía)"}

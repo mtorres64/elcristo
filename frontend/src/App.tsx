@@ -44,6 +44,7 @@ import { Integrations } from "./pages/admin/Integrations";
 import { Reports } from "./pages/admin/Reports";
 import { Cart } from "./pages/Cart";
 import { OrderConfirmation } from "./pages/OrderConfirmation";
+import { PaymentSuccess, PaymentError } from "./pages/PaymentResult";
 import { MyOrders } from "./pages/MyOrders";
 import { MyOrderDetail } from "./pages/MyOrderDetail";
 import { OrderList } from "./pages/admin/OrderList";
@@ -82,6 +83,10 @@ export default function App() {
             <Route path="/store/:slug" element={<PlaceholderPage title="Tienda pública" />} />
             <Route path="/cart" element={<Cart />} />
             <Route path="/pedido/:orderId" element={<OrderConfirmation />} />
+            {/* Success/error URL de Web Checkout (Getnet) — fijas, se cargan
+                tal cual en el Getnet Portal (Productos Digitales > Checkout). */}
+            <Route path="/pago-exitoso" element={<PaymentSuccess />} />
+            <Route path="/pago-error" element={<PaymentError />} />
             <Route path="/mis-pedidos" element={<MyOrders />} />
             <Route path="/mis-pedidos/:orderId" element={<MyOrderDetail />} />
             <Route path="/seller" element={<RequireAuth><Dashboard /></RequireAuth>} />

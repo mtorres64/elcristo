@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, model_validator
 
 from app.schemas.address import AddressCreate
 
@@ -12,77 +12,6 @@ class OrderItemIn(BaseModel):
     price: int
     quantity: int
     image_url: str | None = None
-
-
-class PaymentCardIn(BaseModel):
-    card_number: str
-    holder_name: str
-    exp_month: int
-    exp_year: int
-    # Sólo se usa (y sólo se exige) cuando el tenant cobra con Getnet — ver
-    # `_charge_with_getnet` en orders.py. El flujo mock lo ignora: nunca lo
-    # pide, nunca lo persiste. Con Getnet tampoco se persiste en ningún lado
-    # (ni en `payment_methods` ni en la orden); viaja transitoriamente en
-    # este request y se reenvía tal cual al cobro con Getnet.
-    security_code: str | None = None
-
-    @field_validator("card_number")
-    @classmethod
-    def strip_spaces(cls, v: str) -> str:
-        return v.replace(" ", "").replace("-", "")
-
-
-class InstallmentQuoteRequest(BaseModel):
-    """Pedido de cotización de cuotas — se manda antes de crear la orden,
-    apenas el comprador cargó la tarjeta (ver `GET /orders/installment-quotes`
-    y el TODO de `getnet_client.get_installment_quotes`)."""
-
-    card_bin: str          # primeros 6 a 8 dígitos de la tarjeta, sin el resto del PAN
-    amount: int             # centavos, total del carrito (sin interés)
-
-    @field_validator("card_bin")
-    @classmethod
-    def validate_bin(cls, v: str) -> str:
-        digits = v.strip()
-        if not digits.isdigit() or not (6 <= len(digits) <= 8):
-            raise ValueError("BIN de tarjeta inválido")
-        return digits
-
-    @field_validator("amount")
-    @classmethod
-    def validate_amount(cls, v: int) -> int:
-        if v <= 0:
-            raise ValueError("Monto inválido")
-        return v
-
-
-class InstallmentPlanOut(BaseModel):
-    number_installments: int
-    installment_type: Literal["no_interest", "with_interest"]
-    installment_schema: str
-    quote_id: str
-    installment_amount: int    # centavos, cuota
-    total_amount: int          # centavos, lo que termina cobrando la tarjeta
-    interest_amount: int       # centavos, total_amount - el monto cotizado
-
-
-class InstallmentQuoteResponse(BaseModel):
-    plans: list[InstallmentPlanOut]
-
-
-class InstallmentSelectionIn(BaseModel):
-    """El plan elegido por el comprador, eco de un `InstallmentPlanOut` — se
-    reenvía tal cual al crear la orden."""
-
-    number_installments: int
-    installment_type: Literal["no_interest", "with_interest"]
-    installment_schema: str
-    quote_id: str
-    # Informativo (para mostrar en el detalle del pedido): no es lo que se le
-    # manda a Getnet para cobrar (eso sigue siendo `total`, sin interés — ver
-    # `_charge_with_getnet`); Getnet calcula el monto real con interés a
-    # partir del `quote_id`.
-    total_amount: int
 
 
 class OrderCreate(BaseModel):
@@ -101,19 +30,16 @@ class OrderCreate(BaseModel):
     shipping_zone_id: str | None = None
     pickup: bool = False
 
-    payment_method_id: str | None = None
-    payment_card: PaymentCardIn | None = None
-    save_card: bool = False
-    installment: InstallmentSelectionIn | None = None
-
+    # Con Web Checkout no se manda ningún dato de tarjeta: Getnet aloja el
+    # formulario de pago (ver `getnet_client.create_payment_intent`). El
+    # pedido se crea en `pending_payment` y el cobro real se confirma por
+    # webhook, nunca en esta misma request.
     notes: str | None = None
 
     @model_validator(mode="after")
-    def check_address_and_payment(self) -> "OrderCreate":
+    def check_address(self) -> "OrderCreate":
         if not self.address_id and not self.shipping_address:
             raise ValueError("Falta la dirección de envío")
-        if not (self.payment_method_id or self.payment_card):
-            raise ValueError("Falta el método de pago")
         return self
 
 
@@ -122,6 +48,9 @@ class OrderCreateResponse(BaseModel):
     order_number: str
     status: str
     total: int
+    # URL de Getnet a la que hay que redirigir al comprador para completar el
+    # pago (ver `getnet_client.create_payment_intent`).
+    checkout_url: str
 
 
 class OrderAddressOut(BaseModel):
@@ -141,19 +70,18 @@ class OrderAddressOut(BaseModel):
 
 class OrderPaymentOut(BaseModel):
     provider: str
+    # Web Checkout nunca nos dice marca/últimos 4 — la tarjeta la carga el
+    # comprador en la página de Getnet, no en la nuestra.
     brand: str | None = None
     last4: str | None = None
+    # Con Getnet, este campo guarda el `payment_intent_id` (lo confirma el
+    # webhook — ver getnet_client.GetnetWebhookEvent).
     payment_id: str | None = None
     authorization_code: str | None = None
     status: str
     paid_at: datetime | None = None
     refund_id: str | None = None
     refunded_at: datetime | None = None
-    # Sólo si se pagó en cuotas (ver InstallmentSelectionIn): cantidad de
-    # cuotas y lo que realmente se le cobró a la tarjeta (con interés, si el
-    # plan lo tenía) — `total` de la orden nunca incluye este interés.
-    installments: int | None = None
-    installment_total: int | None = None
 
 
 class OrderSummary(BaseModel):
@@ -189,14 +117,15 @@ class OrderStatusUpdate(BaseModel):
 
 
 class RefundOutcome(BaseModel):
-    """Resultado de la devolución en la pasarela al cancelar un pedido.
+    """Resultado de la devolución al cancelar un pedido.
 
-    - refunded: Getnet confirmó la devolución (el pedido pasó a "refunded").
     - not_required: el pedido no tenía un cobro aprobado, no hay nada que devolver.
-    - skipped: cobro sin pasarela real (mock); se cancela sin devolución automática.
-    - failed: Getnet rechazó la devolución; el pedido NO cambió de estado.
-    - unknown: no se sabe si Getnet la ejecutó; el pedido NO cambió de estado y
-      reintentar es seguro (misma clave de idempotencia).
+    - skipped: no hay devolución automática — hoy es siempre este caso con
+      Getnet (Web Checkout no tiene API de reembolso: se hace a mano desde
+      el Getnet Portal, ver `_refund_approved_payment`).
+    - refunded / failed / unknown: quedan del modelo anterior (reembolso por
+      API) por si en el futuro algún proveedor sí lo soporta — hoy ningún
+      camino de Getnet los produce.
     """
 
     outcome: Literal["refunded", "not_required", "skipped", "failed", "unknown"]

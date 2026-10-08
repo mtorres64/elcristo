@@ -44,37 +44,18 @@ export interface OrderAddress {
 
 export interface OrderPayment {
   provider: string;
+  // Web Checkout nunca informa marca/últimos 4 — la tarjeta se carga en la
+  // página de Getnet, no en la nuestra.
   brand: string | null;
   last4: string | null;
+  // Con Getnet guarda el `payment_intent_id` (lo confirma el webhook).
   payment_id: string | null;
   authorization_code: string | null;
   status: string;
   paid_at: string | null;
   refund_id?: string | null;
   refunded_at?: string | null;
-  // Sólo si se pagó en cuotas: cantidad y lo que realmente se le cobró a la
-  // tarjeta (con interés, si el plan lo tenía) — `total` del pedido nunca lo incluye.
-  installments?: number | null;
-  installment_total?: number | null;
 }
-
-export type InstallmentType = "no_interest" | "with_interest";
-
-/** Un plan de cuotas cotizado por Getnet para una tarjeta y un monto — ver
- * `POST /orders/installment-quotes`. */
-export interface InstallmentPlan {
-  number_installments: number;
-  installment_type: InstallmentType;
-  installment_schema: string;
-  quote_id: string;
-  installment_amount: number; // centavos, cada cuota
-  total_amount: number;       // centavos, total que se le cobra a la tarjeta
-  interest_amount: number;    // centavos, total_amount - el monto cotizado
-}
-
-/** El plan elegido por el comprador — eco de un `InstallmentPlan`, se manda
- * tal cual al crear el pedido. */
-export type InstallmentSelection = InstallmentPlan;
 
 export interface OrderSummary {
   order_id: string;

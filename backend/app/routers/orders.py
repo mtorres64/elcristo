@@ -9,22 +9,17 @@ from app.config import settings
 from app.database import get_db
 from app.schemas.common import PaginatedResponse
 from app.schemas.order import (
-    InstallmentQuoteRequest,
-    InstallmentQuoteResponse,
-    InstallmentSelectionIn,
     OrderCreate,
     OrderCreateResponse,
     OrderDetail,
     OrderStatusUpdate,
     OrderStatusUpdateResult,
     OrderSummary,
-    PaymentCardIn,
     RefundOutcome,
 )
 from app.schemas.store_settings import ShippingSettings
 from app.utils import getnet_client
 from app.utils.auth_deps import require_user
-from app.utils.card import detect_brand, luhn_is_valid
 from app.utils.crypto import CryptoConfigError, decrypt_secret
 from app.utils.email import resolve_smtp_config, send_email
 
@@ -315,95 +310,30 @@ async def _get_active_getnet_integration(db, tenant_id: str) -> getnet_client.Ge
     )
 
 
-def _installment_selection(body: InstallmentSelectionIn) -> getnet_client.GetnetInstallmentSelection:
-    return getnet_client.GetnetInstallmentSelection(
-        number_installments=body.number_installments,
-        installment_type=body.installment_type,
-        plan_schema=body.installment_schema,
-        quote_id=body.quote_id,
-    )
+def _split_name(full_name: str) -> tuple[str, str]:
+    """Getnet pide first_name/last_name separados; nuestros usuarios sólo
+    tienen un `name` completo. Todo lo que no sea la primera palabra va a
+    last_name (si no hay más que una palabra, se repite — Getnet exige ambos
+    campos no vacíos)."""
+    parts = full_name.strip().split(maxsplit=1)
+    if len(parts) == 2:
+        return parts[0], parts[1]
+    return (parts[0], parts[0]) if parts else ("Comprador", "Comprador")
 
 
-async def _charge_with_getnet(
-    db,
-    cfg: getnet_client.GetnetConfig,
-    tenant_id: str,
-    order_number: str,
-    total: int,
-    buyer: dict,
-    card: PaymentCardIn,
-    installment: InstallmentSelectionIn | None,
-) -> dict:
-    """Tokeniza y cobra en dos llamadas server-to-server a Getnet.
+async def _start_getnet_payment(
+    db, tenant_id: str, order_id: str, total: int, buyer: dict
+) -> tuple[dict, str]:
+    """Arranca el cobro con Web Checkout — o rechaza crear el pedido si la
+    tienda no puede cobrar de verdad.
 
-    El número de tarjeta pasa transitoriamente por acá (Getnet no ofrece
-    tokenización client-side en esta API — ver `tokenize_card`) pero nunca se
-    persiste: sólo se usa en memoria para armar el request y se descarta al
-    salir de esta función. Lo mismo el CVV (`card.security_code`), que ni
-    siquiera viaja a `tokenize_card` (Getnet no lo pide para tokenizar), sólo
-    al cobro final.
+    A diferencia del flujo anterior (server-to-server, cobro aprobado en la
+    misma request), acá sólo se consigue una `checkout_url` a la que hay que
+    mandar al comprador: el pedido nace `pending_payment` y el cobro real se
+    confirma recién cuando llega el webhook (ver `getnet_webhook` más abajo
+    — es la única fuente de verdad, el manual de Getnet lo aclara explícito).
 
-    `amount_cents` sigue siendo `total` (sin interés) incluso con cuotas con
-    interés: es Getnet quien calcula el monto real a cobrar a partir del
-    `quote_id` del plan elegido (ver `get_installment_quotes`) — el pedido
-    registra el total "limpio", el interés sólo se guarda de forma
-    informativa en `installment_total` para mostrarlo en el detalle.
-    """
-    brand = detect_brand(card.card_number)
-    last4 = card.card_number[-4:]
-    try:
-        tokenized = await getnet_client.tokenize_card(cfg, tenant_id, card_number=card.card_number)
-        result = await getnet_client.create_payment(
-            cfg,
-            tenant_id,
-            idempotency_key=f"{tenant_id}:{order_number}",
-            order_number=order_number,
-            amount_cents=total,
-            currency="ARS",
-            customer={"name": buyer["name"], "email": buyer["email"]},
-            number_token=tokenized.number_token,
-            exp_month=card.exp_month,
-            exp_year=card.exp_year,
-            holder_name=card.holder_name,
-            security_code=card.security_code,
-            device_session_id=None,
-            installment=_installment_selection(installment) if installment else None,
-        )
-    except getnet_client.GetnetError as exc:
-        raise HTTPException(502, str(exc)) from exc
-
-    if result.status not in getnet_client.GETNET_APPROVED_STATUSES:
-        raise HTTPException(402, "El pago fue rechazado por la pasarela")
-
-    now = datetime.now(UTC)
-    return {
-        "provider": "getnet",
-        "payment_method_id": None,
-        "brand": result.brand or brand,
-        "last4": last4,
-        "payment_id": result.payment_id,
-        "preference_id": None,
-        "authorization_code": result.authorization_code,
-        "environment": cfg.environment,
-        "status": "approved",
-        "paid_at": now,
-        "installments": installment.number_installments if installment else None,
-        "installment_total": installment.total_amount if installment else None,
-    }
-
-
-async def _resolve_payment(
-    db, tenant_id: str, order_number: str, total: int, buyer: dict, body: OrderCreate
-) -> dict:
-    """Cobra el pedido — o rechaza crearlo si la tienda no puede cobrar de verdad.
-
-    Antes existía acá un flujo "mock" que dejaba nacer el pedido
-    `pending_payment` sin ninguna pasarela conectada, para coordinar el pago
-    por fuera. Se sacó a pedido explícito: un pedido sin una integración de
-    pago activa (hoy, Getnet) ya no se puede crear por ningún medio — el
-    checkout tiene que estar bloqueado en el frontend antes de llegar acá,
-    pero esta validación es la que de verdad importa (nunca confiar sólo en
-    el frontend)."""
+    Devuelve `(payment_dict_para_la_orden, checkout_url)`."""
     integration = await _get_active_getnet_integration(db, tenant_id)
     if not integration:
         raise HTTPException(
@@ -412,64 +342,34 @@ async def _resolve_payment(
             "Contactá al vendedor para coordinar tu compra.",
         )
 
-    # Una tarjeta "guardada" hoy es mock (last4/brand sin token real, ver
-    # payment_methods.py): no sirve para cobrar de verdad, así que con
-    # Getnet activo sólo se acepta una tarjeta nueva en el mismo request.
-    if not body.payment_card:
-        raise HTTPException(400, "Esta tienda cobra con Getnet: falta la tarjeta")
-    card = body.payment_card
-    if not luhn_is_valid(card.card_number):
-        raise HTTPException(400, "Número de tarjeta inválido")
-    if not card.security_code:
-        raise HTTPException(400, "Falta el código de seguridad")
-    return await _charge_with_getnet(
-        db, integration, tenant_id, order_number, total, buyer, card, body.installment
-    )
-
-
-@router.post("/installment-quotes", response_model=InstallmentQuoteResponse)
-async def installment_quotes(body: InstallmentQuoteRequest, request: Request):
-    """Cotiza los planes de cuotas disponibles para una tarjeta, antes de
-    crear la orden (ver GetnetPaymentForm/Cart.tsx en el frontend: se llama
-    apenas el comprador carga la tarjeta, en el paso de pago del checkout).
-
-    No hay un producto/orden todavía de dónde sacar el tenant (a diferencia
-    de `create_order`, que lo deriva de los productos del carrito), así que
-    se usa el mismo fallback que el resto de los endpoints públicos sin ese
-    contexto (ver `products.py`)."""
-    require_user(request)
-    db = get_db()
-    tenant_id = getattr(request.state, "tenant_id", None) or "default"
-
-    integration = await _get_active_getnet_integration(db, tenant_id)
-    if not integration:
-        raise HTTPException(400, "Esta tienda no tiene un método de pago habilitado por el momento")
-
+    first_name, last_name = _split_name(buyer["name"])
     try:
-        plans = await getnet_client.get_installment_quotes(
+        result = await getnet_client.create_payment_intent(
             integration,
             tenant_id,
-            amount_cents=body.amount,
+            order_id=order_id,
+            amount_cents=total,
             currency="ARS",
-            card_bin=body.card_bin,
+            first_name=first_name,
+            last_name=last_name,
+            email=buyer["email"],
         )
     except getnet_client.GetnetError as exc:
         raise HTTPException(502, str(exc)) from exc
 
-    return {
-        "plans": [
-            {
-                "number_installments": p.number_installments,
-                "installment_type": p.installment_type,
-                "installment_schema": p.plan_schema,
-                "quote_id": p.quote_id,
-                "installment_amount": p.installment_amount_cents,
-                "total_amount": p.total_amount_cents,
-                "interest_amount": p.interest_amount_cents,
-            }
-            for p in plans
-        ]
+    payment = {
+        "provider": "getnet",
+        "payment_method_id": None,
+        "brand": None,
+        "last4": None,
+        "payment_id": result.payment_intent_id,
+        "preference_id": None,
+        "authorization_code": None,
+        "environment": integration.environment,
+        "status": "pending",
+        "paid_at": None,
     }
+    return payment, result.checkout_url
 
 
 @router.post("", response_model=OrderCreateResponse, status_code=201)
@@ -562,16 +462,16 @@ async def create_order(body: OrderCreate, request: Request, background: Backgrou
     order_number = f"ORD-{year}-{count_this_year + 1:04d}"
 
     # Se resuelve DESPUÉS de calcular total/order_number/buyer: Getnet necesita
-    # el order_number (idempotency_key), el total (monto a cobrar) y los datos
-    # del comprador para el request de cobro. Sin una integración de pago
-    # activa, esto lanza un 400 y el pedido no llega a crearse (ver
-    # `_resolve_payment`).
-    payment = await _resolve_payment(db, tenant_id, order_number, total, buyer, body)
+    # el order_number (se lo manda como `order_id` — es lo que después vuelve
+    # tal cual en el webhook para encontrar este pedido), el total (monto a
+    # cobrar) y los datos del comprador. Sin una integración de pago activa,
+    # esto lanza un 400 y el pedido no llega a crearse.
+    payment, checkout_url = await _start_getnet_payment(db, tenant_id, order_number, total, buyer)
 
-    # Getnet cobra con auth+captura inmediata: si `_resolve_payment` no lanzó,
-    # el pago ya está aprobado y el pedido nace pago. (Ningún proveedor deja
-    # hoy un estado intermedio "pending" — ver comentario de `_resolve_payment`.)
-    initial_status = "paid" if payment["status"] == "approved" else "pending_payment"
+    # Web Checkout nunca aprueba en esta misma request — el comprador todavía
+    # no cargó la tarjeta (lo hace en `checkout_url`, alojado por Getnet). El
+    # pedido siempre nace pending_payment; sólo el webhook lo pasa a "paid".
+    initial_status = "pending_payment"
 
     order_doc = {
         "tenant_id": tenant_id,
@@ -612,18 +512,16 @@ async def create_order(body: OrderCreate, request: Request, background: Backgrou
     result = await db.orders.insert_one(order_doc)
     order_doc["_id"] = result.inserted_id
 
-    if initial_status == "paid":
-        stock_updates = await _mark_stock_decremented(db, order_doc)
-        if stock_updates:
-            await db.orders.update_one({"_id": result.inserted_id}, {"$set": stock_updates})
-
-    await _queue_order_confirmation_email(background, tenant_id, order_doc)
+    # El stock se descuenta recién cuando el webhook confirma "paid" (ver
+    # `getnet_webhook`) — acá el pago ni empezó, así que nunca corresponde
+    # reservar ni descontar todavía.
 
     return {
         "order_id": str(result.inserted_id),
         "order_number": order_number,
         "status": initial_status,
         "total": total,
+        "checkout_url": checkout_url,
     }
 
 
@@ -713,14 +611,15 @@ async def get_order(order_id: str, request: Request):
 
 
 async def _refund_approved_payment(db, doc: dict) -> tuple[RefundOutcome, dict]:
-    """Devuelve el cobro aprobado de `doc` al cancelar el pedido.
+    """Avisa cómo devolver el cobro aprobado de `doc` al cancelar el pedido.
 
-    Devuelve `(resultado, updates_de_payment)`. Sólo `resultado.outcome` en
-    ("refunded", "skipped") deja avanzar la cancelación; "failed"/"unknown"
-    la frenan para que el pedido no quede cancelado con la plata sin devolver.
+    Web Checkout no tiene API de reembolso (confirmado en el manual de
+    Getnet: "las devoluciones se gestionan exclusivamente desde el Getnet
+    Portal... no se realizan por API"). Esta función ya no intenta devolver
+    nada — sólo deja pasar la cancelación (`outcome="skipped"`) con el
+    mensaje de qué hacer a mano, para el admin que cancela el pedido.
     """
     payment = doc["payment"]
-    total = doc["total"]
 
     if payment.get("provider") != "getnet" or not payment.get("payment_id"):
         return RefundOutcome(
@@ -729,59 +628,13 @@ async def _refund_approved_payment(db, doc: dict) -> tuple[RefundOutcome, dict]:
             "sin devolución automática.",
         ), {}
 
-    tenant_id = doc["tenant_id"]
-    cfg = await _get_active_getnet_integration(db, tenant_id)
-    if cfg is None:
-        return RefundOutcome(
-            outcome="failed",
-            message="La integración con Getnet está desactivada o sin credenciales. "
-            "Reactivala en Integraciones para poder devolver el pago.",
-            amount=total,
-        ), {}
-    if payment.get("environment") and payment["environment"] != cfg.environment:
-        return RefundOutcome(
-            outcome="failed",
-            message=f"El cobro se hizo en Getnet ({payment['environment']}) pero el "
-            f"ambiente activo es {cfg.environment}. Cambiá el ambiente en "
-            "Integraciones para poder devolverlo.",
-            amount=total,
-        ), {}
-
-    attempts = payment.get("refund_attempts", 0)
-    try:
-        result = await getnet_client.cancel_payment(
-            cfg,
-            tenant_id,
-            payment_id=payment["payment_id"],
-            # Estable ante reintentos "inciertos" (timeout): Getnet no duplica la
-            # devolución. Rota sólo tras un rechazo definitivo.
-            idempotency_key=f"{tenant_id}:{doc['order_number']}:refund:{attempts}",
-            order_number=doc["order_number"],
-            amount_cents=total,
-        )
-    except getnet_client.GetnetRefundError as exc:
-        if exc.uncertain:
-            return RefundOutcome(
-                outcome="unknown",
-                message=f"{exc}. No se sabe si la devolución se ejecutó: verificá en el "
-                "panel de Getnet y, si no figura, volvé a intentar (es seguro reintentar).",
-                amount=total,
-            ), {}
-        return RefundOutcome(outcome="failed", message=str(exc), amount=total), {
-            "payment.refund_attempts": attempts + 1,
-        }
-
-    now = datetime.now(UTC)
     return RefundOutcome(
-        outcome="refunded",
-        message="Getnet confirmó la devolución. El importe vuelve a la tarjeta del comprador.",
-        amount=total,
-        refund_id=result.refund_id,
-    ), {
-        "payment.status": "refunded",
-        "payment.refund_id": result.refund_id,
-        "payment.refunded_at": now,
-    }
+        outcome="skipped",
+        message="Este pedido se cobró con Getnet (Web Checkout): la devolución no se "
+        "puede hacer por API, hay que hacerla a mano desde el Getnet Portal "
+        "(buscá la transacción por el número de pedido y ejecutá la devolución ahí).",
+        amount=doc["total"],
+    ), {}
 
 
 @router.patch("/{order_id}/status", response_model=OrderStatusUpdateResult)
@@ -868,34 +721,46 @@ async def mp_webhook():
 
 
 @router.post("/webhook/getnet")
-async def getnet_webhook(request: Request):
-    """Refuerzo asíncrono del resultado síncrono de `create_order`/`_charge_with_getnet`.
+async def getnet_webhook(request: Request, background: BackgroundTasks):
+    """Notificación de Web Checkout — es la ÚNICA fuente de verdad del
+    resultado del pago (el manual de Getnet lo aclara explícito: no confiar
+    en el redirect ni en datos del frontend). Acá, y sólo acá, un pedido pasa
+    de `pending_payment` a `paid`.
 
-    Idempotente: no-op si el pedido ya no está en pending_payment (ya fue
-    resuelto por el camino síncrono o por una entrega anterior del mismo
-    webhook) o si el evento no es una aprobación. Siempre devuelve 200 con
-    payload no reconocido para no generar reintentos infinitos del lado de
-    Getnet — el payload se loggea igual dentro de `parse_webhook_payload`
-    para poder confirmar el shape real la primera vez que llegue uno de
-    sandbox de verdad.
+    Idempotente: no-op si el pedido ya no está en `pending_payment` (webhook
+    entregado más de una vez) o si el estado no es una aprobación. Siempre
+    devuelve 200 — incluso ante un payload no reconocido — para no generar
+    reintentos infinitos del lado de Getnet; el payload crudo se loggea
+    igual dentro de `parse_webhook_payload`.
     """
     raw = await request.json()
-    # TODO: una vez confirmado el mecanismo real de firma de Getnet, validar acá
+    # TODO: el manual no documenta un mecanismo de firma para este webhook —
+    # preguntarle a Getnet (consultasecommerce@getnet.com.ar) y validar acá
     # con getnet_client.verify_webhook_signature antes de confiar en el payload.
     event = getnet_client.parse_webhook_payload(raw)
     if event is None:
         return {"ok": True}
 
     db = get_db()
-    doc = await db.orders.find_one({"payment.payment_id": event.payment_id, "deleted_at": None})
-    if not doc and event.order_number:
-        doc = await db.orders.find_one({"order_number": event.order_number, "deleted_at": None})
+    # `order_id` es nuestro propio `order_number`, tal como lo mandamos en
+    # `create_payment_intent` — Getnet lo devuelve sin modificar.
+    doc = await db.orders.find_one({"order_number": event.order_id, "deleted_at": None})
 
-    if (
-        not doc
-        or doc["status"] != "pending_payment"
-        or event.status not in getnet_client.GETNET_APPROVED_STATUSES
-    ):
+    if not doc or doc["status"] != "pending_payment":
+        return {"ok": True}
+
+    if event.status not in getnet_client.GETNET_APPROVED_STATUSES:
+        # No se conoce el vocabulario completo de estados de rechazo (el
+        # manual sólo confirma "APPROVED"): se deja el pedido en
+        # pending_payment para que el admin lo revise, en vez de adivinar a
+        # qué estado final corresponde.
+        logger.info(
+            "Getnet webhook: pedido %s con estado no aprobado (%s)",
+            doc["order_number"], event.status,
+        )
+        await db.orders.update_one(
+            {"_id": doc["_id"]}, {"$set": {"payment.status": "rejected"}}
+        )
         return {"ok": True}
 
     now = datetime.now(UTC)
@@ -904,7 +769,11 @@ async def getnet_webhook(request: Request):
         "updated_at": now,
         "payment.status": "approved",
         "payment.paid_at": now,
+        "payment.payment_id": event.payment_intent_id,
     }
     updates.update(await _mark_stock_decremented(db, doc))
     await db.orders.update_one({"_id": doc["_id"]}, {"$set": updates})
+
+    updated = await db.orders.find_one({"_id": doc["_id"]})
+    await _queue_order_confirmation_email(background, doc["tenant_id"], updated)
     return {"ok": True}
