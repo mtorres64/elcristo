@@ -353,6 +353,40 @@ async def create_payment_intent(
     )
 
 
+async def get_sellers(cfg: GetnetConfig, tenant_id: str) -> list[dict]:
+    """Lista los sellers de la cuenta — existe en el mismo swagger de Web
+    Checkout (sección "Seller", `GET /sellers`). Se usa de diagnóstico para
+    encontrar el GUID real que espera `x-seller-id` en `payment-intent`
+    (confirmado por rechazo real: ni el seller_id numérico del portal ni el
+    GUID del Client ID son ese valor — Getnet respondió "Seller not found"
+    con ambos). No manda `x-seller-id` (es lo que se busca); si este
+    endpoint también lo exige, el error debería decirlo.
+    """
+    token = await get_access_token(cfg, tenant_id)
+    url = f"{_base_url(cfg)}/digital-checkout/v1/sellers"
+    headers = {
+        "authorization": f"Bearer {token}",
+        "country": "AR",
+        "tenant": "santander",
+    }
+    try:
+        async with httpx.AsyncClient(timeout=_REQUEST_TIMEOUT) as client:
+            resp = await client.get(url, headers=headers)
+    except httpx.HTTPError as exc:
+        raise GetnetError(f"No se pudo consultar los sellers: {exc}") from exc
+
+    if resp.status_code != 200:
+        logger.warning(
+            "Getnet GET /sellers rechazado (tenant=%s, status=%s): %s",
+            tenant_id, resp.status_code, resp.text[:1000],
+        )
+        raise GetnetError(f"Getnet rechazó GET /sellers (HTTP {resp.status_code}): {resp.text[:300]}")
+
+    payload = resp.json()
+    sellers = payload if isinstance(payload, list) else payload.get("sellers") or payload.get("data") or [payload]
+    return sellers
+
+
 @dataclass
 class GetnetWebhookEvent:
     order_id: str

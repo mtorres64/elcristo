@@ -196,7 +196,18 @@ async def test_getnet_connection(request: Request, environment: Environment = Qu
     now = datetime.now(UTC)
     try:
         await getnet_client.get_access_token(cfg, f"{tid}:{environment}", force_refresh=True)
-        result = {"last_verified_ok": True, "last_verified_message": "Conexión exitosa"}
+        message = "Conexión exitosa"
+        # Diagnóstico temporal: Getnet rechaza payment-intent con "Seller not
+        # found" tanto con el seller_id numérico del portal como con el GUID
+        # del Client ID — se intenta este endpoint para encontrar el GUID
+        # real que espera `x-seller-id`. Si falla, no tira abajo el test de
+        # conexión (que sí funcionó): sólo se informa aparte.
+        try:
+            sellers = await getnet_client.get_sellers(cfg, f"{tid}:{environment}")
+            message += f" — sellers encontrados: {sellers}"
+        except getnet_client.GetnetError as exc:
+            message += f" — no se pudo listar sellers: {exc}"
+        result = {"last_verified_ok": True, "last_verified_message": message}
     except getnet_client.GetnetError as exc:
         result = {"last_verified_ok": False, "last_verified_message": str(exc)}
 
