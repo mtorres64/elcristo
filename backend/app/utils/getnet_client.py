@@ -201,13 +201,17 @@ async def create_payment_intent(
         "authorization": f"Bearer {token}",
         "x-seller-id": cfg.seller_id,
         "country": "AR",
-        # El seller_id con ceros a la izquierda (como lo completa el portal,
-        # "0000094009") ya se probó y falló. El mail original de Getnet
-        # siempre lo escribe sin ceros ("seller: 94009") — puede que el
-        # padding a 10 dígitos sea sólo cosmético del portal y la API
-        # espere el número tal cual. `lstrip("0")` saca los ceros iniciales
-        # sin asumir que el seller_id siempre tiene ese padding.
-        "tenant": cfg.seller_id.lstrip("0") or cfg.seller_id,
+        # Dos variantes del seller_id ya se probaron y fallaron (con y sin
+        # ceros a la izquierda). En el Getnet Portal, la tarjeta de "Web
+        # Checkout" bajo Productos Digitales > Integraciones muestra un
+        # chip con el nombre del comercio ("Vivero El Cristo") junto a un
+        # ícono de tienda — su plataforma parece modelar cada comercio como
+        # un "tenant" identificado por nombre, no por seller_id. Se prueba
+        # el nombre tal cual aparece ahí.
+        # TODO: si esto tampoco confirma, escribirle a Getnet
+        # (consultasecommerce@getnet.com.ar) — ya no quedan variantes
+        # razonables para adivinar.
+        "tenant": "Vivero El Cristo",
         "content-type": "application/json",
     }
 
