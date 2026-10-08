@@ -12,6 +12,8 @@ class GetnetEnvCredentialsOut(BaseModel):
     # No hay "últimos 4 dígitos" con sentido para un client_secret (no es una
     # tarjeta): sólo se informa si hay uno guardado, nunca se expone.
     client_secret_set: bool = False
+    webhook_username: str | None = None
+    webhook_password_set: bool = False
     last_verified_at: datetime | None = None
     last_verified_ok: bool | None = None
     last_verified_message: str | None = None
@@ -31,6 +33,9 @@ class GetnetEnvCredentialsUpdate(BaseModel):
     # None = mantener el client_secret ya guardado para ESE ambiente (no se
     # reenvía en cada save; cada ambiente mantiene el suyo independiente).
     client_secret: str | None = None
+    webhook_username: str = ""
+    # None = mantener la contraseña del webhook ya guardada para ESE ambiente.
+    webhook_password: str | None = None
 
 
 class GetnetIntegrationUpdate(BaseModel):

@@ -13,7 +13,7 @@ Flujo que implementa este módulo:
 2. `create_payment_intent`: arranca el pago — Getnet devuelve un
    `checkout_url` al que hay que redirigir al comprador para que complete el
    pago en una página alojada por Getnet.
-3. `parse_webhook_payload` / `verify_webhook_signature`: para la notificación
+3. `parse_webhook_payload` / `verify_webhook_auth`: para la notificación
    asíncrona con el resultado real del pago — es la ÚNICA fuente de verdad
    (el manual es explícito: "no depender del redirect para confirmar el
    estado de una operación").
@@ -27,7 +27,9 @@ porque es lo contrario de lo que se había armado antes de tener el manual):
   configuran en el portal).
 """
 
+import base64
 import logging
+import re
 import time
 from dataclasses import dataclass
 from typing import Literal
@@ -45,8 +47,14 @@ BASE_URLS: dict[Environment, str] = {
     "production": "https://api.globalgetnet.com",
 }
 
-# Confirmado en el manual (sección 4, ejemplo de webhook real).
-GETNET_APPROVED_STATUSES = {"APPROVED"}
+# Confirmado contra el swagger real (modelo del webhook, enum de
+# payment.result.status): "Authorized", "Denied", "Registered", "Approved".
+# El manual (con un ejemplo simplificado, "status": "APPROVED") llevó a
+# asumir mal el shape completo — ver `parse_webhook_payload`. Se tratan
+# ambos "Authorized" y "Approved" como aprobación: no está confirmado cuál
+# usan los pagos con tarjeta en la práctica (el ejemplo de respuesta del
+# swagger para un pago con tarjeta mostraba "Authorized").
+GETNET_APPROVED_STATUSES = {"Authorized", "Approved"}
 
 _REQUEST_TIMEOUT = httpx.Timeout(15.0, connect=5.0)
 
@@ -158,6 +166,23 @@ class GetnetLineItem:
     value_cents: int
 
 
+_TRAILING_NUMBER = re.compile(r"^(.*?)\s+(\d+)\s*$")
+
+
+def _split_street_number(street: str) -> tuple[str, str]:
+    """El modelo `Address` de Getnet exige `street` y `number` por
+    separado (ambos requeridos, confirmado contra el swagger real) —
+    nuestro formulario de dirección los pide juntos en un solo campo libre
+    (ej. "Av. Aconquija 1200"), como es común en direcciones argentinas.
+    Se intenta separar el número al final; si no hay ninguno (la calle no
+    termina en dígitos, o el comprador marcó "sin número"), se manda "S/N"
+    para no dejar un campo requerido vacío."""
+    match = _TRAILING_NUMBER.match(street.strip())
+    if match:
+        return match.group(1).strip(), match.group(2)
+    return street.strip(), "S/N"
+
+
 @dataclass
 class GetnetCustomerInfo:
     customer_id: str
@@ -220,6 +245,7 @@ async def create_payment_intent(
       retirar en el local en vez de que se lo envíen.
     """
     token = await get_access_token(cfg, tenant_id)
+    billing_street, billing_number = _split_street_number(customer.street)
     body = {
         "order_id": order_id,
         "payment": {
@@ -247,11 +273,16 @@ async def create_payment_intent(
             **({"document_number": customer.document_number} if customer.document_number else {}),
             **({"phone_number": customer.phone_number} if customer.phone_number else {}),
             "billing_address": {
-                "street": customer.street,
+                "street": billing_street,
+                "number": billing_number,
                 "city": customer.locality,
                 "state": customer.province,
                 "country": "AR",
-                **({"postal_code": customer.postal_code} if customer.postal_code else {}),
+                # Requerido por Getnet; si el comprador marcó "no sé el
+                # código postal" en el checkout no tenemos un valor real —
+                # se manda un placeholder en vez de dejarlo vacío, ya que
+                # el campo es obligatorio.
+                "postal_code": customer.postal_code or "0000",
             },
         },
         "pickup_store": pickup,
@@ -304,10 +335,11 @@ async def create_payment_intent(
         raise GetnetError(message)
 
     payload = resp.json()
-    # El manual describe el campo como "checkout_url" en el texto del flujo
-    # (sección 3) pero no muestra el JSON de respuesta completo — se prueba
-    # también "redirect_url"/"url" por si el nombre real difiere.
-    checkout_url = payload.get("checkout_url") or payload.get("redirect_url") or payload.get("url")
+    # Confirmado contra el swagger real (payment-intent, respuesta 201):
+    # el campo se llama "redirect_url", no "checkout_url" (eso era sólo
+    # cómo lo nombraba el texto del manual). Se dejan los otros dos como
+    # respaldo por si alguna variante de la cuenta difiere.
+    checkout_url = payload.get("redirect_url") or payload.get("checkout_url") or payload.get("url")
     if not checkout_url:
         logger.warning(
             "Getnet payment-intent respuesta sin checkout_url (tenant=%s, order=%s): %s",
@@ -324,35 +356,49 @@ async def create_payment_intent(
 @dataclass
 class GetnetWebhookEvent:
     order_id: str
-    payment_intent_id: str
+    payment_intent_id: str | None
     status: str
 
 
 def parse_webhook_payload(raw: dict) -> GetnetWebhookEvent | None:
     """Interpreta el body de una notificación de Getnet.
 
-    Confirmado contra el ejemplo real del manual (sección 4):
-    {"order_id": "12345", "payment_intent_id": "abc123", "status": "APPROVED"}.
+    Confirmado contra el swagger real (modelo del webhook) — el shape es
+    bastante más anidado de lo que sugería el ejemplo simplificado del
+    manual: el estado vive en `payment.result.status`, no suelto en la raíz.
+    `order_id` sí está en la raíz (es nuestro propio order_number, tal como
+    lo mandamos al crear el payment intent) y es la clave de reconciliación
+    recomendada por Getnet; `payment_intent_id` también está en la raíz.
+
     Devuelve None (en vez de levantar) ante un payload no reconocido para que
     el router pueda hacer ACK igual y loggear el payload crudo.
     """
     order_id = raw.get("order_id")
-    payment_intent_id = raw.get("payment_intent_id")
-    status = raw.get("status")
-    if not order_id or not payment_intent_id or not status:
+    status = raw.get("payment", {}).get("result", {}).get("status")
+    if not order_id or not status:
         logger.warning("Getnet webhook con shape no reconocido: %s", raw)
         return None
-    return GetnetWebhookEvent(order_id=order_id, payment_intent_id=payment_intent_id, status=status)
+    return GetnetWebhookEvent(
+        order_id=order_id, payment_intent_id=raw.get("payment_intent_id"), status=status
+    )
 
 
-def verify_webhook_signature(headers: dict, raw_body: bytes, expected_seller_id: str) -> bool:
-    """TODO: el manual no documenta un mecanismo de firma (HMAC u otro) para
-    el webhook de Web Checkout. Hasta confirmarlo con Getnet, esta
-    verificación es deliberadamente débil (sólo matchea x-seller-id si viene
-    en los headers) — el router que la usa loggea headers y payload crudos
-    de cada webhook real para poder reforzar esta función apenas se sepa el
-    mecanismo real (preguntar a consultasecommerce@getnet.com.ar)."""
-    seller_header = headers.get("x-seller-id")
-    if seller_header is None:
-        return True
-    return seller_header == expected_seller_id
+def verify_webhook_auth(authorization_header: str | None, username: str, password: str) -> bool:
+    """Valida el webhook de Web Checkout.
+
+    Confirmado contra el swagger real: NO es un header de firma (HMAC) —
+    Getnet llama a nuestra URL con HTTP Basic Auth,
+    `Authorization: Basic {base64(usuario:contraseña)}`, usando el usuario y
+    contraseña que se configuran en el Getnet Portal (Checkout
+    Configurations > Webhook). Esas credenciales hay que guardarlas acá
+    también (ver `tenant_integrations`) para poder compararlas en cada
+    notificación entrante.
+    """
+    if not authorization_header or not authorization_header.startswith("Basic "):
+        return False
+    try:
+        decoded = base64.b64decode(authorization_header.removeprefix("Basic ")).decode("utf-8")
+        sent_user, _, sent_password = decoded.partition(":")
+    except Exception:
+        return False
+    return sent_user == username and sent_password == password

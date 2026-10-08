@@ -31,10 +31,16 @@ interface EnvForm {
   clientId: string;
   editingSecret: boolean;
   clientSecret: string;
+  webhookUsername: string;
+  editingWebhookPassword: boolean;
+  webhookPassword: string;
 }
 
 function emptyEnvForm(): EnvForm {
-  return { sellerId: "", clientId: "", editingSecret: true, clientSecret: "" };
+  return {
+    sellerId: "", clientId: "", editingSecret: true, clientSecret: "",
+    webhookUsername: "", editingWebhookPassword: true, webhookPassword: "",
+  };
 }
 
 const EMPTY: GetnetIntegration = {
@@ -42,10 +48,12 @@ const EMPTY: GetnetIntegration = {
   active_environment: "sandbox",
   sandbox: {
     seller_id: null, client_id: null, client_secret_set: false,
+    webhook_username: null, webhook_password_set: false,
     last_verified_at: null, last_verified_ok: null, last_verified_message: null,
   },
   production: {
     seller_id: null, client_id: null, client_secret_set: false,
+    webhook_username: null, webhook_password_set: false,
     last_verified_at: null, last_verified_ok: null, last_verified_message: null,
   },
   updated_at: null,
@@ -75,10 +83,14 @@ export function Integrations() {
       sandbox: {
         sellerId: d.sandbox.seller_id ?? "", clientId: d.sandbox.client_id ?? "",
         editingSecret: !d.sandbox.client_secret_set, clientSecret: "",
+        webhookUsername: d.sandbox.webhook_username ?? "",
+        editingWebhookPassword: !d.sandbox.webhook_password_set, webhookPassword: "",
       },
       production: {
         sellerId: d.production.seller_id ?? "", clientId: d.production.client_id ?? "",
         editingSecret: !d.production.client_secret_set, clientSecret: "",
+        webhookUsername: d.production.webhook_username ?? "",
+        editingWebhookPassword: !d.production.webhook_password_set, webhookPassword: "",
       },
     });
   }
@@ -127,12 +139,18 @@ export function Integrations() {
           client_id: forms.sandbox.clientId.trim(),
           client_secret: forms.sandbox.editingSecret && forms.sandbox.clientSecret.trim()
             ? forms.sandbox.clientSecret.trim() : undefined,
+          webhook_username: forms.sandbox.webhookUsername.trim(),
+          webhook_password: forms.sandbox.editingWebhookPassword && forms.sandbox.webhookPassword.trim()
+            ? forms.sandbox.webhookPassword.trim() : undefined,
         },
         production: {
           seller_id: forms.production.sellerId.trim(),
           client_id: forms.production.clientId.trim(),
           client_secret: forms.production.editingSecret && forms.production.clientSecret.trim()
             ? forms.production.clientSecret.trim() : undefined,
+          webhook_username: forms.production.webhookUsername.trim(),
+          webhook_password: forms.production.editingWebhookPassword && forms.production.webhookPassword.trim()
+            ? forms.production.webhookPassword.trim() : undefined,
         },
       });
       applyData(updated);
@@ -339,6 +357,47 @@ export function Integrations() {
                   <button
                     type="button"
                     onClick={() => patchForm(tab, { editingSecret: true })}
+                    className="text-xs font-medium text-[#1A2B1C] hover:underline shrink-0"
+                  >
+                    Cambiar
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="pt-2 border-t border-[#F0EDE8]">
+              <p className="text-xs text-[#8A8A8A] mb-3">
+                Usuario y contraseña del webhook — tienen que ser <strong>exactamente los mismos</strong>{" "}
+                que cargues en el Getnet Portal, en Productos Digitales &gt; Checkout &gt; Notificaciones.
+              </p>
+            </div>
+
+            <div>
+              <label className={LABEL}>Usuario del webhook</label>
+              <input
+                value={tabForm.webhookUsername}
+                onChange={(e) => patchForm(tab, { webhookUsername: e.target.value })}
+                placeholder="ej: viveroelcristo_webhook"
+                className={INPUT}
+              />
+            </div>
+
+            <div>
+              <label className={LABEL}>Contraseña del webhook</label>
+              {tabForm.editingWebhookPassword ? (
+                <input
+                  type="password"
+                  value={tabForm.webhookPassword}
+                  onChange={(e) => patchForm(tab, { webhookPassword: e.target.value })}
+                  placeholder="contraseña del webhook"
+                  className={INPUT}
+                />
+              ) : (
+                <div className="flex items-center gap-3">
+                  <input value="•••••••• configurada" disabled className={INPUT} />
+                  <button
+                    type="button"
+                    onClick={() => patchForm(tab, { editingWebhookPassword: true })}
                     className="text-xs font-medium text-[#1A2B1C] hover:underline shrink-0"
                   >
                     Cambiar

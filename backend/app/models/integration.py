@@ -17,6 +17,12 @@ class TenantIntegrationEnvConfig(BaseModel):
     seller_id: str | None = None
     client_id: str | None = None
     client_secret_encrypted: str | None = None
+    # Credenciales del webhook de Web Checkout (HTTP Basic Auth) — Getnet
+    # llama a nuestra URL con `Authorization: Basic {base64(user:pass)}`
+    # usando lo que se configure acá y en el Getnet Portal (Checkout
+    # Configurations > Webhook), por eso tienen que coincidir en los dos lados.
+    webhook_username: str | None = None
+    webhook_password_encrypted: str | None = None
     last_verified_at: datetime | None = None
     last_verified_ok: bool | None = None
     last_verified_message: str | None = None

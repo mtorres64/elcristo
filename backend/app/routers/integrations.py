@@ -24,6 +24,7 @@ router = APIRouter()
 
 _EMPTY_ENV_CREDS = {
     "seller_id": None, "client_id": None, "client_secret_set": False,
+    "webhook_username": None, "webhook_password_set": False,
     "last_verified_at": None, "last_verified_ok": None, "last_verified_message": None,
 }
 
@@ -49,6 +50,8 @@ def _env_out(env_doc: dict | None) -> dict:
         "seller_id": env_doc.get("seller_id"),
         "client_id": env_doc.get("client_id"),
         "client_secret_set": bool(env_doc.get("client_secret_encrypted")),
+        "webhook_username": env_doc.get("webhook_username"),
+        "webhook_password_set": bool(env_doc.get("webhook_password_encrypted")),
         "last_verified_at": env_doc.get("last_verified_at"),
         "last_verified_ok": env_doc.get("last_verified_ok"),
         "last_verified_message": env_doc.get("last_verified_message"),
@@ -110,9 +113,11 @@ async def update_getnet_integration(body: GetnetIntegrationUpdate, request: Requ
             )
             raise HTTPException(400, msg)
 
+        has_existing_webhook_password = bool(existing_env.get("webhook_password_encrypted"))
         env_update = {
             "seller_id": env_body.seller_id,
             "client_id": env_body.client_id,
+            "webhook_username": env_body.webhook_username,
             # Cambiar cualquier dato de conexión de ESE ambiente invalida su
             # última verificación — una prueba vieja no debe aparentar estar
             # vigente con credenciales nuevas.
@@ -127,6 +132,13 @@ async def update_getnet_integration(body: GetnetIntegrationUpdate, request: Requ
                 raise HTTPException(500, str(exc)) from exc
         elif has_existing_secret:
             env_update["client_secret_encrypted"] = existing_env["client_secret_encrypted"]
+        if env_body.webhook_password:
+            try:
+                env_update["webhook_password_encrypted"] = encrypt_secret(env_body.webhook_password)
+            except CryptoConfigError as exc:
+                raise HTTPException(500, str(exc)) from exc
+        elif has_existing_webhook_password:
+            env_update["webhook_password_encrypted"] = existing_env["webhook_password_encrypted"]
         update[env_name] = env_update
 
     await db.tenant_integrations.update_one(

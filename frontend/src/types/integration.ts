@@ -6,6 +6,10 @@ export interface GetnetEnvCredentials {
   // No hay masking con sentido para un client_secret: sólo se informa si hay
   // uno guardado, el backend nunca lo devuelve.
   client_secret_set: boolean;
+  // Usuario/contraseña del webhook (HTTP Basic Auth) — tienen que coincidir
+  // con lo cargado en el Getnet Portal (Checkout Configurations > Webhook).
+  webhook_username: string | null;
+  webhook_password_set: boolean;
   last_verified_at: string | null;
   last_verified_ok: boolean | null;
   last_verified_message: string | null;
@@ -24,6 +28,9 @@ export interface GetnetEnvCredentialsInput {
   client_id: string;
   // undefined = mantener el client_secret ya guardado de ESE ambiente.
   client_secret?: string;
+  webhook_username: string;
+  // undefined = mantener la contraseña del webhook ya guardada de ESE ambiente.
+  webhook_password?: string;
 }
 
 export interface GetnetIntegrationInput {

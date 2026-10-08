@@ -310,6 +310,26 @@ async def _get_active_getnet_integration(db, tenant_id: str) -> getnet_client.Ge
     )
 
 
+async def _get_active_getnet_webhook_credentials(db, tenant_id: str) -> tuple[str, str] | None:
+    """Usuario/contraseña HTTP Basic Auth del webhook del ambiente activo de
+    Getnet — deben coincidir con lo cargado en el Getnet Portal (Checkout
+    Configurations > Webhook). `None` si no están configurados."""
+    doc = await db.tenant_integrations.find_one(
+        {"tenant_id": tenant_id, "provider": "getnet", "enabled": True, "deleted_at": None}
+    )
+    if not doc:
+        return None
+    env_doc = doc.get(doc.get("active_environment", "sandbox")) or {}
+    username = env_doc.get("webhook_username")
+    encrypted = env_doc.get("webhook_password_encrypted")
+    if not username or not encrypted:
+        return None
+    try:
+        return username, decrypt_secret(encrypted)
+    except CryptoConfigError:
+        return None
+
+
 def _split_name(full_name: str) -> tuple[str, str]:
     """Getnet pide first_name/last_name separados; nuestros usuarios sólo
     tienen un `name` completo. Todo lo que no sea la primera palabra va a
@@ -635,11 +655,17 @@ async def get_order(order_id: str, request: Request):
 async def _refund_approved_payment(db, doc: dict) -> tuple[RefundOutcome, dict]:
     """Avisa cómo devolver el cobro aprobado de `doc` al cancelar el pedido.
 
-    Web Checkout no tiene API de reembolso (confirmado en el manual de
-    Getnet: "las devoluciones se gestionan exclusivamente desde el Getnet
-    Portal... no se realizan por API"). Esta función ya no intenta devolver
-    nada — sólo deja pasar la cancelación (`outcome="skipped"`) con el
-    mensaje de qué hacer a mano, para el admin que cancela el pedido.
+    TODO: el manual que mandó Getnet decía que las devoluciones de Web
+    Checkout son sólo manuales desde el portal, pero el swagger real
+    (docs.globalgetnet.com/es/products/online-payments/web-checkout/swagger)
+    contradice eso para Argentina: existe
+    `POST /digital-checkout/v1/payments/{payment_id}/cancellation` (mismo
+    día, cancelación completa) y `POST /digital-checkout/v1/payments/{payment_id}/refund`
+    (con `amount` opcional en centavos para devolución parcial), contra
+    `api.globalgetnet.com` con el mismo Bearer token. Todavía no se
+    implementó esa llamada acá — por ahora esta función sigue derivando la
+    devolución a mano por el portal (`outcome="skipped"`), que es seguro
+    aunque ya no sea estrictamente necesario.
     """
     payment = doc["payment"]
 
@@ -755,15 +781,35 @@ async def getnet_webhook(request: Request, background: BackgroundTasks):
     reintentos infinitos del lado de Getnet; el payload crudo se loggea
     igual dentro de `parse_webhook_payload`.
     """
+    db = get_db()
+    tenant_id = getattr(request.state, "tenant_id", None) or "default"
+
+    # Confirmado contra el swagger real: el webhook de Web Checkout se
+    # autentica con HTTP Basic Auth (usuario/contraseña configurados en el
+    # Getnet Portal), no con un header de firma — ver
+    # `getnet_client.verify_webhook_auth`. Sin credenciales guardadas todavía
+    # (recién migrando) se deja pasar sin verificar, con un warning, para no
+    # romper el único canal que confirma pagos; cargá el usuario/contraseña
+    # en Integraciones apenas puedas para cerrar ese agujero.
+    webhook_creds = await _get_active_getnet_webhook_credentials(db, tenant_id)
+    if webhook_creds:
+        username, password = webhook_creds
+        if not getnet_client.verify_webhook_auth(
+            request.headers.get("authorization"), username, password
+        ):
+            logger.warning("Getnet webhook con autenticación inválida (tenant=%s)", tenant_id)
+            raise HTTPException(401, "Autenticación inválida")
+    else:
+        logger.warning(
+            "Getnet webhook sin credenciales configuradas (tenant=%s): no se verifica el origen",
+            tenant_id,
+        )
+
     raw = await request.json()
-    # TODO: el manual no documenta un mecanismo de firma para este webhook —
-    # preguntarle a Getnet (consultasecommerce@getnet.com.ar) y validar acá
-    # con getnet_client.verify_webhook_signature antes de confiar en el payload.
     event = getnet_client.parse_webhook_payload(raw)
     if event is None:
         return {"ok": True}
 
-    db = get_db()
     # `order_id` es nuestro propio `order_number`, tal como lo mandamos en
     # `create_payment_intent` — Getnet lo devuelve sin modificar.
     doc = await db.orders.find_one({"order_number": event.order_id, "deleted_at": None})
