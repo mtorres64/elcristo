@@ -188,6 +188,13 @@ async def create_payment_intent(
     token = await get_access_token(cfg, tenant_id)
     body = {
         "order_id": order_id,
+        # Confirmado por rechazo real ("product field is required"): hace
+        # falta un campo `product` que el manual no menciona. El portal de
+        # Getnet lista "Checkout API" y "Web Checkout" como dos productos
+        # distintos bajo el mismo endpoint — se prueba con el nombre de
+        # este último, en minúscula y con guion bajo (estilo del resto de
+        # la API, ej. `number_installments`).
+        "product": "web_checkout",
         "customer": {
             "first_name": first_name,
             "last_name": last_name,
