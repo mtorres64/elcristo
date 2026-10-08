@@ -151,6 +151,34 @@ class GetnetPaymentIntentResult:
     payment_intent_id: str | None
 
 
+@dataclass
+class GetnetLineItem:
+    title: str
+    quantity: int
+    value_cents: int
+
+
+@dataclass
+class GetnetCustomerInfo:
+    customer_id: str
+    first_name: str
+    last_name: str
+    full_name: str
+    email: str
+    email_verified: bool
+    phone_number: str | None            # E.164 sin "+" (ej. "5491145678901")
+    street: str
+    locality: str
+    province: str
+    postal_code: str | None
+    # DNI del comprador: hoy el checkout no lo pide en ningún paso, así que
+    # no hay de dónde sacarlo — se manda None y, si Getnet lo exige de
+    # verdad, el próximo rechazo debería decirlo explícito (como pasó con
+    # el resto de estos campos).
+    document_type: str | None = None
+    document_number: str | None = None
+
+
 async def create_payment_intent(
     cfg: GetnetConfig,
     tenant_id: str,
@@ -158,51 +186,75 @@ async def create_payment_intent(
     order_id: str,
     amount_cents: int,
     currency: str,
-    first_name: str,
-    last_name: str,
-    email: str,
+    customer: GetnetCustomerInfo,
+    pickup: bool,
+    items: list[GetnetLineItem],
 ) -> GetnetPaymentIntentResult:
     """Arranca un pago de Web Checkout: Getnet devuelve una URL a la que hay
     que redirigir al comprador para que cargue la tarjeta en una página
     alojada por Getnet (nunca en la nuestra).
 
-    Confirmado contra el manual real de Getnet (sección 2 y 3): POST
-    {base}/digital-checkout/v1/payment-intent, con el body de acá abajo
-    (ejemplo literal del manual). `order_id` es nuestro propio número de
-    pedido — Getnet lo devuelve tal cual en el webhook, así enlazamos la
-    notificación con el pedido sin depender de nada que ellos generen.
-
-    El manual no muestra los headers del request (sólo el body) — se fue
-    confirmando a los golpes contra la cuenta real (seller 94009):
-    - `country`: "AR" — confirmado (nunca generó error).
-    - `tenant`: NO es el seller_id (con o sin ceros a la izquierda) ni el
-      código de país — es "santander" (Getnet Argentina es la marca de
-      pagos de Banco Santander). Confirmado: con este valor dejó de
-      rechazar por `tenant`.
-    - `x-seller-id`: pese al nombre, NO es el "Seller ID" numérico del
-      portal (ese es el `tenant`, aparentemente) — Getnet exige un GUID acá
-      ("x-seller-id must be a valid guid"). El Client ID tiene forma
+    El manual oficial que mandó Getnet sólo mostraba un body mínimo
+    (order_id/customer/payment) y nada de headers — el resto se fue
+    confirmando a los golpes contra la cuenta real (seller 94009), porque
+    cada rechazo (400) venía con un mensaje bien específico, hasta que
+    encontramos un ejemplo de request real y completo (curl, ambiente
+    sandbox) que confirma el resto:
+    - Headers — `country`: "AR"; `tenant`: "santander" (Getnet Argentina es
+      la marca de pagos de Banco Santander, no es el seller_id ni el país);
+      `x-seller-id`: pese al nombre, NO es el "Seller ID" numérico del
+      portal — Getnet exige un GUID ahí. El Client ID tiene forma
       `cid_<guid>` (ej. `cid_fc29cdab-60a6-4278-92bf-e84d65c31ae1`): se
-      manda esa parte, sacándole el prefijo `cid_`.
+      manda esa parte, sacándole el prefijo `cid_`. (El ejemplo encontrado
+      no muestra estos tres headers, pero contra nuestra cuenta real sí
+      hacen falta — se los sigue mandando.)
+    - `product`: array de objetos, uno por ítem del carrito, con
+      `product_type` ("physical_goods" — son plantas/macetas físicas),
+      `title`, `description`, `value` (centavos) y `quantity`.
+    - `customer`: mucho más rico de lo que se mandaba antes — incluye
+      `customer_id`, `name` (completo, además de first/last), teléfono,
+      `checked_email` y `billing_address`. No se manda `document_type`/
+      `document_number` (DNI) porque el checkout no lo recolecta hoy; si
+      Getnet lo exige, el próximo rechazo debería decirlo.
+    - `pickup_store`: true/false — mapea directo a si el comprador elige
+      retirar en el local en vez de que se lo envíen.
     """
     token = await get_access_token(cfg, tenant_id)
     body = {
         "order_id": order_id,
-        # Confirmado por rechazos reales: hace falta un campo `product` que
-        # el manual no menciona ("product field is required"), y tiene que
-        # ser un array, no un string suelto ("product field must be a
-        # array"). El valor adentro sigue sin confirmar — se prueba con el
-        # nombre del producto tal como lo lista el portal ("Web Checkout").
-        "product": ["web_checkout"],
-        "customer": {
-            "first_name": first_name,
-            "last_name": last_name,
-            "email": email,
-        },
         "payment": {
             "currency": currency,
             "amount": amount_cents,
         },
+        "product": [
+            {
+                "product_type": "physical_goods",
+                "title": item.title,
+                "description": item.title,
+                "value": item.value_cents,
+                "quantity": item.quantity,
+            }
+            for item in items
+        ],
+        "customer": {
+            "customer_id": customer.customer_id,
+            "first_name": customer.first_name,
+            "last_name": customer.last_name,
+            "name": customer.full_name,
+            "email": customer.email,
+            "checked_email": customer.email_verified,
+            **({"document_type": customer.document_type} if customer.document_type else {}),
+            **({"document_number": customer.document_number} if customer.document_number else {}),
+            **({"phone_number": customer.phone_number} if customer.phone_number else {}),
+            "billing_address": {
+                "street": customer.street,
+                "city": customer.locality,
+                "state": customer.province,
+                "country": "AR",
+                **({"postal_code": customer.postal_code} if customer.postal_code else {}),
+            },
+        },
+        "pickup_store": pickup,
     }
     url = f"{_base_url(cfg)}/digital-checkout/v1/payment-intent"
     # El Client ID guardado tiene forma "cid_<guid>" — el GUID que pide

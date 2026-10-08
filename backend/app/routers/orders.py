@@ -322,7 +322,8 @@ def _split_name(full_name: str) -> tuple[str, str]:
 
 
 async def _start_getnet_payment(
-    db, tenant_id: str, order_id: str, total: int, buyer: dict
+    db, tenant_id: str, order_id: str, total: int, buyer: dict, items: list[dict],
+    address: dict, pickup: bool,
 ) -> tuple[dict, str]:
     """Arranca el cobro con Web Checkout — o rechaza crear el pedido si la
     tienda no puede cobrar de verdad.
@@ -343,6 +344,20 @@ async def _start_getnet_payment(
         )
 
     first_name, last_name = _split_name(buyer["name"])
+    phone_digits = (address.get("phone_country_code", "") + address.get("phone", "")).replace("+", "").strip()
+    customer = getnet_client.GetnetCustomerInfo(
+        customer_id=str(buyer["_id"]),
+        first_name=first_name,
+        last_name=last_name,
+        full_name=buyer["name"],
+        email=buyer["email"],
+        email_verified=buyer.get("email_verified", False),
+        phone_number=phone_digits or None,
+        street=address["street"],
+        locality=address["locality"],
+        province=address["province"],
+        postal_code=address.get("zip"),
+    )
     try:
         result = await getnet_client.create_payment_intent(
             integration,
@@ -350,9 +365,14 @@ async def _start_getnet_payment(
             order_id=order_id,
             amount_cents=total,
             currency="ARS",
-            first_name=first_name,
-            last_name=last_name,
-            email=buyer["email"],
+            customer=customer,
+            pickup=pickup,
+            items=[
+                getnet_client.GetnetLineItem(
+                    title=i["title"], quantity=i["quantity"], value_cents=i["price"]
+                )
+                for i in items
+            ],
         )
     except getnet_client.GetnetError as exc:
         raise HTTPException(502, str(exc)) from exc
@@ -466,7 +486,9 @@ async def create_order(body: OrderCreate, request: Request, background: Backgrou
     # tal cual en el webhook para encontrar este pedido), el total (monto a
     # cobrar) y los datos del comprador. Sin una integración de pago activa,
     # esto lanza un 400 y el pedido no llega a crearse.
-    payment, checkout_url = await _start_getnet_payment(db, tenant_id, order_number, total, buyer)
+    payment, checkout_url = await _start_getnet_payment(
+        db, tenant_id, order_number, total, buyer, order_items, address, body.pickup
+    )
 
     # Web Checkout nunca aprueba en esta misma request — el comprador todavía
     # no cargó la tarjeta (lo hace en `checkout_url`, alojado por Getnet). El
