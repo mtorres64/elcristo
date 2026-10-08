@@ -31,6 +31,13 @@ export default defineConfig({
       },
     }),
   ],
+  build: {
+    // Sin esto el error de producción sale con nombres minificados
+    // (Ag, B0, yv...) e imposibles de rastrear — el sourcemap no se sirve
+    // como parte del bundle que corre en el browser, sólo lo usa DevTools
+    // para traducir el stack trace cuando lo tenés abierto.
+    sourcemap: true,
+  },
   server: {
     port: 5173,
     open: true,
