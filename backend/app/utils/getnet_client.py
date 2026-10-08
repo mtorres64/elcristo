@@ -172,10 +172,16 @@ async def create_payment_intent(
     pedido — Getnet lo devuelve tal cual en el webhook, así enlazamos la
     notificación con el pedido sin depender de nada que ellos generen.
 
-    El manual no muestra los headers del request (sólo el body) — se manda
-    `x-seller-id` igual que en la autenticación, por continuidad con el
-    resto de la cuenta; si Getnet lo ignora no debería romper nada, pero no
-    está confirmado que haga falta.
+    El manual no muestra los headers del request (sólo el body) — probado
+    contra la cuenta real, Getnet rechaza el request sin `country` y
+    `tenant` ("Invalid Headers": "\"country\" and \"tenant\" headers are
+    required"). `country` es el país del comercio (hoy siempre "AR" — no
+    hay forma de saberlo de otro lado, ver TODO de `currency` más abajo);
+    `tenant` no está confirmado qué valor espera exactamente, se prueba con
+    `cfg.seller_id` (mismo identificador que ya se usa en `x-seller-id`) por
+    ser el dato que más sentido tiene como "de qué comercio es este
+    request" — si Getnet lo sigue rechazando, el próximo error debería
+    decir con qué valor lo esperaba.
     """
     token = await get_access_token(cfg, tenant_id)
     body = {
@@ -194,6 +200,8 @@ async def create_payment_intent(
     headers = {
         "authorization": f"Bearer {token}",
         "x-seller-id": cfg.seller_id,
+        "country": "AR",
+        "tenant": cfg.seller_id,
         "content-type": "application/json",
     }
 
@@ -216,7 +224,15 @@ async def create_payment_intent(
         )
         try:
             error_body = resp.json()
-            reason = error_body.get("message") or error_body.get("error")
+            # Confirmado contra un rechazo real: {"reason": "...", "description": "..."}.
+            # Se dejan message/error como respaldo por si otro tipo de
+            # rechazo usa un shape distinto.
+            reason = (
+                error_body.get("description")
+                or error_body.get("reason")
+                or error_body.get("message")
+                or error_body.get("error")
+            )
         except ValueError:
             reason = None
         message = f"La pasarela de pago rechazó la operación: {reason}" if reason else (
