@@ -201,17 +201,14 @@ async def create_payment_intent(
         "authorization": f"Bearer {token}",
         "x-seller-id": cfg.seller_id,
         "country": "AR",
-        # Dos variantes del seller_id ya se probaron y fallaron (con y sin
-        # ceros a la izquierda). En el Getnet Portal, la tarjeta de "Web
-        # Checkout" bajo Productos Digitales > Integraciones muestra un
-        # chip con el nombre del comercio ("Vivero El Cristo") junto a un
-        # ícono de tienda — su plataforma parece modelar cada comercio como
-        # un "tenant" identificado por nombre, no por seller_id. Se prueba
-        # el nombre tal cual aparece ahí.
+        # Variantes ya probadas y rechazadas: seller_id (con y sin ceros a
+        # la izquierda), "AR", nombre del comercio ("Vivero El Cristo").
+        # Getnet Argentina es la marca de pagos de Banco Santander — "tenant"
+        # podría identificar la plataforma/holder, no el comercio.
         # TODO: si esto tampoco confirma, escribirle a Getnet
         # (consultasecommerce@getnet.com.ar) — ya no quedan variantes
         # razonables para adivinar.
-        "tenant": "Vivero El Cristo",
+        "tenant": "santander",
         "content-type": "application/json",
     }
 
