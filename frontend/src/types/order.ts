@@ -5,8 +5,7 @@ export type OrderStatus =
   | "shipped"
   | "delivered"
   | "cancelled"
-  | "refunded"
-  | "disputed";
+  | "refunded";
 
 export const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
   pending_payment: "Pendiente de pago",
@@ -16,7 +15,6 @@ export const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
   delivered: "Entregado",
   cancelled: "Cancelado",
   refunded: "Reembolsado",
-  disputed: "En disputa",
 };
 
 export interface OrderItem {

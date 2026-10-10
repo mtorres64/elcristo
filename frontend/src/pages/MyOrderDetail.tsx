@@ -19,7 +19,7 @@ const FLOW: { status: OrderStatus; label: string }[] = [
   { status: "shipped", label: "Enviado" },
   { status: "delivered", label: "Entregado" },
 ];
-const INTERRUPTED: OrderStatus[] = ["cancelled", "refunded", "disputed"];
+const INTERRUPTED: OrderStatus[] = ["cancelled", "refunded"];
 
 function Stepper({ status }: { status: OrderStatus }) {
   if (INTERRUPTED.includes(status)) {

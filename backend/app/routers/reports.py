@@ -22,8 +22,8 @@ from app.utils.auth_deps import require_user
 router = APIRouter()
 
 # Estados en los que el pedido representa una venta efectiva (se cobró / se
-# está preparando / se despachó / se entregó). Los pending/cancelled/refunded/
-# disputed quedan fuera de la facturación pero sí aparecen en `by_status`.
+# está preparando / se despachó / se entregó). Los pending/cancelled/refunded
+# quedan fuera de la facturación pero sí aparecen en `by_status`.
 REVENUE_STATUSES = frozenset({"paid", "preparing", "shipped", "delivered"})
 
 _SIZE_VALUES = frozenset({"pequeña", "mediana", "grande"})

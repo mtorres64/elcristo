@@ -11,7 +11,6 @@ OrderStatus = Literal[
     "delivered",
     "cancelled",
     "refunded",
-    "disputed",
 ]
 
 

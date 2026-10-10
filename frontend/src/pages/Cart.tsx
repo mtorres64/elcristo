@@ -41,17 +41,16 @@ function matchZoneByLocality(zones: ShippingZone[], locality: string): ShippingZ
   );
 }
 
-type Step = "cart" | "address" | "payment" | "review";
+type Step = "cart" | "address" | "review";
 
 const STEPS = [
   { key: "cart", label: "Carrito" },
   { key: "address", label: "Dirección" },
-  { key: "payment", label: "Pago" },
   { key: "review", label: "Confirmación" },
 ];
 
 export function Cart() {
-  const { items, itemCount, total, updateQuantity, removeItem, clearCart } = useCart();
+  const { items, itemCount, total, updateQuantity, removeItem } = useCart();
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
@@ -178,7 +177,7 @@ export function Cart() {
   }, [step, isAuthenticated]);
 
   useEffect(() => {
-    if (step !== "payment" || !isAuthenticated) return;
+    if (step !== "review" || !isAuthenticated) return;
     integrationsService
       .getGetnetPublicConfig()
       .then(setGetnetConfig)
@@ -249,9 +248,11 @@ export function Cart() {
         notes: notes.trim() || null,
       });
       // El pedido ya quedó creado (pending_payment) — el pago en sí pasa en
-      // una página alojada por Getnet, no acá. Se sale de la SPA a propósito
-      // (navegación completa, no `navigate` de react-router).
-      clearCart();
+      // una página alojada por Getnet, no acá. No se vacía el carrito
+      // todavía: si el pago falla o lo cancelan, el comprador tiene que
+      // poder reintentar sin cargar todo de nuevo (se vacía recién cuando
+      // se confirma el pago de verdad, en PaymentResult.tsx). Se sale de la
+      // SPA a propósito (navegación completa, no `navigate` de react-router).
       window.location.href = result.checkout_url;
     } catch (err: unknown) {
       // 502 = la pasarela no pudo iniciar el pago (no es un rechazo de la
@@ -369,53 +370,6 @@ export function Cart() {
               </div>
             )}
 
-            {step === "payment" && (
-              <div className="rounded-lg border border-[#E8E2D8] bg-white p-5">
-                <h2 className="text-sm font-semibold text-[#1A1A1A] mb-4">Método de pago</h2>
-
-                {getnetConfig === null ? (
-                  <p className="text-sm text-[#8A8A8A] py-8 text-center">Cargando…</p>
-                ) : getnetConfig.enabled ? (
-                  // Con Web Checkout la tarjeta se carga en una página de
-                  // Getnet, no acá — no hay formulario propio que mostrar.
-                  <div className="flex items-start gap-3 rounded-lg border border-[#CFE3CF] bg-[#F4F8F4] p-4">
-                    <svg
-                      width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2E5A2E"
-                      strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
-                      className="shrink-0 mt-0.5" aria-hidden="true"
-                    >
-                      <path d="M12 3l8 3v6c0 4.5-3.4 8.2-8 9-4.6-.8-8-4.5-8-9V6l8-3z" />
-                      <path d="M9 12l2 2 4-4" />
-                    </svg>
-                    <p className="text-sm text-[#1A1A1A] leading-relaxed">
-                      Al confirmar el pedido te vamos a redirigir a una página segura de{" "}
-                      <strong>Getnet</strong> para cargar la tarjeta y elegir las cuotas. Volvés a
-                      Vivero El Cristo apenas termine el pago.
-                    </p>
-                  </div>
-                ) : (
-                  // Sin una pasarela de pago activa, el backend rechaza cualquier
-                  // pedido — no tiene sentido dejar avanzar el checkout, así que
-                  // se bloquea acá directamente.
-                  <div role="alert" className="rounded-lg border border-[#EAD9B4] bg-[#FBF3E5] p-4 text-sm text-[#8A6D3B] leading-relaxed">
-                    <p className="font-semibold mb-1">Esta tienda no tiene un método de pago habilitado</p>
-                    <p>Todavía no podés completar la compra por acá. Escribinos por WhatsApp y coordinamos tu pedido.</p>
-                    {noPaymentWaHref && (
-                      <a
-                        href={noPaymentWaHref}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 mt-3 px-4 py-2.5 rounded-lg bg-[#1A2B1C] text-white text-xs font-semibold uppercase tracking-widest hover:bg-[#253824] transition-colors"
-                      >
-                        <SocialIcon platform="whatsapp" size={14} />
-                        Consultar por WhatsApp
-                      </a>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-
             {step === "review" && (
               <div className="rounded-lg border border-[#E8E2D8] bg-white p-5 flex flex-col gap-5">
                 <h2 className="text-sm font-semibold text-[#1A1A1A]">Revisá tu pedido</h2>
@@ -447,11 +401,51 @@ export function Cart() {
                   </ReviewBlock>
                 )}
 
-                <ReviewBlock title="Método de pago" onEdit={() => setStep("payment")}>
-                  <p className="text-sm text-[#4A4A4A]">
-                    Tarjeta — se carga en el siguiente paso, en una página segura de Getnet.
-                  </p>
-                </ReviewBlock>
+                <div>
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-[#8A8A8A] mb-2">
+                    Método de pago
+                  </h3>
+                  {getnetConfig === null ? (
+                    <p className="text-sm text-[#8A8A8A] py-4">Cargando…</p>
+                  ) : getnetConfig.enabled ? (
+                    <div className="flex items-start gap-3 rounded-lg border border-[#CFE3CF] bg-[#F4F8F4] p-4">
+                      <svg
+                        width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2E5A2E"
+                        strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
+                        className="shrink-0 mt-0.5" aria-hidden="true"
+                      >
+                        <path d="M12 3l8 3v6c0 4.5-3.4 8.2-8 9-4.6-.8-8-4.5-8-9V6l8-3z" />
+                        <path d="M9 12l2 2 4-4" />
+                      </svg>
+                      <p className="text-sm text-[#1A1A1A] leading-relaxed">
+                        <strong>Pago 100% seguro.</strong> Al confirmar tu pedido te llevamos a{" "}
+                        <strong>Getnet</strong>, la pasarela de pago oficial de Banco Santander, para
+                        que cargues tu tarjeta y elijas tus cuotas en un entorno certificado. Nosotros
+                        nunca vemos ni guardamos los datos de tu tarjeta. En unos segundos volvés a
+                        Vivero El Cristo con tu pedido confirmado.
+                      </p>
+                    </div>
+                  ) : (
+                    // Sin una pasarela de pago activa, el backend rechaza cualquier
+                    // pedido — no tiene sentido dejar avanzar el checkout, así que
+                    // se bloquea acá directamente.
+                    <div role="alert" className="rounded-lg border border-[#EAD9B4] bg-[#FBF3E5] p-4 text-sm text-[#8A6D3B] leading-relaxed">
+                      <p className="font-semibold mb-1">Esta tienda no tiene un método de pago habilitado</p>
+                      <p>Todavía no podés completar la compra por acá. Escribinos por WhatsApp y coordinamos tu pedido.</p>
+                      {noPaymentWaHref && (
+                        <a
+                          href={noPaymentWaHref}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 mt-3 px-4 py-2.5 rounded-lg bg-[#1A2B1C] text-white text-xs font-semibold uppercase tracking-widest hover:bg-[#253824] transition-colors"
+                        >
+                          <SocialIcon platform="whatsapp" size={14} />
+                          Consultar por WhatsApp
+                        </a>
+                      )}
+                    </div>
+                  )}
+                </div>
 
                 <div>
                   <label className="block text-xs font-medium text-[#4A4A4A] mb-1.5">
@@ -512,8 +506,7 @@ export function Cart() {
               step={step}
               onBack={() => {
                 if (step === "address") setStep("cart");
-                else if (step === "payment") setStep("address");
-                else if (step === "review") setStep("payment");
+                else if (step === "review") setStep("address");
               }}
               onNext={() => {
                 if (step === "cart") goToAddress();
@@ -525,9 +518,6 @@ export function Cart() {
                   }
                   if (hasShippingOptions && !shippingChoice) { toast.error("Elegí una opción de envío"); return; }
                   if (shippingChoice === "other") { toast.error("Coordiná el envío por WhatsApp antes de continuar"); return; }
-                  setStep("payment");
-                } else if (step === "payment") {
-                  if (!getnetConfig?.enabled) { toast.error("Esta tienda no tiene un método de pago habilitado"); return; }
                   setStep("review");
                 }
               }}

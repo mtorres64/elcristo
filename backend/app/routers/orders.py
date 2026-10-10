@@ -35,23 +35,20 @@ ORDER_STATUS_LABEL_ES: dict[str, str] = {
     "delivered": "Entregado",
     "cancelled": "Cancelado",
     "refunded": "Reembolsado",
-    "disputed": "En disputa",
 }
 
 
 def _ars(cents: int) -> str:
     return "$" + f"{cents / 100:,.0f}".replace(",", ".")
 
-# Transiciones permitidas por estado actual. Una lista vacía = estado terminal.
+# Sin dependencia entre estados: el admin puede pasar un pedido de
+# cualquier estado a cualquier otro (a pedido explícito — antes había un
+# grafo de transiciones permitidas). `update_order_status` ya decide sus
+# efectos secundarios (descontar/restaurar stock, reembolso) a partir del
+# estado DESTINO, no del par (origen, destino), así que esto no rompe nada
+# de esa lógica.
 ALLOWED_TRANSITIONS: dict[str, set[str]] = {
-    "pending_payment": {"paid", "cancelled"},
-    "paid": {"preparing", "cancelled", "refunded", "disputed"},
-    "preparing": {"shipped", "cancelled", "disputed"},
-    "shipped": {"delivered", "disputed"},
-    "delivered": {"refunded", "disputed"},
-    "cancelled": set(),
-    "refunded": set(),
-    "disputed": {"paid", "cancelled", "refunded"},
+    status: set(ORDER_STATUS_LABEL_ES) - {status} for status in ORDER_STATUS_LABEL_ES
 }
 
 # Estados en los que ya se descontó el stock (para saber cuándo restaurarlo).

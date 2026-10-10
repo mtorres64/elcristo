@@ -23,7 +23,6 @@ const STATUS_STYLE: Record<OrderStatus, string> = {
   delivered: "bg-[#E6F4EA] text-[#2D6A4F]",
   cancelled: "bg-[#F2F2F2] text-[#6B6B6B]",
   refunded: "bg-[#FDEDED] text-[#A03030]",
-  disputed: "bg-[#FDEDED] text-[#A03030]",
 };
 
 function StatusBadge({ status }: { status: OrderStatus }) {

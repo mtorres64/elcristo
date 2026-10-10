@@ -21,7 +21,6 @@ const STATUS_OPTIONS: OrderStatus[] = [
   "delivered",
   "cancelled",
   "refunded",
-  "disputed",
 ];
 
 export function OrderDetail() {

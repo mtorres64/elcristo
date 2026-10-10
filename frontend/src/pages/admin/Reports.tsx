@@ -43,7 +43,6 @@ const STATUS_LABEL: Record<string, string> = {
   delivered: "Entregado",
   cancelled: "Cancelado",
   refunded: "Reembolsado",
-  disputed: "En disputa",
 };
 
 function fmtPct(pct: number | null): string {
