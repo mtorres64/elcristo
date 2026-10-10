@@ -226,13 +226,11 @@ async def create_payment_intent(
     encontramos un ejemplo de request real y completo (curl, ambiente
     sandbox) que confirma el resto:
     - Headers — `country`: "AR"; `tenant`: "santander" (Getnet Argentina es
-      la marca de pagos de Banco Santander, no es el seller_id ni el país);
-      `x-seller-id`: pese al nombre, NO es el "Seller ID" numérico del
-      portal — Getnet exige un GUID ahí. El Client ID tiene forma
-      `cid_<guid>` (ej. `cid_fc29cdab-60a6-4278-92bf-e84d65c31ae1`): se
-      manda esa parte, sacándole el prefijo `cid_`. (El ejemplo encontrado
-      no muestra estos tres headers, pero contra nuestra cuenta real sí
-      hacen falta — se los sigue mandando.)
+      la marca de pagos de Banco Santander, no es el seller_id ni el país).
+      `x-seller-id` se probó (numérico y como GUID del Client ID) y en
+      ambos casos lo rechazó ("must be a valid guid" / "Seller not found")
+      — Getnet (soporte, por mail) confirmó que para el producto Web
+      Checkout no hace falta mandarlo, así que se sacó del request.
     - `product`: array de objetos, uno por ítem del carrito, con
       `product_type` ("physical_goods" — son plantas/macetas físicas),
       `title`, `description`, `value` (centavos) y `quantity`.
@@ -288,12 +286,8 @@ async def create_payment_intent(
         "pickup_store": pickup,
     }
     url = f"{_base_url(cfg)}/digital-checkout/v1/payment-intent"
-    # El Client ID guardado tiene forma "cid_<guid>" — el GUID que pide
-    # x-seller-id es esa parte, sin el prefijo.
-    seller_guid = cfg.client_id.removeprefix("cid_")
     headers = {
         "authorization": f"Bearer {token}",
-        "x-seller-id": seller_guid,
         "country": "AR",
         "tenant": "santander",
         "content-type": "application/json",
@@ -351,40 +345,6 @@ async def create_payment_intent(
         checkout_url=checkout_url,
         payment_intent_id=payload.get("payment_intent_id"),
     )
-
-
-async def get_sellers(cfg: GetnetConfig, tenant_id: str) -> list[dict]:
-    """Lista los sellers de la cuenta — existe en el mismo swagger de Web
-    Checkout (sección "Seller", `GET /sellers`). Se usa de diagnóstico para
-    encontrar el GUID real que espera `x-seller-id` en `payment-intent`
-    (confirmado por rechazo real: ni el seller_id numérico del portal ni el
-    GUID del Client ID son ese valor — Getnet respondió "Seller not found"
-    con ambos). No manda `x-seller-id` (es lo que se busca); si este
-    endpoint también lo exige, el error debería decirlo.
-    """
-    token = await get_access_token(cfg, tenant_id)
-    url = f"{_base_url(cfg)}/digital-checkout/v1/sellers"
-    headers = {
-        "authorization": f"Bearer {token}",
-        "country": "AR",
-        "tenant": "santander",
-    }
-    try:
-        async with httpx.AsyncClient(timeout=_REQUEST_TIMEOUT) as client:
-            resp = await client.get(url, headers=headers)
-    except httpx.HTTPError as exc:
-        raise GetnetError(f"No se pudo consultar los sellers: {exc}") from exc
-
-    if resp.status_code != 200:
-        logger.warning(
-            "Getnet GET /sellers rechazado (tenant=%s, status=%s): %s",
-            tenant_id, resp.status_code, resp.text[:1000],
-        )
-        raise GetnetError(f"Getnet rechazó GET /sellers (HTTP {resp.status_code}): {resp.text[:300]}")
-
-    payload = resp.json()
-    sellers = payload if isinstance(payload, list) else payload.get("sellers") or payload.get("data") or [payload]
-    return sellers
 
 
 @dataclass
