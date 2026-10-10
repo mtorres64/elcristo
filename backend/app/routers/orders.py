@@ -802,7 +802,15 @@ async def getnet_webhook(request: Request, background: BackgroundTasks):
             tenant_id,
         )
 
-    raw = await request.json()
+    try:
+        raw = await request.json()
+    except ValueError:
+        # Getnet puede mandar un ping de verificación sin body JSON válido
+        # al guardar la config del webhook — no hay que dejar que tire 500
+        # (reintentos infinitos de su lado), el contrato es siempre ACK 200.
+        logger.warning("Getnet webhook con body no-JSON (tenant=%s)", tenant_id)
+        return {"ok": True}
+
     event = getnet_client.parse_webhook_payload(raw)
     if event is None:
         return {"ok": True}

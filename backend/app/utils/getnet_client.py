@@ -387,12 +387,36 @@ def verify_webhook_auth(authorization_header: str | None, username: str, passwor
     Configurations > Webhook). Esas credenciales hay que guardarlas acá
     también (ver `tenant_integrations`) para poder compararlas en cada
     notificación entrante.
+
+    El primer webhook real que llegó se rechazó acá aunque usuario/contraseña
+    "se veían" iguales en el portal y en Integraciones — esta función ahora
+    loggea un diagnóstico seguro en cada rechazo (usuario recibido tal cual,
+    largo de la contraseña recibida vs. la esperada, nunca la contraseña en
+    sí) para poder confirmar si el problema es el usuario, el largo de la
+    contraseña (típico de un espacio de más al copiar/pegar), o el formato
+    del header. También se tolera `basic` en minúscula, por si Getnet no
+    respeta mayúsculas en el scheme (no está confirmado que haga falta).
     """
-    if not authorization_header or not authorization_header.startswith("Basic "):
+    if not authorization_header or " " not in authorization_header:
+        logger.warning("Getnet webhook: falta el header Authorization o no tiene el formato esperado")
+        return False
+    scheme, _, b64 = authorization_header.partition(" ")
+    if scheme.lower() != "basic":
+        logger.warning("Getnet webhook: scheme de auth inesperado (%r)", scheme)
         return False
     try:
-        decoded = base64.b64decode(authorization_header.removeprefix("Basic ")).decode("utf-8")
+        decoded = base64.b64decode(b64.strip()).decode("utf-8")
         sent_user, _, sent_password = decoded.partition(":")
     except Exception:
+        logger.warning("Getnet webhook: no se pudo decodificar el Authorization en base64")
         return False
-    return sent_user == username and sent_password == password
+
+    if sent_user == username and sent_password == password:
+        return True
+
+    logger.warning(
+        "Getnet webhook: credenciales no coinciden — usuario recibido=%r (esperado=%r), "
+        "largo contraseña recibida=%d (esperado=%d)",
+        sent_user, username, len(sent_password), len(password),
+    )
+    return False
