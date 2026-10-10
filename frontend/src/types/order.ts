@@ -17,6 +17,13 @@ export const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
   refunded: "Reembolsado",
 };
 
+// Estados en los que el pedido ya está efectivamente cobrado — se usa tanto
+// para decidir cuándo vaciar el carrito (ver utils/pendingOrder.ts) como en
+// PaymentResult.tsx.
+export const PAID_ORDER_STATUSES = new Set<OrderStatus>([
+  "paid", "preparing", "shipped", "delivered",
+]);
+
 export interface OrderItem {
   product_id: string;
   title: string;

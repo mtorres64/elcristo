@@ -19,10 +19,12 @@ import { storeSettingsService } from "../services/storeSettings.service";
 import type { Address, AddressInput } from "../types/address";
 import type { GetnetPublicConfig } from "../types/integration";
 import type { ShippingZone } from "../services/storeSettings.service";
+import { PAID_ORDER_STATUSES } from "../types/order";
 import { formatARS } from "../utils/currency";
 import { normalizeText } from "../utils/text";
 import { useWhatsappBase, withWhatsappMessage } from "../hooks/useWhatsappBase";
 import { SocialIcon } from "../components/social/socialPlatforms";
+import { savePendingOrder, getPendingOrder, clearPendingOrder } from "../utils/pendingOrder";
 
 /** Sugiere la zona cuyo listado de localidades matchea la de la dirección
  * (ver el campo "Localidades/barrios que incluye" en Configuración >
@@ -50,7 +52,7 @@ const STEPS = [
 ];
 
 export function Cart() {
-  const { items, itemCount, total, updateQuantity, removeItem } = useCart();
+  const { items, itemCount, total, updateQuantity, removeItem, clearCart } = useCart();
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
@@ -114,6 +116,32 @@ export function Cart() {
   const discount =
     shippingChoice === "pickup" && shipping ? Math.round((total * shipping.pickup_discount_pct) / 100) : 0;
   const orderTotal = total + shippingCost - discount;
+
+  // Si quedó un pedido pendiente de un intento de pago anterior (creado acá
+  // mismo, no necesariamente confirmado por Getnet), se chequea su estado
+  // real contra el backend apenas se entra al carrito — sin importar por
+  // qué camino volvió el comprador (botón "volver" de Getnet, "atrás" del
+  // navegador, cerrar la pestaña y volver después). Si ya está pagado, el
+  // carrito se vacía solo y se lo manda directo al detalle de ESE pedido
+  // (no alcanza con un toast: tiene que poder ver que de verdad se confirmó,
+  // no quedarse mirando un carrito vacío sin explicación).
+  useEffect(() => {
+    const pending = getPendingOrder();
+    if (!pending || itemCount === 0) return;
+    orderService
+      .getById(pending.order_id)
+      .then((order) => {
+        if (PAID_ORDER_STATUSES.has(order.status)) {
+          clearCart();
+          clearPendingOrder();
+          toast.success(`Tu pedido ${order.order_number} ya estaba confirmado.`);
+          navigate(`/mis-pedidos/${order.order_id}`);
+        }
+      })
+      .catch(() => {});
+    // Sólo al montar: no hace falta repetir esto en cada cambio del carrito.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Preselecciona (o corrige) la zona según la localidad de la dirección.
   // Una zona con costo fijo representa una promesa geográfica concreta, así
@@ -250,9 +278,11 @@ export function Cart() {
       // El pedido ya quedó creado (pending_payment) — el pago en sí pasa en
       // una página alojada por Getnet, no acá. No se vacía el carrito
       // todavía: si el pago falla o lo cancelan, el comprador tiene que
-      // poder reintentar sin cargar todo de nuevo (se vacía recién cuando
-      // se confirma el pago de verdad, en PaymentResult.tsx). Se sale de la
-      // SPA a propósito (navegación completa, no `navigate` de react-router).
+      // poder reintentar sin cargar todo de nuevo. Se guarda la referencia
+      // para poder confirmarlo solo si vuelve al carrito sin pasar por
+      // `/pago-exitoso` (ver el efecto de arriba). Se sale de la SPA a
+      // propósito (navegación completa, no `navigate` de react-router).
+      savePendingOrder({ order_id: result.order_id, order_number: result.order_number });
       window.location.href = result.checkout_url;
     } catch (err: unknown) {
       // 502 = la pasarela no pudo iniciar el pago (no es un rechazo de la

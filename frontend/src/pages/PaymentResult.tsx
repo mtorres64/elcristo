@@ -3,7 +3,9 @@ import { Link } from "react-router-dom";
 import { Layout } from "../components/layout/Layout";
 import { useCart } from "../hooks/useCart";
 import { orderService } from "../services/order.service";
+import { PAID_ORDER_STATUSES } from "../types/order";
 import type { OrderSummary } from "../types/order";
+import { clearPendingOrder } from "../utils/pendingOrder";
 
 /** success_url de Web Checkout (Getnet) — URL FIJA configurada en el Getnet
  * Portal, no puede llevar el id del pedido en la ruta. El manual de Getnet
@@ -40,8 +42,6 @@ function usePaymentOutcome() {
   return { order, loading, refresh: () => setRefreshKey((k) => k + 1) };
 }
 
-const PAID_STATUSES = new Set(["paid", "preparing", "shipped", "delivered"]);
-
 function OutcomeMessage({ order }: { order: OrderSummary | null }) {
   if (!order) {
     return (
@@ -60,7 +60,7 @@ function OutcomeMessage({ order }: { order: OrderSummary | null }) {
       </p>
     );
   }
-  if (PAID_STATUSES.has(order.status)) {
+  if (PAID_ORDER_STATUSES.has(order.status)) {
     return (
       <p className="text-sm text-[#6B6B6B]">
         Tu pedido <span className="font-semibold text-[#1A1A1A]">{order.order_number}</span> está
@@ -85,7 +85,10 @@ export function PaymentSuccess() {
   const { clearCart } = useCart();
 
   useEffect(() => {
-    if (order && PAID_STATUSES.has(order.status)) clearCart();
+    if (order && PAID_ORDER_STATUSES.has(order.status)) {
+      clearCart();
+      clearPendingOrder();
+    }
   }, [order, clearCart]);
 
   return (
