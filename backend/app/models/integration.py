@@ -84,6 +84,12 @@ class TenantEmailIntegrationDocument(BaseModel):
     # si el servidor reindexó la casilla (UIDVALIDITY cambiado => resync).
     imap_last_uid: int = 0
     imap_uid_validity: int | None = None
+    # Carpeta de "Enviados" detectada automáticamente (ver
+    # `imap_client.find_sent_folder`) + su propio cursor de sincronización
+    # (los UID de IMAP son por carpeta, no se pueden compartir con INBOX).
+    imap_sent_folder: str | None = None
+    imap_sent_last_uid: int = 0
+    imap_sent_uid_validity: int | None = None
     imap_last_synced_at: datetime | None = None
     imap_last_verified_at: datetime | None = None
     imap_last_verified_ok: bool | None = None
@@ -96,15 +102,18 @@ class TenantEmailIntegrationDocument(BaseModel):
 
 
 class InboxEmailDocument(BaseModel):
-    """Un correo entrante sincronizado por IMAP (colección `inbox_emails`).
+    """Un correo sincronizado por IMAP, recibido o enviado (colección
+    `inbox_emails`).
 
-    `uid` es el UID de IMAP dentro de esa casilla (único junto con
-    `tenant_id`, no globalmente) — se usa como cursor de sincronización,
-    nunca como id público (ver `id`/`_id`, el ObjectId de Mongo).
+    `uid` es el UID de IMAP dentro de esa carpeta (único junto con
+    `tenant_id` y `folder`, no globalmente) — se usa como cursor de
+    sincronización, nunca como id público (ver `id`/`_id`, el ObjectId de
+    Mongo).
     """
 
     id: str | None = Field(None, alias="_id")
     tenant_id: str
+    folder: Literal["inbox", "sent"] = "inbox"
     uid: int
     message_id: str | None = None
     from_name: str | None = None

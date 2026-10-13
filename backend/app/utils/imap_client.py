@@ -91,10 +91,13 @@ async def resolve_imap_config(tenant_id: str) -> ImapConfig | None:
     )
 
 
-def sync(config: ImapConfig, last_uid: int, uid_validity: int | None) -> SyncResult:
-    """Trae los correos nuevos desde `last_uid` (exclusive). Si `uid_validity`
-    cambió respecto al guardado, la casilla fue reindexada por el servidor y
-    se hace un resync completo (acotado a los últimos `_INITIAL_SYNC_LIMIT`).
+def sync(
+    config: ImapConfig, last_uid: int, uid_validity: int | None, folder: str = "INBOX"
+) -> SyncResult:
+    """Trae los correos nuevos desde `last_uid` (exclusive) en `folder`. Si
+    `uid_validity` cambió respecto al guardado, la casilla fue reindexada por
+    el servidor y se hace un resync completo (acotado a los últimos
+    `_INITIAL_SYNC_LIMIT`).
     """
     try:
         conn = _connect(config)
@@ -103,9 +106,9 @@ def sync(config: ImapConfig, last_uid: int, uid_validity: int | None) -> SyncRes
 
     try:
         try:
-            conn.select("INBOX")
+            conn.select(f'"{folder}"' if " " in folder else folder)
         except imaplib.IMAP4.error as exc:
-            raise ImapError(str(exc) or "No se pudo abrir INBOX") from exc
+            raise ImapError(str(exc) or f"No se pudo abrir {folder}") from exc
 
         _typ, uv_data = conn.response("UIDVALIDITY")
         new_uid_validity = int(uv_data[0]) if uv_data and uv_data[0] else None
@@ -134,6 +137,62 @@ def sync(config: ImapConfig, last_uid: int, uid_validity: int | None) -> SyncRes
 
         new_last_uid = max(uids) if uids else effective_last_uid
         return SyncResult(uid_validity=new_uid_validity, last_uid=new_last_uid, messages=messages)
+    finally:
+        try:
+            conn.logout()
+        except Exception:
+            pass
+
+
+# Nombres típicos de la carpeta de enviados en servidores que no anuncian
+# el atributo \Sent (RFC 6154) en el LIST.
+_SENT_FOLDER_FALLBACKS = (
+    "[Gmail]/Sent Mail",
+    "INBOX.Sent",
+    "Sent Items",
+    "Sent",
+)
+
+
+def find_sent_folder(config: ImapConfig) -> str | None:
+    """Detecta el nombre de la carpeta de "Enviados" de la casilla: primero
+    por el atributo \\Sent (RFC 6154, lo anuncian Gmail/Outlook/etc.), y si
+    el servidor no lo anuncia, probando nombres típicos. None si no se
+    encontró ninguna.
+    """
+    try:
+        conn = _connect(config)
+    except (OSError, imaplib.IMAP4.error) as exc:
+        raise ImapError(str(exc) or exc.__class__.__name__) from exc
+
+    try:
+        try:
+            typ, data = conn.list()
+        except imaplib.IMAP4.error:
+            typ, data = "NO", None
+
+        if typ == "OK" and data:
+            for line in data:
+                if not isinstance(line, bytes):
+                    continue
+                text = line.decode("utf-8", errors="replace")
+                if "\\Sent" not in text:
+                    continue
+                match = re.search(r'"([^"]*)"\s*$', text)
+                if match:
+                    return match.group(1)
+                parts = text.rsplit(" ", 1)
+                if parts:
+                    return parts[-1].strip('"')
+
+        for candidate in _SENT_FOLDER_FALLBACKS:
+            try:
+                typ, _ = conn.select(f'"{candidate}"' if " " in candidate else candidate, readonly=True)
+            except imaplib.IMAP4.error:
+                typ = "NO"
+            if typ == "OK":
+                return candidate
+        return None
     finally:
         try:
             conn.logout()

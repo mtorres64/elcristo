@@ -2,13 +2,14 @@ import { api } from "./api";
 import type {
   MailboxEmailDetail,
   MailboxEmailList,
+  MailboxFolder,
   MailboxSendInput,
   MailboxSendResult,
 } from "../types/mailbox";
 
 export const mailboxService = {
-  async list(page = 1, pageSize = 20): Promise<MailboxEmailList> {
-    const res = await api.get("/mailbox/emails", { params: { page, page_size: pageSize } });
+  async list(folder: MailboxFolder = "inbox", page = 1, pageSize = 20): Promise<MailboxEmailList> {
+    const res = await api.get("/mailbox/emails", { params: { folder, page, page_size: pageSize } });
     return res.data;
   },
 

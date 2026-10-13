@@ -1,12 +1,15 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, EmailStr
 
 
 class MailboxEmailOut(BaseModel):
     id: str
+    folder: Literal["inbox", "sent"] = "inbox"
     from_name: str | None = None
     from_addr: str | None = None
+    to_addr: str | None = None
     subject: str
     snippet: str = ""
     date: datetime | None = None
@@ -21,6 +24,7 @@ class MailboxEmailListOut(BaseModel):
 
 class MailboxEmailDetailOut(BaseModel):
     id: str
+    folder: Literal["inbox", "sent"] = "inbox"
     from_name: str | None = None
     from_addr: str | None = None
     to_addr: str | None = None

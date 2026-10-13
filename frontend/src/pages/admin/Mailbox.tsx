@@ -3,7 +3,7 @@ import DOMPurify from "dompurify";
 import toast from "react-hot-toast";
 import { AdminLayout } from "../../components/admin/AdminLayout";
 import { mailboxService } from "../../services/mailbox.service";
-import type { MailboxEmail, MailboxEmailDetail } from "../../types/mailbox";
+import type { MailboxEmail, MailboxEmailDetail, MailboxFolder } from "../../types/mailbox";
 
 const INPUT =
   "w-full rounded-lg border border-[#E8E2D8] px-3.5 py-2.5 text-sm text-[#1A1A1A] bg-white placeholder-[#ABABAB] focus:outline-none focus:border-[#1A2B1C] transition-colors";
@@ -32,6 +32,10 @@ function EmailRow({
   active: boolean;
   onClick: () => void;
 }) {
+  const isSent = email.folder === "sent";
+  const correspondent = isSent
+    ? email.to_addr || "Desconocido"
+    : email.from_name || email.from_addr || "Desconocido";
   return (
     <button
       onClick={onClick}
@@ -41,7 +45,7 @@ function EmailRow({
     >
       <div className="flex items-center justify-between gap-2 mb-0.5">
         <span className={`text-sm truncate ${!email.is_read ? "font-semibold text-[#1A1A1A]" : "text-[#4A4A4A]"}`}>
-          {email.from_name || email.from_addr || "Desconocido"}
+          {isSent ? `Para: ${correspondent}` : correspondent}
         </span>
         <span className="text-[11px] text-[#ABABAB] shrink-0">{formatDate(email.date)}</span>
       </div>
@@ -137,6 +141,7 @@ function ComposeModal({ onClose, onSent }: { onClose: () => void; onSent: () => 
 }
 
 export function Mailbox() {
+  const [folder, setFolder] = useState<MailboxFolder>("inbox");
   const [emails, setEmails] = useState<MailboxEmail[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -144,19 +149,27 @@ export function Mailbox() {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [composing, setComposing] = useState(false);
 
-  function loadList() {
+  function loadList(f: MailboxFolder = folder) {
+    setLoading(true);
     mailboxService
-      .list()
+      .list(f)
       .then((data) => setEmails(data.items))
       .catch(() => toast.error("No se pudo cargar la bandeja de entrada"))
       .finally(() => setLoading(false));
   }
 
   useEffect(() => {
-    loadList();
-    const t = setInterval(loadList, 60_000);
+    loadList(folder);
+    const t = setInterval(() => loadList(folder), 60_000);
     return () => clearInterval(t);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [folder]);
+
+  function handleFolderChange(f: MailboxFolder) {
+    setFolder(f);
+    setSelectedId(null);
+    setDetail(null);
+  }
 
   function handleSelect(id: string) {
     setSelectedId(id);
@@ -177,7 +190,7 @@ export function Mailbox() {
         <div className="px-4 sm:px-8 py-5 border-b border-[#E8E2D8] flex items-center justify-between gap-4 shrink-0">
           <div>
             <h1 className="font-serif text-2xl font-semibold text-[#1A1A1A] leading-tight">Correos</h1>
-            <p className="text-xs text-[#8A8A8A] mt-1">Bandeja de entrada de la casilla configurada en Integraciones</p>
+            <p className="text-xs text-[#8A8A8A] mt-1">Bandeja de la casilla configurada en Integraciones</p>
           </div>
           <button
             onClick={() => setComposing(true)}
@@ -194,6 +207,28 @@ export function Mailbox() {
               selectedId ? "hidden sm:block" : "block"
             }`}
           >
+            <div className="flex border-b border-[#E8E2D8] sticky top-0 bg-white z-10">
+              <button
+                onClick={() => handleFolderChange("inbox")}
+                className={`flex-1 text-xs font-semibold uppercase tracking-widest py-3 transition-colors ${
+                  folder === "inbox"
+                    ? "text-[#1A2B1C] border-b-2 border-[#1A2B1C]"
+                    : "text-[#ABABAB] hover:text-[#4A4A4A]"
+                }`}
+              >
+                Recibidos
+              </button>
+              <button
+                onClick={() => handleFolderChange("sent")}
+                className={`flex-1 text-xs font-semibold uppercase tracking-widest py-3 transition-colors ${
+                  folder === "sent"
+                    ? "text-[#1A2B1C] border-b-2 border-[#1A2B1C]"
+                    : "text-[#ABABAB] hover:text-[#4A4A4A]"
+                }`}
+              >
+                Enviados
+              </button>
+            </div>
             {loading ? (
               <div className="p-8 text-center">
                 <p className="text-sm text-[#8A8A8A]">Cargando…</p>
@@ -234,10 +269,16 @@ export function Mailbox() {
                 </button>
                 <h2 className="font-serif text-xl font-semibold text-[#1A1A1A] mb-2">{detail.subject}</h2>
                 <div className="flex items-center justify-between gap-4 text-xs text-[#8A8A8A] pb-4 border-b border-[#F0EDE8] mb-4">
-                  <span>
-                    De: <strong className="text-[#4A4A4A]">{detail.from_name || detail.from_addr}</strong>{" "}
-                    {detail.from_addr && detail.from_name ? `<${detail.from_addr}>` : ""}
-                  </span>
+                  {detail.folder === "sent" ? (
+                    <span>
+                      Para: <strong className="text-[#4A4A4A]">{detail.to_addr}</strong>
+                    </span>
+                  ) : (
+                    <span>
+                      De: <strong className="text-[#4A4A4A]">{detail.from_name || detail.from_addr}</strong>{" "}
+                      {detail.from_addr && detail.from_name ? `<${detail.from_addr}>` : ""}
+                    </span>
+                  )}
                   <span className="shrink-0">{formatDate(detail.date)}</span>
                 </div>
                 {detail.body_html ? (

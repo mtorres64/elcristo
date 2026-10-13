@@ -37,8 +37,10 @@ def _tenant_id(request: Request) -> str:
 def _to_out(doc: dict) -> dict:
     return {
         "id": str(doc["_id"]),
+        "folder": doc.get("folder", "inbox"),
         "from_name": doc.get("from_name"),
         "from_addr": doc.get("from_addr"),
+        "to_addr": doc.get("to_addr"),
         "subject": doc.get("subject") or "(sin asunto)",
         "snippet": doc.get("snippet") or "",
         "date": doc.get("date"),
@@ -49,6 +51,7 @@ def _to_out(doc: dict) -> dict:
 def _to_detail(doc: dict) -> dict:
     return {
         "id": str(doc["_id"]),
+        "folder": doc.get("folder", "inbox"),
         "from_name": doc.get("from_name"),
         "from_addr": doc.get("from_addr"),
         "to_addr": doc.get("to_addr"),
@@ -65,14 +68,17 @@ async def list_emails(
     request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
+    folder: str = Query("inbox", pattern="^(inbox|sent)$"),
 ):
     _require_seller_or_admin(request)
     db = get_db()
     tid = _tenant_id(request)
-    filt = {"tenant_id": tid}
+    filt = {"tenant_id": tid, "folder": folder}
 
     total = await db.inbox_emails.count_documents(filt)
-    unread_count = await db.inbox_emails.count_documents({**filt, "is_read": False})
+    unread_count = await db.inbox_emails.count_documents(
+        {"tenant_id": tid, "folder": "inbox", "is_read": False}
+    )
     cursor = (
         db.inbox_emails.find(filt)
         .sort("date", -1)
@@ -88,7 +94,7 @@ async def unread_count(request: Request):
     _require_seller_or_admin(request)
     db = get_db()
     count = await db.inbox_emails.count_documents(
-        {"tenant_id": _tenant_id(request), "is_read": False}
+        {"tenant_id": _tenant_id(request), "folder": "inbox", "is_read": False}
     )
     return {"count": count}
 

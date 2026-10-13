@@ -1,7 +1,11 @@
+export type MailboxFolder = "inbox" | "sent";
+
 export interface MailboxEmail {
   id: string;
+  folder: MailboxFolder;
   from_name: string | null;
   from_addr: string | null;
+  to_addr: string | null;
   subject: string;
   snippet: string;
   date: string | null;
@@ -16,6 +20,7 @@ export interface MailboxEmailList {
 
 export interface MailboxEmailDetail {
   id: string;
+  folder: MailboxFolder;
   from_name: string | null;
   from_addr: string | null;
   to_addr: string | null;
