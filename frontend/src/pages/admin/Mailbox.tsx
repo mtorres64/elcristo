@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import DOMPurify from "dompurify";
 import toast from "react-hot-toast";
 import { AdminLayout } from "../../components/admin/AdminLayout";
@@ -8,6 +8,11 @@ import type { MailboxEmail, MailboxEmailDetail, MailboxFolder } from "../../type
 const INPUT =
   "w-full rounded-lg border border-[#E8E2D8] px-3.5 py-2.5 text-sm text-[#1A1A1A] bg-white placeholder-[#ABABAB] focus:outline-none focus:border-[#1A2B1C] transition-colors";
 const LABEL = "block text-xs font-medium text-[#4A4A4A] mb-1.5";
+
+const LIST_WIDTH_KEY = "mailbox-list-width";
+const MIN_LIST_WIDTH = 260;
+const MAX_LIST_WIDTH = 640;
+const DEFAULT_LIST_WIDTH = 360;
 
 function errMsg(err: unknown, fallback: string): string {
   return (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? fallback;
@@ -149,6 +154,49 @@ export function Mailbox() {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [composing, setComposing] = useState(false);
 
+  const panesRef = useRef<HTMLDivElement>(null);
+  const [listWidth, setListWidth] = useState<number>(() => {
+    try {
+      const saved = Number(localStorage.getItem(LIST_WIDTH_KEY));
+      return saved >= MIN_LIST_WIDTH && saved <= MAX_LIST_WIDTH ? saved : DEFAULT_LIST_WIDTH;
+    } catch {
+      return DEFAULT_LIST_WIDTH;
+    }
+  });
+  const [resizing, setResizing] = useState(false);
+
+  useEffect(() => {
+    if (!resizing) return;
+
+    function handleMouseMove(e: MouseEvent) {
+      const left = panesRef.current?.getBoundingClientRect().left ?? 0;
+      setListWidth(Math.min(MAX_LIST_WIDTH, Math.max(MIN_LIST_WIDTH, e.clientX - left)));
+    }
+    function handleMouseUp() {
+      setResizing(false);
+    }
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+    const prevCursor = document.body.style.cursor;
+    const prevSelect = document.body.style.userSelect;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+      document.body.style.cursor = prevCursor;
+      document.body.style.userSelect = prevSelect;
+    };
+  }, [resizing]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(LIST_WIDTH_KEY, String(listWidth));
+    } catch {
+      // ignore — conveniencia por navegador, no crítico
+    }
+  }, [listWidth]);
+
   function loadList(f: MailboxFolder = folder) {
     setLoading(true);
     mailboxService
@@ -200,10 +248,11 @@ export function Mailbox() {
           </button>
         </div>
 
-        <div className="flex-1 flex overflow-hidden">
+        <div ref={panesRef} className="flex-1 flex overflow-hidden">
           {/* Lista */}
           <div
-            className={`w-full sm:w-[360px] border-r border-[#E8E2D8] overflow-y-auto shrink-0 ${
+            style={{ "--list-width": `${listWidth}px` } as React.CSSProperties}
+            className={`w-full sm:w-[var(--list-width)] border-r border-[#E8E2D8] overflow-y-auto shrink-0 ${
               selectedId ? "hidden sm:block" : "block"
             }`}
           >
@@ -248,6 +297,17 @@ export function Mailbox() {
               ))
             )}
           </div>
+
+          {/* Separador arrastrable */}
+          <div
+            onMouseDown={(e) => {
+              e.preventDefault();
+              setResizing(true);
+            }}
+            className={`hidden sm:block w-1.5 shrink-0 cursor-col-resize hover:bg-[#1A2B1C]/20 transition-colors ${
+              resizing ? "bg-[#1A2B1C]/30" : ""
+            }`}
+          />
 
           {/* Detalle */}
           <div className={`flex-1 overflow-y-auto ${selectedId ? "block" : "hidden sm:block"}`}>
