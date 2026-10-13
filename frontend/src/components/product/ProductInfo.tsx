@@ -113,7 +113,6 @@ export function ProductInfo({ product }: { product: ProductDetail }) {
 
   const potExtra = POTS.find((p) => p.id === pot)?.extra ?? 0;
   const totalPrice = sizePrice + potExtra;
-  const installmentAmount = Math.floor(totalPrice / INSTALLMENTS);
   const discount =
     sizeComparePrice && sizeComparePrice > sizePrice
       ? Math.round((1 - sizePrice / sizeComparePrice) * 100)
@@ -190,7 +189,7 @@ export function ProductInfo({ product }: { product: ProductDetail }) {
           )}
         </div>
         <p className="text-sm text-[#3D6040]">
-          Hasta {INSTALLMENTS} cuotas de {formatARS(installmentAmount)}
+          Pagá hasta en {INSTALLMENTS} cuotas
         </p>
       </div>
 

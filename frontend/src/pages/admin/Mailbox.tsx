@@ -259,7 +259,7 @@ export function Mailbox() {
             <div className="flex border-b border-[#E8E2D8] sticky top-0 bg-white z-10">
               <button
                 onClick={() => handleFolderChange("inbox")}
-                className={`flex-1 text-xs font-semibold uppercase tracking-widest py-3 transition-colors ${
+                className={`flex-1 appearance-none rounded-none text-xs font-semibold uppercase tracking-widest py-3 transition-colors ${
                   folder === "inbox"
                     ? "text-[#1A2B1C] border-b-2 border-[#1A2B1C]"
                     : "text-[#ABABAB] hover:text-[#4A4A4A]"
@@ -269,7 +269,7 @@ export function Mailbox() {
               </button>
               <button
                 onClick={() => handleFolderChange("sent")}
-                className={`flex-1 text-xs font-semibold uppercase tracking-widest py-3 transition-colors ${
+                className={`flex-1 appearance-none rounded-none text-xs font-semibold uppercase tracking-widest py-3 transition-colors ${
                   folder === "sent"
                     ? "text-[#1A2B1C] border-b-2 border-[#1A2B1C]"
                     : "text-[#ABABAB] hover:text-[#4A4A4A]"
