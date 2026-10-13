@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { orderService } from "../../services/order.service";
 import { alertService } from "../../services/alert.service";
+import { mailboxService } from "../../services/mailbox.service";
 
 interface NavItem {
   icon: ReactNode;
@@ -13,6 +14,7 @@ interface NavItem {
 const NAV: NavItem[] = [
   { icon: <DashboardIcon />, label: "Dashboard", path: "/seller" },
   { icon: <OrdersIcon />, label: "Pedidos", path: "/seller/orders" },
+  { icon: <MailIcon />, label: "Correos", path: "/seller/mailbox" },
   { icon: <ProductsIcon />, label: "Productos", path: "/seller/products" },
   { icon: <CombosIcon />, label: "Combos", path: "/seller/combos" },
   { icon: <PurchasesIcon />, label: "Compras", path: "/seller/purchases" },
@@ -40,12 +42,25 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [pendingOrders, setPendingOrders] = useState(0);
   const [alertsCount, setAlertsCount] = useState(0);
+  const [unreadMail, setUnreadMail] = useState(0);
 
   useEffect(() => {
     orderService
       .list({ tenant_id: user?.tenant_id ?? undefined, status: "pending_payment", page_size: 1 })
       .then((data) => setPendingOrders(data.total))
       .catch(() => {});
+  }, [user?.tenant_id]);
+
+  useEffect(() => {
+    function loadUnreadMail() {
+      mailboxService
+        .unreadCount()
+        .then(setUnreadMail)
+        .catch(() => {});
+    }
+    loadUnreadMail();
+    const t = setInterval(loadUnreadMail, 60_000);
+    return () => clearInterval(t);
   }, [user?.tenant_id]);
 
   useEffect(() => {
@@ -134,7 +149,12 @@ export function AdminLayout({ children }: { children: ReactNode }) {
               item.path === "/seller"
                 ? location.pathname === "/seller"
                 : location.pathname.startsWith(item.path);
-            const badge = item.path === "/seller/orders" ? pendingOrders : 0;
+            const badge =
+              item.path === "/seller/orders"
+                ? pendingOrders
+                : item.path === "/seller/mailbox"
+                ? unreadMail
+                : 0;
 
             return (
               <div key={item.label}>
@@ -285,6 +305,14 @@ function OrdersIcon() {
       <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
       <rect x="9" y="3" width="6" height="4" rx="1" />
       <line x1="9" y1="12" x2="15" y2="12" /><line x1="9" y1="16" x2="13" y2="16" />
+    </svg>
+  );
+}
+function MailIcon() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="M3 7l9 6 9-6" />
     </svg>
   );
 }

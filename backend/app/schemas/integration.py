@@ -51,7 +51,7 @@ class GetnetTestConnectionResult(BaseModel):
 
 
 class EmailIntegrationOut(BaseModel):
-    """Estado de la integración SMTP para el panel. Nunca incluye la
+    """Estado de la integración SMTP+IMAP para el panel. Nunca incluye la
     contraseña: sólo informa si hay una guardada (`password_set`)."""
 
     enabled: bool = False
@@ -64,6 +64,15 @@ class EmailIntegrationOut(BaseModel):
     last_verified_at: datetime | None = None
     last_verified_ok: bool | None = None
     last_verified_message: str | None = None
+    # IMAP (lectura) — comparte username/password con el SMTP de arriba.
+    imap_enabled: bool = False
+    imap_host: str | None = None
+    imap_port: int = 993
+    imap_use_ssl: bool = True
+    imap_last_synced_at: datetime | None = None
+    imap_last_verified_at: datetime | None = None
+    imap_last_verified_ok: bool | None = None
+    imap_last_verified_message: str | None = None
     updated_at: datetime | None = None
 
 
@@ -76,6 +85,10 @@ class EmailIntegrationUpdate(BaseModel):
     use_tls: bool = True
     # None = mantener la contraseña ya guardada (no se reenvía en cada save).
     password: str | None = None
+    imap_enabled: bool = False
+    imap_host: str = ""
+    imap_port: int = 993
+    imap_use_ssl: bool = True
 
 
 class EmailTestRequest(BaseModel):

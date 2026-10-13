@@ -134,7 +134,7 @@ export function HeroSection() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 divide-x divide-[#EAE4DB]">
             <TrustBadge icon={<TruckIcon />} text="Envíos a todo el país" />
             <TrustBadge icon={<ShieldIcon />} text="Compra segura y protegida" />
-            <TrustBadge icon={<CardIcon />} text="Pagá en cuotas sin interés" />
+            <TrustBadge icon={<CardIcon />} text="Hasta 3 cuotas" />
             <TrustBadge icon={<LeafIcon />} text="Plantas cuidadas con amor" />
           </div>
         </div>

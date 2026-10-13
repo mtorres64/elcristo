@@ -4,8 +4,8 @@ import toast from "react-hot-toast";
 import { ARGENTINE_PROVINCES } from "../../types/address";
 import type { AddressInput } from "../../types/address";
 import { geolocateAddress, reverseGeocode } from "../../utils/geolocation";
-import type { GeocodedAddress } from "../../utils/geolocation";
-import { LocationPicker } from "../common/LocationPicker";
+import type { GeocodedAddress, AddressSearchResult } from "../../utils/geolocation";
+import { LocationPicker, AddressSearchBox } from "../common/LocationPicker";
 import { normalizeText } from "../../utils/text";
 import { georefService } from "../../services/georef.service";
 
@@ -134,6 +134,10 @@ export function AddressForm({ initial, onCancel, onSave, hasExistingAddresses, o
     }
   }
 
+  async function handleSearchSelect(result: AddressSearchResult) {
+    await applyGeocoded(result.address);
+  }
+
   async function handlePinChange(newLat: number, newLng: number) {
     // El pin se mueve y queda guardado aunque el reverse geocoding falle
     // (ej. pin fuera de Argentina o servicio caído): las coordenadas valen igual.
@@ -198,6 +202,9 @@ export function AddressForm({ initial, onCancel, onSave, hasExistingAddresses, o
         <label className={LABEL}>
           Ubicación en el mapa <span className="text-[#B45309] font-normal">(obligatoria)</span>
         </label>
+        <div className="mb-2">
+          <AddressSearchBox onSelect={handleSearchSelect} disabled={locating} />
+        </div>
         <LocationPicker
           position={lat != null && lng != null ? [lat, lng] : null}
           onChange={handlePinChange}

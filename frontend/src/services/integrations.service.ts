@@ -46,4 +46,9 @@ export const integrationsService = {
     const res = await api.post("/integrations/email/test", { to });
     return res.data;
   },
+
+  async testImapConnection(): Promise<IntegrationTestResult> {
+    const res = await api.post("/integrations/email/test-imap");
+    return res.data;
+  },
 };

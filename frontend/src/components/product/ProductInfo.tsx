@@ -17,7 +17,7 @@ const SIZES = [
 
 const NO_POT = { id: null as string | null, label: "Sin maceta", extra: 0, image: null as string | null };
 
-const INSTALLMENTS = 6;
+const INSTALLMENTS = 3;
 
 type SizeId = "pequeña" | "mediana" | "grande";
 
@@ -190,7 +190,7 @@ export function ProductInfo({ product }: { product: ProductDetail }) {
           )}
         </div>
         <p className="text-sm text-[#3D6040]">
-          {INSTALLMENTS} cuotas sin interés de {formatARS(installmentAmount)}
+          Hasta {INSTALLMENTS} cuotas de {formatARS(installmentAmount)}
         </p>
       </div>
 

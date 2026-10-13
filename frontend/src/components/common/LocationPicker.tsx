@@ -1,10 +1,12 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
 import markerIcon from "leaflet/dist/images/marker-icon.png";
 import markerShadow from "leaflet/dist/images/marker-shadow.png";
+import { searchAddress } from "../../utils/geolocation";
+import type { AddressSearchResult } from "../../utils/geolocation";
 
 // Vite empaqueta los íconos de Leaflet con hashes propios; sin este fix el
 // pin por defecto queda roto (busca las imágenes en la ruta original).
@@ -74,6 +76,86 @@ function PinLayer({ position, onChange }: Pick<Props, "position" | "onChange">) 
         },
       }}
     />
+  );
+}
+
+/** Buscador con autocompletar para ubicar una dirección en el mapa sin
+ * depender del GPS ni de tocar el mapa a mano: tipeá, elegí una sugerencia
+ * de la lista y el mapa se centra ahí con el pin puesto. */
+export function AddressSearchBox({ onSelect, disabled }: { onSelect: (result: AddressSearchResult) => void; disabled?: boolean }) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<AddressSearchResult[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+  // Evita que una búsqueda vieja (lenta) pise el resultado de una más nueva.
+  const requestId = useRef(0);
+
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 3) {
+      setResults([]);
+      setLoading(false);
+      return;
+    }
+    const id = ++requestId.current;
+    setLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const found = await searchAddress(q);
+        if (requestId.current !== id) return;
+        setResults(found);
+        setOpen(true);
+      } catch {
+        if (requestId.current === id) setResults([]);
+      } finally {
+        if (requestId.current === id) setLoading(false);
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  function handleSelect(result: AddressSearchResult) {
+    onSelect(result);
+    setQuery(result.label);
+    setOpen(false);
+    setResults([]);
+  }
+
+  return (
+    <div className="relative">
+      <input
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        onFocus={() => results.length > 0 && setOpen(true)}
+        // El blur se dispara antes que el click de la lista; el delay deja
+        // que el onClick de la sugerencia se procese primero.
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        disabled={disabled}
+        placeholder="Buscar dirección (ej: Belgrano 450, San Miguel de Tucumán)"
+        className="w-full rounded-lg border border-[#E8E2D8] px-3.5 py-2.5 text-sm text-[#1A1A1A] bg-white placeholder-[#ABABAB] focus:outline-none focus:border-[#1A2B1C] transition-colors disabled:opacity-50 disabled:bg-[#F9F8F5]"
+      />
+      {loading && (
+        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-[#ABABAB]">Buscando...</span>
+      )}
+      {open && results.length > 0 && (
+        <ul className="absolute z-[1000] mt-1 w-full rounded-lg border border-[#E8E2D8] bg-white shadow-lg max-h-56 overflow-auto">
+          {results.map((r, i) => (
+            <li key={i}>
+              <button
+                type="button"
+                // preventDefault en vez de depender sólo del delay del blur:
+                // sin esto el input pierde foco antes de disparar el click.
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => handleSelect(r)}
+                className="w-full text-left px-3.5 py-2 text-sm text-[#1A1A1A] hover:bg-[#F9F8F5] transition-colors"
+              >
+                {r.label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 

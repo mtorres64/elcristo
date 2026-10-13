@@ -7,14 +7,14 @@ export function Stepper({ steps, currentKey }: { steps: StepDef[]; currentKey: s
   const currentIndex = steps.findIndex((s) => s.key === currentKey);
 
   return (
-    <ol className="flex items-center gap-2 sm:gap-4 overflow-x-auto pb-1">
+    <ol className="flex items-center w-full">
       {steps.map((step, i) => {
         const done = i < currentIndex;
         const active = i === currentIndex;
+        const isLast = i === steps.length - 1;
         return (
-          <li key={step.key} className="flex items-center gap-2 sm:gap-4 shrink-0">
-            {i > 0 && <span className="w-4 sm:w-8 h-px bg-[#E8E2D8]" />}
-            <div className="flex items-center gap-2">
+          <li key={step.key} className={`flex items-center ${isLast ? "shrink-0" : "flex-1"}`}>
+            <div className="flex items-center gap-2 shrink-0">
               <span
                 className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 transition-colors ${
                   done
@@ -40,6 +40,7 @@ export function Stepper({ steps, currentKey }: { steps: StepDef[]; currentKey: s
                 {step.label}
               </span>
             </div>
+            {!isLast && <span className="flex-1 h-px bg-[#E8E2D8] mx-2 sm:mx-4" />}
           </li>
         );
       })}

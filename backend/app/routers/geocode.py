@@ -19,6 +19,7 @@ from fastapi import APIRouter, HTTPException, Query
 router = APIRouter()
 
 _NOMINATIM_URL = "https://nominatim.openstreetmap.org/reverse"
+_NOMINATIM_SEARCH_URL = "https://nominatim.openstreetmap.org/search"
 _USER_AGENT = "ViveroElCristoTienda/1.0 (+https://viveroelcristo.com)"
 _TIMEOUT = httpx.Timeout(8.0, connect=4.0)
 
@@ -59,3 +60,39 @@ async def reverse_geocode(
         raise HTTPException(502, "No se pudo obtener la dirección")
 
     return res.json().get("address", {})
+
+
+@router.get("/search")
+async def search_address(q: str = Query(..., min_length=3)):
+    """Autocompletar de direcciones para el buscador arriba del mapa del
+    checkout (forward geocoding vía Nominatim `search`), mismo motivo que el
+    reverse de arriba: User-Agent propio + throttle, no se puede pegar directo
+    desde el navegador."""
+    global _last_call
+    async with _lock:
+        wait = 1.0 - (time.monotonic() - _last_call)
+        if wait > 0:
+            await asyncio.sleep(wait)
+        try:
+            async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+                res = await client.get(
+                    _NOMINATIM_SEARCH_URL,
+                    params={
+                        "format": "jsonv2",
+                        "q": q,
+                        "addressdetails": 1,
+                        "accept-language": "es",
+                        "countrycodes": "ar",
+                        "limit": 5,
+                    },
+                    headers={"User-Agent": _USER_AGENT},
+                )
+        except httpx.HTTPError:
+            raise HTTPException(502, "No se pudo contactar el servicio de geocodificación") from None
+        finally:
+            _last_call = time.monotonic()
+
+    if res.status_code != 200:
+        raise HTTPException(502, "No se pudo buscar la dirección")
+
+    return res.json()

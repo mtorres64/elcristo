@@ -15,7 +15,7 @@ from app.schemas.integration import (
     GetnetTestConnectionResult,
     IntegrationTestResult,
 )
-from app.utils import getnet_client
+from app.utils import getnet_client, mailbox_sync
 from app.utils.auth_deps import require_user
 from app.utils.crypto import CryptoConfigError, decrypt_secret, encrypt_secret
 from app.utils.email import EmailError, SmtpConfig, deliver_email
@@ -237,6 +237,9 @@ _EMAIL_DEFAULTS = {
     "enabled": False, "host": None, "port": 587, "username": None,
     "from_email": None, "use_tls": True, "password_set": False,
     "last_verified_at": None, "last_verified_ok": None, "last_verified_message": None,
+    "imap_enabled": False, "imap_host": None, "imap_port": 993, "imap_use_ssl": True,
+    "imap_last_synced_at": None, "imap_last_verified_at": None,
+    "imap_last_verified_ok": None, "imap_last_verified_message": None,
     "updated_at": None,
 }
 
@@ -255,6 +258,14 @@ def _email_to_out(doc: dict | None) -> dict:
         "last_verified_at": doc.get("last_verified_at"),
         "last_verified_ok": doc.get("last_verified_ok"),
         "last_verified_message": doc.get("last_verified_message"),
+        "imap_enabled": doc.get("imap_enabled", False),
+        "imap_host": doc.get("imap_host"),
+        "imap_port": doc.get("imap_port", 993),
+        "imap_use_ssl": doc.get("imap_use_ssl", True),
+        "imap_last_synced_at": doc.get("imap_last_synced_at"),
+        "imap_last_verified_at": doc.get("imap_last_verified_at"),
+        "imap_last_verified_ok": doc.get("imap_last_verified_ok"),
+        "imap_last_verified_message": doc.get("imap_last_verified_message"),
         "updated_at": doc.get("updated_at"),
     }
 
@@ -294,6 +305,12 @@ async def update_email_integration(body: EmailIntegrationUpdate, request: Reques
         if not body.password and not has_existing_password:
             raise HTTPException(400, "Falta la contraseña SMTP para activar el correo")
 
+    if body.imap_enabled:
+        if not body.imap_host.strip():
+            raise HTTPException(400, "Completá el host IMAP para activar la lectura de correos")
+        if not body.password and not has_existing_password:
+            raise HTTPException(400, "Falta la contraseña para activar IMAP (es la misma del SMTP)")
+
     now = datetime.now(UTC)
     update: dict = {
         "enabled": body.enabled,
@@ -308,6 +325,18 @@ async def update_email_integration(body: EmailIntegrationUpdate, request: Reques
         "last_verified_at": None,
         "last_verified_ok": None,
         "last_verified_message": None,
+        "imap_enabled": body.imap_enabled,
+        "imap_host": body.imap_host.strip(),
+        "imap_port": body.imap_port,
+        "imap_use_ssl": body.imap_use_ssl,
+        # Mismo criterio: cualquier cambio reinicia el cursor de sync y la
+        # última verificación IMAP (no pisa correos ya leídos en inbox_emails).
+        "imap_last_uid": 0,
+        "imap_uid_validity": None,
+        "imap_last_synced_at": None,
+        "imap_last_verified_at": None,
+        "imap_last_verified_ok": None,
+        "imap_last_verified_message": None,
     }
     if body.password:
         try:
@@ -381,3 +410,29 @@ async def test_email_integration(body: EmailTestRequest, request: Request):
         }},
     )
     return result
+
+
+@router.post("/email/test-imap", response_model=IntegrationTestResult)
+async def test_imap_integration(request: Request):
+    """Fuerza una sincronización IMAP inmediata (misma que corre cada 5
+    minutos en segundo plano) y devuelve el resultado guardado en
+    `imap_last_verified_*`."""
+    _require_seller_or_admin(request)
+    db = get_db()
+    tid = _tenant_id(request)
+
+    doc = await db.tenant_integrations.find_one(
+        {"tenant_id": tid, "provider": "email", "deleted_at": None}
+    )
+    doc = doc or {}
+    if not doc.get("imap_enabled") or not doc.get("imap_host"):
+        raise HTTPException(400, "Completá y guardá el host IMAP antes de probar")
+    if not doc.get("password_encrypted"):
+        raise HTTPException(400, "Falta la contraseña (es la misma del SMTP) antes de probar")
+
+    await mailbox_sync.sync_tenant_inbox(tid)
+    updated = await db.tenant_integrations.find_one({"tenant_id": tid, "provider": "email"})
+    return {
+        "ok": bool((updated or {}).get("imap_last_verified_ok")),
+        "message": (updated or {}).get("imap_last_verified_message") or "",
+    }

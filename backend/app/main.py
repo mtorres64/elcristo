@@ -1,3 +1,5 @@
+import asyncio
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -18,6 +20,7 @@ from app.routers import (
     content,
     geocode,
     integrations,
+    mailbox,
     orders,
     payment_methods,
     product_import,
@@ -29,12 +32,30 @@ from app.routers import (
     tenants,
     users,
 )
+from app.utils import mailbox_sync
+
+logger = logging.getLogger(__name__)
+
+# Cada cuánto se sincroniza la casilla de correo (IMAP) de cada tenant en
+# segundo plano — pedido explícito del negocio, ver panel Correos.
+_MAILBOX_POLL_INTERVAL_SECONDS = 300
+
+
+async def _mailbox_poll_loop() -> None:
+    while True:
+        try:
+            await mailbox_sync.sync_all_tenants()
+        except Exception:
+            logger.exception("Error en el loop de sincronización de casillas de correo")
+        await asyncio.sleep(_MAILBOX_POLL_INTERVAL_SECONDS)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await connect_db()
+    poll_task = asyncio.create_task(_mailbox_poll_loop())
     yield
+    poll_task.cancel()
     await disconnect_db()
 
 
@@ -75,6 +96,7 @@ app.include_router(content.router, prefix="/content", tags=["content"])
 app.include_router(integrations.router, prefix="/integrations", tags=["integrations"])
 app.include_router(geocode.router, prefix="/geocode", tags=["geocode"])
 app.include_router(alerts.router, prefix="/alerts", tags=["alerts"])
+app.include_router(mailbox.router, prefix="/mailbox", tags=["mailbox"])
 
 _uploads_dir = Path("./uploads")
 _uploads_dir.mkdir(exist_ok=True)

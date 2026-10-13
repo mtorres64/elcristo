@@ -18,6 +18,14 @@ const EMPTY: EmailIntegration = {
   last_verified_at: null,
   last_verified_ok: null,
   last_verified_message: null,
+  imap_enabled: false,
+  imap_host: null,
+  imap_port: 993,
+  imap_use_ssl: true,
+  imap_last_synced_at: null,
+  imap_last_verified_at: null,
+  imap_last_verified_ok: null,
+  imap_last_verified_message: null,
   updated_at: null,
 };
 
@@ -43,6 +51,12 @@ export function EmailIntegrationCard() {
   const [password, setPassword] = useState("");
   const [testTo, setTestTo] = useState("");
 
+  const [imapEnabled, setImapEnabled] = useState(false);
+  const [imapHost, setImapHost] = useState("");
+  const [imapPort, setImapPort] = useState("993");
+  const [imapUseSsl, setImapUseSsl] = useState(true);
+  const [testingImap, setTestingImap] = useState(false);
+
   function applyData(d: EmailIntegration) {
     setData(d);
     setEnabled(d.enabled);
@@ -53,6 +67,10 @@ export function EmailIntegrationCard() {
     setUseTls(d.use_tls);
     setEditingPassword(!d.password_set);
     setPassword("");
+    setImapEnabled(d.imap_enabled);
+    setImapHost(d.imap_host ?? "");
+    setImapPort(String(d.imap_port ?? 993));
+    setImapUseSsl(d.imap_use_ssl);
   }
 
   useEffect(() => {
@@ -72,6 +90,14 @@ export function EmailIntegrationCard() {
       toast.error("Completá la contraseña SMTP para activar el correo");
       return;
     }
+    if (imapEnabled && !imapHost.trim()) {
+      toast.error("Completá el host IMAP para activar la lectura de correos");
+      return;
+    }
+    if (imapEnabled && editingPassword && !password.trim() && !data.password_set) {
+      toast.error("Falta la contraseña para activar IMAP (es la misma del SMTP)");
+      return;
+    }
     setSaving(true);
     try {
       const updated = await integrationsService.updateEmail({
@@ -82,6 +108,10 @@ export function EmailIntegrationCard() {
         from_email: fromEmail.trim(),
         use_tls: useTls,
         password: editingPassword && password.trim() ? password.trim() : undefined,
+        imap_enabled: imapEnabled,
+        imap_host: imapHost.trim(),
+        imap_port: Number(imapPort) || 993,
+        imap_use_ssl: imapUseSsl,
       });
       applyData(updated);
       toast.success("Integración de correo actualizada");
@@ -107,6 +137,20 @@ export function EmailIntegrationCard() {
       toast.error(errMsg(err, "No se pudo enviar el correo de prueba"));
     } finally {
       setTesting(false);
+    }
+  }
+
+  async function handleTestImap() {
+    setTestingImap(true);
+    try {
+      const result = await integrationsService.testImapConnection();
+      if (result.ok) toast.success(result.message);
+      else toast.error(result.message);
+      applyData(await integrationsService.getEmail());
+    } catch (err: unknown) {
+      toast.error(errMsg(err, "No se pudo probar la conexión IMAP"));
+    } finally {
+      setTestingImap(false);
     }
   }
 
@@ -228,6 +272,88 @@ export function EmailIntegrationCard() {
         >
           {saving ? "Guardando…" : "Guardar cambios"}
         </button>
+      </div>
+
+      <div className="flex flex-col gap-5 pt-3 border-t border-[#F0EDE8]">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h3 className="text-sm font-semibold text-[#1A1A1A]">Lectura de correos (IMAP)</h3>
+            <p className="text-xs text-[#8A8A8A] mt-1">
+              Muestra en "Correos" los mensajes que lleguen a esta misma casilla. Usa el mismo
+              usuario y contraseña configurados arriba.
+            </p>
+          </div>
+          <label className="flex items-center gap-2 shrink-0 cursor-pointer">
+            <span className="text-xs font-medium text-[#4A4A4A]">{imapEnabled ? "Activa" : "Inactiva"}</span>
+            <input
+              type="checkbox"
+              checked={imapEnabled}
+              onChange={(e) => setImapEnabled(e.target.checked)}
+              className="w-9 h-5 rounded-full appearance-none bg-[#E8E2D8] checked:bg-[#1A2B1C] relative transition-colors cursor-pointer
+                before:content-[''] before:absolute before:top-0.5 before:left-0.5 before:w-4 before:h-4 before:rounded-full before:bg-white before:transition-transform
+                checked:before:translate-x-4"
+            />
+          </label>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="sm:col-span-2">
+            <label className={LABEL}>Host IMAP</label>
+            <input
+              value={imapHost}
+              onChange={(e) => setImapHost(e.target.value)}
+              placeholder="imap.gmail.com"
+              className={INPUT}
+            />
+          </div>
+          <div>
+            <label className={LABEL}>Puerto</label>
+            <input
+              value={imapPort}
+              onChange={(e) => setImapPort(e.target.value.replace(/\D/g, ""))}
+              inputMode="numeric"
+              placeholder="993"
+              className={INPUT}
+            />
+          </div>
+        </div>
+
+        <label className="flex items-center gap-2 text-sm text-[#4A4A4A] cursor-pointer">
+          <input
+            type="checkbox"
+            checked={imapUseSsl}
+            onChange={(e) => setImapUseSsl(e.target.checked)}
+            className="w-4 h-4 rounded border-[#E8E2D8] accent-[#1A2B1C]"
+          />
+          Usar SSL/TLS (recomendado para el puerto 993)
+        </label>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={handleTestImap}
+            disabled={testingImap}
+            className="px-4 py-2 border border-[#E8E2D8] text-sm text-[#4A4A4A] bg-white hover:bg-[#F9F8F5] transition-colors rounded-lg disabled:opacity-50 shrink-0"
+          >
+            {testingImap ? "Probando…" : "Probar conexión IMAP"}
+          </button>
+          {data.imap_last_verified_ok !== null && (
+            <span
+              className={`text-xs font-medium px-2.5 py-1 rounded-full ${
+                data.imap_last_verified_ok
+                  ? "bg-[#EAF3EA] text-[#2E5A2E]"
+                  : "bg-[#FEF2F2] text-[#B91C1C]"
+              }`}
+            >
+              {data.imap_last_verified_ok ? "✓ " : "✕ "}
+              {data.imap_last_verified_message}
+            </span>
+          )}
+        </div>
+        <p className="text-[11px] text-[#ABABAB]">
+          La prueba usa la configuración ya guardada y sincroniza ahora mismo. Guardá los cambios
+          antes de probar. Una vez activa, se sincroniza sola cada 5 minutos.
+        </p>
       </div>
 
       <div className="flex flex-col gap-3 pt-3 border-t border-[#F0EDE8]">

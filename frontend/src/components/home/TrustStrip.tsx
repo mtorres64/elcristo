@@ -6,7 +6,7 @@ const ITEMS = [
   },
   {
     icon: <CuotasIcon />,
-    title: "3 y 6 cuotas sin interés",
+    title: "Hasta 3 cuotas",
     desc: "Con tarjetas seleccionadas.",
   },
   {

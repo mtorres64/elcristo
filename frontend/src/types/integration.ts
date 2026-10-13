@@ -68,6 +68,15 @@ export interface EmailIntegration {
   last_verified_at: string | null;
   last_verified_ok: boolean | null;
   last_verified_message: string | null;
+  // IMAP (lectura de la casilla) — comparte usuario/contraseña con el SMTP de arriba.
+  imap_enabled: boolean;
+  imap_host: string | null;
+  imap_port: number;
+  imap_use_ssl: boolean;
+  imap_last_synced_at: string | null;
+  imap_last_verified_at: string | null;
+  imap_last_verified_ok: boolean | null;
+  imap_last_verified_message: string | null;
   updated_at: string | null;
 }
 
@@ -80,4 +89,8 @@ export interface EmailIntegrationInput {
   use_tls: boolean;
   // undefined = mantener la contraseña ya guardada.
   password?: string;
+  imap_enabled: boolean;
+  imap_host: string;
+  imap_port: number;
+  imap_use_ssl: boolean;
 }
