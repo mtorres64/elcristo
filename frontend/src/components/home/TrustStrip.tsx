@@ -1,32 +1,45 @@
-const ITEMS = [
-  {
-    icon: <TruckIcon />,
-    title: "Envíos a todo el país",
-    desc: "Llegamos a donde estés.",
-  },
-  {
-    icon: <CuotasIcon />,
-    title: "Hasta 3 cuotas",
-    desc: "Con tarjetas seleccionadas.",
-  },
-  {
-    icon: <PackageIcon />,
-    title: "Packaging seguro",
-    desc: "Enviamos tus plantas protegidas y cuidadas.",
-  },
-  {
-    icon: <GuaranteeIcon />,
-    title: "Garantía Verde",
-    desc: "Si tu planta no llega bien, te la reemplazamos.",
-  },
-];
+import { useQuery } from "@tanstack/react-query";
+import { storeSettingsService } from "../../services/storeSettings.service";
+
+const DEFAULT_INSTALLMENTS = 3;
+
+function items(installments: number) {
+  return [
+    {
+      icon: <TruckIcon />,
+      title: "Envíos a todo el país",
+      desc: "Llegamos a donde estés.",
+    },
+    {
+      icon: <CuotasIcon />,
+      title: `Hasta ${installments} cuotas`,
+      desc: "Con tarjetas seleccionadas.",
+    },
+    {
+      icon: <PackageIcon />,
+      title: "Packaging seguro",
+      desc: "Enviamos tus plantas protegidas y cuidadas.",
+    },
+    {
+      icon: <GuaranteeIcon />,
+      title: "Garantía Verde",
+      desc: "Si tu planta no llega bien, te la reemplazamos.",
+    },
+  ];
+}
 
 export function TrustStrip() {
+  const { data: shipping } = useQuery({
+    queryKey: ["shipping-settings"],
+    queryFn: () => storeSettingsService.getShipping(),
+    staleTime: 5 * 60 * 1000,
+  });
+
   return (
     <section className="bg-cream border-t border-[#E8E0D4] py-12">
       <div className="max-w-screen-xl mx-auto px-3 sm:px-6">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 lg:divide-x lg:divide-[#E8E0D4]">
-          {ITEMS.map((item) => (
+          {items(shipping?.installments ?? DEFAULT_INSTALLMENTS).map((item) => (
             <div key={item.title} className="flex items-start gap-4 lg:px-8 first:lg:pl-0 last:lg:pr-0">
               <span className="text-[#5A7A5C] shrink-0 mt-0.5">{item.icon}</span>
               <div>

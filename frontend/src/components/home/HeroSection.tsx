@@ -1,10 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { contentService } from "../../services/content.service";
+import { storeSettingsService } from "../../services/storeSettings.service";
 import type { HeroSlide } from "../../types/content";
 import { hexToRgba } from "../../utils/color";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+const DEFAULT_INSTALLMENTS = 3;
 
 function imgSrc(url: string) {
   return url.startsWith("/uploads") ? `${API_BASE}${url}` : url;
@@ -18,6 +21,11 @@ export function HeroSection() {
   const touchStart = useRef<{ x: number; y: number } | null>(null);
   const swiped = useRef(false);
   const navigate = useNavigate();
+  const { data: shipping } = useQuery({
+    queryKey: ["shipping-settings"],
+    queryFn: () => storeSettingsService.getShipping(),
+    staleTime: 5 * 60 * 1000,
+  });
 
   useEffect(() => {
     contentService
@@ -134,7 +142,7 @@ export function HeroSection() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 divide-x divide-[#EAE4DB]">
             <TrustBadge icon={<TruckIcon />} text="Envíos a todo el país" />
             <TrustBadge icon={<ShieldIcon />} text="Compra segura y protegida" />
-            <TrustBadge icon={<CardIcon />} text="Hasta 3 cuotas" />
+            <TrustBadge icon={<CardIcon />} text={`Hasta ${shipping?.installments ?? DEFAULT_INSTALLMENTS} cuotas`} />
             <TrustBadge icon={<LeafIcon />} text="Plantas cuidadas con amor" />
           </div>
         </div>

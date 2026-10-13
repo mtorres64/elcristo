@@ -17,7 +17,7 @@ const SIZES = [
 
 const NO_POT = { id: null as string | null, label: "Sin maceta", extra: 0, image: null as string | null };
 
-const INSTALLMENTS = 3;
+const DEFAULT_INSTALLMENTS = 3;
 
 type SizeId = "pequeña" | "mediana" | "grande";
 
@@ -189,7 +189,7 @@ export function ProductInfo({ product }: { product: ProductDetail }) {
           )}
         </div>
         <p className="text-sm text-[#3D6040]">
-          Pagá hasta en {INSTALLMENTS} cuotas
+          Pagá hasta en {shipping?.installments ?? DEFAULT_INSTALLMENTS} cuotas
         </p>
       </div>
 

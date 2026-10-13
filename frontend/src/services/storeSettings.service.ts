@@ -31,6 +31,10 @@ export interface ShippingSettings {
    * el storefront cae al WhatsApp de Redes sociales si existe. */
   whatsapp_number: string;
   low_stock_note: string;
+  /** Cuotas que se muestran en el storefront (ficha de producto, home). No
+   * define las cuotas reales de la tarjeta — eso lo fija el Getnet Portal,
+   * esto es sólo el texto informativo. */
+  installments: number;
 }
 
 export const storeSettingsService = {

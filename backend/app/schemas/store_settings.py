@@ -47,3 +47,9 @@ class ShippingSettings(BaseModel):
     whatsapp_number: str = ""
     # Cartel opcional sobre disponibilidad de stock para compras grandes.
     low_stock_note: str = ""
+    # Cantidad de cuotas que se muestra en el storefront (ficha de producto,
+    # home). No es un dato de envío, pero vive acá porque reusa este mismo
+    # endpoint público (sin auth) que ya consume el storefront — la cantidad
+    # real de cuotas que ofrece la tarjeta la define Getnet Portal, esto es
+    # sólo el texto informativo que se muestra.
+    installments: int = Field(default=3, ge=1, le=24)

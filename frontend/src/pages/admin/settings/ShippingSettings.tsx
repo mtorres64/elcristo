@@ -303,6 +303,22 @@ export function ShippingSettings() {
           </label>
         </Card>
 
+        {/* Cuotas */}
+        <Card
+          title="Cuotas"
+          hint='Texto informativo que se muestra en la home y en la ficha de producto (ej: "Hasta 3 cuotas"). La cantidad real de cuotas que ofrece la tarjeta se configura aparte, en el Getnet Portal.'
+        >
+          <label className="flex items-center gap-2">
+            <span className="text-sm text-[#4A4A4A]">Hasta</span>
+            <PrefixInput
+              prefix=""
+              suffix="cuotas"
+              value={String(data.installments)}
+              onChange={(v) => patch({ installments: Math.round(Number(v)) || 0 })}
+            />
+          </label>
+        </Card>
+
         {/* Otras localidades */}
         <Card
           title="Otras localidades"
