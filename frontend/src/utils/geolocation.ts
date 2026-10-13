@@ -104,6 +104,15 @@ export interface AddressSearchResult {
   address: GeocodedAddress;
 }
 
+/** Saca el número de puerta de lo que escribió el usuario en el buscador
+ * ("Marcos Paz 2040" -> "2040"), tomando sólo el primer número antes de la
+ * primera coma para no confundirlo con un CP o algo de la localidad si
+ * escribió la dirección completa ("Belgrano 450, San Miguel de Tucumán"). */
+function extractTypedHouseNumber(query: string): string | null {
+  const match = query.split(",")[0].match(/\d+/);
+  return match ? match[0] : null;
+}
+
 /** Autocompletar de direcciones para el buscador arriba del mapa (forward
  * geocoding vía Nominatim `search`, mismo proxy por backend que el reverse). */
 export async function searchAddress(query: string): Promise<AddressSearchResult[]> {
@@ -114,6 +123,13 @@ export async function searchAddress(query: string): Promise<AddressSearchResult[
   const results: Array<{ lat: string; lon: string; display_name: string; address?: Record<string, string> }> =
     res.data ?? [];
 
+  // Fuera del centro de las ciudades, OSM suele no tener cargada la
+  // numeración exacta de una calle: Nominatim devuelve el tramo de calle sin
+  // `house_number` aunque el usuario sí escribió un número en la búsqueda.
+  // En ese caso usamos el número que puso el usuario en vez de perderlo — es
+  // un dato más confiable que la falta de datos de OSM.
+  const typedNumber = extractTypedHouseNumber(q);
+
   return results
     .map((r): AddressSearchResult | null => {
       const addr = r.address ?? {};
@@ -121,7 +137,14 @@ export async function searchAddress(query: string): Promise<AddressSearchResult[
       const lat = parseFloat(r.lat);
       const lng = parseFloat(r.lon);
       if (Number.isNaN(lat) || Number.isNaN(lng)) return null;
-      return { label: r.display_name, address: parseNominatimAddress(addr, lat, lng) };
+      const parsed = parseNominatimAddress(addr, lat, lng);
+      let label = r.display_name;
+      if (!parsed.hasNumber && parsed.street && typedNumber) {
+        parsed.street = `${parsed.street} ${typedNumber}`;
+        parsed.hasNumber = true;
+        label = `${typedNumber}, ${label}`;
+      }
+      return { label, address: parsed };
     })
     .filter((r): r is AddressSearchResult => r !== null);
 }

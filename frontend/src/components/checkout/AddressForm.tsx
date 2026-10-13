@@ -200,31 +200,9 @@ export function AddressForm({ initial, onCancel, onSave, hasExistingAddresses, o
 
       <div>
         <label className={LABEL}>
-          Ubicación en el mapa <span className="text-[#B45309] font-normal">(obligatoria)</span>
+          Dirección <span className="text-[#B45309] font-normal">(obligatoria)</span>
         </label>
-        <div className="mb-2">
-          <AddressSearchBox onSelect={handleSearchSelect} disabled={locating} />
-        </div>
-        <LocationPicker
-          position={lat != null && lng != null ? [lat, lng] : null}
-          onChange={handlePinChange}
-        />
-        <p className={`text-[11px] mt-1.5 ${lat != null ? "text-[#8A8A8A]" : "text-[#B45309]"}`}>
-          {lat != null
-            ? "Arrastrá el pin o tocá el mapa para ajustar el punto exacto de entrega."
-            : "Tocá el mapa para marcar el punto exacto de entrega."}
-        </p>
-      </div>
-
-      <div>
-        <label className={LABEL}>Dirección</label>
-        <input
-          value={street}
-          onChange={(e) => setStreet(e.target.value)}
-          placeholder="Ej: Avenida Manuel Belgrano"
-          className={INPUT}
-          required
-        />
+        <AddressSearchBox value={street} onChange={setStreet} onSelect={handleSearchSelect} disabled={locating} />
         <label className="flex items-center gap-2 mt-2 text-xs text-[#6B6B6B] cursor-pointer">
           <input
             type="checkbox"
@@ -234,6 +212,16 @@ export function AddressForm({ initial, onCancel, onSave, hasExistingAddresses, o
           />
           La calle no tiene número
         </label>
+        <LocationPicker
+          position={lat != null && lng != null ? [lat, lng] : null}
+          onChange={handlePinChange}
+          className="h-64 mt-2"
+        />
+        <p className={`text-[11px] mt-1.5 ${lat != null ? "text-[#8A8A8A]" : "text-[#B45309]"}`}>
+          {lat != null
+            ? "Arrastrá el pin o tocá el mapa para ajustar el punto exacto de entrega."
+            : "Buscá tu dirección arriba o tocá el mapa para marcar el punto exacto de entrega."}
+        </p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

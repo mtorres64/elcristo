@@ -79,11 +79,22 @@ function PinLayer({ position, onChange }: Pick<Props, "position" | "onChange">) 
   );
 }
 
-/** Buscador con autocompletar para ubicar una dirección en el mapa sin
- * depender del GPS ni de tocar el mapa a mano: tipeá, elegí una sugerencia
- * de la lista y el mapa se centra ahí con el pin puesto. */
-export function AddressSearchBox({ onSelect, disabled }: { onSelect: (result: AddressSearchResult) => void; disabled?: boolean }) {
-  const [query, setQuery] = useState("");
+/** Buscador con autocompletar que además ES el campo de dirección: no hay un
+ * input de "Dirección" aparte, para no confundir con dos cuadros para lo
+ * mismo. `value`/`onChange` son la calle tal cual queda en el formulario —
+ * se puede escribir a mano (sin elegir sugerencia) o completar eligiendo un
+ * resultado, que además centra el mapa con el pin puesto. */
+export function AddressSearchBox({
+  value,
+  onChange,
+  onSelect,
+  disabled,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onSelect: (result: AddressSearchResult) => void;
+  disabled?: boolean;
+}) {
   const [results, setResults] = useState<AddressSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
@@ -91,7 +102,7 @@ export function AddressSearchBox({ onSelect, disabled }: { onSelect: (result: Ad
   const requestId = useRef(0);
 
   useEffect(() => {
-    const q = query.trim();
+    const q = value.trim();
     if (q.length < 3) {
       setResults([]);
       setLoading(false);
@@ -112,11 +123,11 @@ export function AddressSearchBox({ onSelect, disabled }: { onSelect: (result: Ad
       }
     }, 400);
     return () => clearTimeout(timer);
-  }, [query]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
 
   function handleSelect(result: AddressSearchResult) {
     onSelect(result);
-    setQuery(result.label);
     setOpen(false);
     setResults([]);
   }
@@ -124,14 +135,15 @@ export function AddressSearchBox({ onSelect, disabled }: { onSelect: (result: Ad
   return (
     <div className="relative">
       <input
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
         onFocus={() => results.length > 0 && setOpen(true)}
         // El blur se dispara antes que el click de la lista; el delay deja
         // que el onClick de la sugerencia se procese primero.
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         disabled={disabled}
-        placeholder="Buscar dirección (ej: Belgrano 450, San Miguel de Tucumán)"
+        placeholder="Ej: Belgrano 450, San Miguel de Tucumán"
+        required
         className="w-full rounded-lg border border-[#E8E2D8] px-3.5 py-2.5 text-sm text-[#1A1A1A] bg-white placeholder-[#ABABAB] focus:outline-none focus:border-[#1A2B1C] transition-colors disabled:opacity-50 disabled:bg-[#F9F8F5]"
       />
       {loading && (
