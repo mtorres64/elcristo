@@ -63,6 +63,15 @@ def _to_detail(doc: dict) -> dict:
     }
 
 
+def _folder_filter(tid: str, folder: str) -> dict:
+    # Los correos sincronizados antes de que existiera la carpeta "Enviados"
+    # no tienen el campo `folder` guardado — todos eran de INBOX, así que
+    # para "inbox" también matcheamos los que no lo tienen.
+    if folder == "inbox":
+        return {"tenant_id": tid, "$or": [{"folder": "inbox"}, {"folder": {"$exists": False}}]}
+    return {"tenant_id": tid, "folder": folder}
+
+
 @router.get("/emails", response_model=MailboxEmailListOut)
 async def list_emails(
     request: Request,
@@ -73,11 +82,11 @@ async def list_emails(
     _require_seller_or_admin(request)
     db = get_db()
     tid = _tenant_id(request)
-    filt = {"tenant_id": tid, "folder": folder}
+    filt = _folder_filter(tid, folder)
 
     total = await db.inbox_emails.count_documents(filt)
     unread_count = await db.inbox_emails.count_documents(
-        {"tenant_id": tid, "folder": "inbox", "is_read": False}
+        {**_folder_filter(tid, "inbox"), "is_read": False}
     )
     cursor = (
         db.inbox_emails.find(filt)
@@ -94,7 +103,7 @@ async def unread_count(request: Request):
     _require_seller_or_admin(request)
     db = get_db()
     count = await db.inbox_emails.count_documents(
-        {"tenant_id": _tenant_id(request), "folder": "inbox", "is_read": False}
+        {**_folder_filter(_tenant_id(request), "inbox"), "is_read": False}
     )
     return {"count": count}
 
