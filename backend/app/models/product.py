@@ -37,6 +37,7 @@ class ProductDocument(BaseModel):
     tax: Literal["iva-21", "iva-10", "exento"] = "iva-21"
     category_id: str | None = None
     images: list[str] = []
+    image_fit: dict[str, Literal["contain"]] = {}  # url -> modo de visualización ("ajustar"); ausente = recorte normal (actual)
     stock: int = 0                                 # Ignorado para combos: se calcula de sus componentes
     sku: str | None = None
     status: Literal["draft", "active", "paused", "out_of_stock"] = "draft"

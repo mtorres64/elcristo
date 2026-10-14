@@ -4,6 +4,7 @@ import { ImageSourceSheet, useIsTouchDevice } from "../../components/admin/Image
 import { AdminLayout } from "../../components/admin/AdminLayout";
 import { PotPicker } from "../../components/admin/PotPicker";
 import { ImageSuggestionModal } from "../../components/admin/ImageSuggestionModal";
+import { ProductImageFrame } from "../../components/product/ProductImageFrame";
 import { productService } from "../../services/product.service";
 import { storeSettingsService } from "../../services/storeSettings.service";
 import { useCategories } from "../../hooks/useCategories";
@@ -117,6 +118,13 @@ export function ProductEdit() {
   const [recommendedPotIds, setRecommendedPotIds] = useState<string[]>([]);
   const [coverIndex, setCoverIndex] = useState(0);
   const [images, setImages] = useState<string[]>([]);
+  // "Ajustar": imágenes (ya subidas, por url) o pendientes (por índice, antes
+  // de crear el producto) marcadas para mostrarse completas en el cuadro 1:1
+  // en vez de recortadas. Sólo tiene sentido ofrecerlo para fotos que no son
+  // 1:1 — ver `isSquare` en ProductImageUploader, calculado a partir de las
+  // dimensiones naturales que se leen al cargar cada miniatura.
+  const [imageFit, setImageFit] = useState<Record<string, "contain">>({});
+  const [pendingFit, setPendingFit] = useState<Record<number, "contain">>({});
   const [uploadingCount, setUploadingCount] = useState(0);
   const [suggestModalOpen, setSuggestModalOpen] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
@@ -180,6 +188,7 @@ export function ProductEdit() {
         setGrowth(p.attributes?.growth ?? p.attributes?.crecimiento ?? "Medio");
         setRecommendedPotIds(p.recommended_pot_ids ?? []);
         setImages(p.images ?? []);
+        setImageFit(p.image_fit ?? {});
         const nextColorActive: Record<string, boolean> = {};
         const nextColorStock: Record<string, number> = {};
         for (const v of p.variants ?? []) {
@@ -246,11 +255,45 @@ export function ProductEdit() {
   function removeImage(i: number) {
     if (!productId) {
       setPendingFiles((prev) => prev.filter((_, idx) => idx !== i));
+      setPendingFit((prev) => {
+        const next: Record<number, "contain"> = {};
+        for (const [key, mode] of Object.entries(prev)) {
+          const idx = Number(key);
+          if (idx === i) continue;
+          next[idx > i ? idx - 1 : idx] = mode;
+        }
+        return next;
+      });
     } else {
+      const removedUrl = images[i];
       setImages((prev) => prev.filter((_, idx) => idx !== i));
+      setImageFit((prev) => {
+        if (!(removedUrl in prev)) return prev;
+        const next = { ...prev };
+        delete next[removedUrl];
+        return next;
+      });
     }
     if (coverIndex === i) setCoverIndex(0);
     else if (coverIndex > i) setCoverIndex((c) => c - 1);
+  }
+
+  function toggleImageFit(key: string | number) {
+    if (typeof key === "string") {
+      setImageFit((prev) => {
+        const next = { ...prev };
+        if (next[key] === "contain") delete next[key];
+        else next[key] = "contain";
+        return next;
+      });
+    } else {
+      setPendingFit((prev) => {
+        const next = { ...prev };
+        if (next[key] === "contain") delete next[key];
+        else next[key] = "contain";
+        return next;
+      });
+    }
   }
 
   async function handleFiles(files: FileList | File[]) {
@@ -393,12 +436,23 @@ export function ProductEdit() {
         const ordered = coverIndex === 0
           ? pendingFiles
           : [pendingFiles[coverIndex], ...pendingFiles.filter((_, i) => i !== coverIndex)];
-        await Promise.all(
+        const uploaded = await Promise.all(
           ordered.map(async (file) => {
-            try { await productService.uploadImage(newId, file); }
-            catch { toast.error(`No se pudo subir ${file.name}`); }
+            try { return { file, url: await productService.uploadImage(newId, file) }; }
+            catch { toast.error(`No se pudo subir ${file.name}`); return null; }
           })
         );
+        const fitEntries: Record<string, "contain"> = {};
+        for (const item of uploaded) {
+          if (!item) continue;
+          const originalIndex = pendingFiles.indexOf(item.file);
+          if (originalIndex !== -1 && pendingFit[originalIndex] === "contain") {
+            fitEntries[item.url] = "contain";
+          }
+        }
+        if (Object.keys(fitEntries).length > 0) {
+          await productService.updateById(newId, { image_fit: fitEntries });
+        }
       }
       if (publish) await productService.updateById(newId, { status: "active" });
       toast.success(publish ? "Producto publicado" : "Borrador guardado");
@@ -436,6 +490,7 @@ export function ProductEdit() {
         images: coverIndex === 0
           ? images
           : [images[coverIndex], ...images.filter((_, i) => i !== coverIndex)],
+        image_fit: imageFit,
         care: buildCare(),
         attributes: buildAttributes(),
         variants: buildVariants(),
@@ -949,6 +1004,9 @@ export function ProductEdit() {
                       coverIndex={coverIndex}
                       onSelectCover={setCoverIndex}
                       onRemove={removeImage}
+                      imageFit={imageFit}
+                      pendingFit={pendingFit}
+                      onToggleFit={toggleImageFit}
                       apiBase={API_BASE}
                       onSuggest={() => setSuggestModalOpen(true)}
                     />
@@ -962,6 +1020,8 @@ export function ProductEdit() {
                       images={images}
                       pendingFiles={pendingFiles}
                       coverIndex={coverIndex}
+                      imageFit={imageFit}
+                      pendingFit={pendingFit}
                       apiBase={API_BASE}
                       name={name}
                       plantType={plantType}
@@ -992,6 +1052,9 @@ export function ProductEdit() {
                 coverIndex={coverIndex}
                 onSelectCover={setCoverIndex}
                 onRemove={removeImage}
+                imageFit={imageFit}
+                pendingFit={pendingFit}
+                onToggleFit={toggleImageFit}
                 apiBase={API_BASE}
                 onSuggest={() => setSuggestModalOpen(true)}
               />
@@ -1004,6 +1067,8 @@ export function ProductEdit() {
                 images={images}
                 pendingFiles={pendingFiles}
                 coverIndex={coverIndex}
+                imageFit={imageFit}
+                pendingFit={pendingFit}
                 apiBase={API_BASE}
                 name={name}
                 plantType={plantType}
@@ -1081,6 +1146,8 @@ function ProductPreviewCard({
   images,
   pendingFiles,
   coverIndex,
+  imageFit,
+  pendingFit,
   apiBase,
   name,
   plantType,
@@ -1094,6 +1161,8 @@ function ProductPreviewCard({
   images: string[];
   pendingFiles: File[];
   coverIndex: number;
+  imageFit: Record<string, "contain">;
+  pendingFit: Record<number, "contain">;
   apiBase: string;
   name: string;
   plantType: string;
@@ -1126,16 +1195,18 @@ function ProductPreviewCard({
       <div className="border border-[#E8E2D8] rounded-lg overflow-hidden">
         <div className="aspect-[4/3] bg-gradient-to-br from-[#C8D8C0] to-[#A8BCA0] flex items-center justify-center overflow-hidden">
           {productId && images[coverIndex] ? (
-            <img
+            <ProductImageFrame
               src={images[coverIndex].startsWith("/uploads") ? `${apiBase}${images[coverIndex]}` : images[coverIndex]}
               alt="Portada"
-              className="w-full h-full object-cover"
+              fit={imageFit[images[coverIndex]]}
+              className="w-full h-full"
             />
           ) : !productId && pendingFiles[coverIndex] ? (
-            <img
+            <ProductImageFrame
               src={URL.createObjectURL(pendingFiles[coverIndex])}
               alt="Portada"
-              className="w-full h-full object-cover"
+              fit={pendingFit[coverIndex]}
+              className="w-full h-full"
             />
           ) : (
             <PlantPreviewIcon />
@@ -1189,6 +1260,9 @@ function ProductImageUploader({
   coverIndex,
   onSelectCover,
   onRemove,
+  imageFit,
+  pendingFit,
+  onToggleFit,
   apiBase,
   onSuggest,
 }: {
@@ -1201,6 +1275,9 @@ function ProductImageUploader({
   coverIndex: number;
   onSelectCover: (i: number) => void;
   onRemove: (i: number) => void;
+  imageFit: Record<string, "contain">;
+  pendingFit: Record<number, "contain">;
+  onToggleFit: (key: string | number) => void;
   apiBase: string;
   onSuggest: () => void;
 }) {
@@ -1208,7 +1285,18 @@ function ProductImageUploader({
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const isTouch = useIsTouchDevice();
   const [sourceOpen, setSourceOpen] = useState(false);
+  // Dimensiones naturales de cada foto, leídas al cargarla — sólo sirven
+  // para decidir si mostrar el control "Ajustar" (no tiene sentido para
+  // fotos que ya son 1:1). Claves: la url para fotos subidas, "pending-N"
+  // para las que todavía son archivos locales sin subir.
+  const [dims, setDims] = useState<Record<string, { width: number; height: number }>>({});
   const items = productId ? images : pendingFiles;
+
+  function isSquare(key: string) {
+    const d = dims[key];
+    if (!d) return true; // hasta medirla no se muestra el control, evita parpadeo
+    return Math.abs(d.width / d.height - 1) < 0.04;
+  }
 
   return (
     <>
@@ -1286,47 +1374,90 @@ function ProductImageUploader({
       {items.length > 0 && (
         <div className="grid grid-cols-4 gap-1.5 mb-2">
           {productId
-            ? images.map((url, i) => (
-                <div key={url} className="relative group">
-                  <div
-                    className="aspect-square bg-[#F0EDE8] rounded-lg overflow-hidden cursor-pointer"
-                    onClick={() => onSelectCover(i)}
-                  >
-                    <img
-                      src={url.startsWith("/uploads") ? `${apiBase}${url}` : url}
-                      alt=""
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  {i === coverIndex && (
-                    <span className="absolute bottom-0 left-0 right-0 bg-[#1A2B1C] text-white text-[8px] font-bold text-center py-0.5">
-                      Portada
-                    </span>
-                  )}
-                  <button
-                    onClick={() => onRemove(i)}
-                    className="absolute top-0.5 right-0.5 w-4 h-4 bg-white border border-[#E8E2D8] text-[#6B6B6B] hover:text-[#DC2626] text-[10px] leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                    aria-label="Quitar imagen"
-                  >
-                    ×
-                  </button>
-                </div>
-              ))
-            : pendingFiles.map((file, i) => {
-                const src = URL.createObjectURL(file);
+            ? images.map((url, i) => {
+                const src = url.startsWith("/uploads") ? `${apiBase}${url}` : url;
+                const fit = imageFit[url];
+                const square = isSquare(url);
                 return (
-                  <div key={i} className="relative group">
-                    <img
-                      src={src}
-                      alt={file.name}
-                      onLoad={() => URL.revokeObjectURL(src)}
-                      className="aspect-square w-full object-cover rounded-lg cursor-pointer"
+                  <div key={url} className="relative group">
+                    <div
+                      className="aspect-square bg-[#F0EDE8] rounded-lg overflow-hidden cursor-pointer"
                       onClick={() => onSelectCover(i)}
-                    />
+                    >
+                      <ProductImageFrame
+                        src={src}
+                        alt=""
+                        fit={fit}
+                        className="w-full h-full"
+                        onLoadDims={(d) => setDims((prev) => (prev[url] ? prev : { ...prev, [url]: d }))}
+                      />
+                    </div>
                     {i === coverIndex && (
                       <span className="absolute bottom-0 left-0 right-0 bg-[#1A2B1C] text-white text-[8px] font-bold text-center py-0.5">
                         Portada
                       </span>
+                    )}
+                    {!square && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); onToggleFit(url); }}
+                        className={`absolute top-0.5 left-0.5 px-1 py-0.5 rounded text-[8px] font-bold leading-none transition-opacity ${
+                          fit === "contain"
+                            ? "bg-[#1A2B1C] text-white opacity-100"
+                            : "bg-white/90 text-[#6B6B6B] border border-[#E8E2D8] opacity-0 group-hover:opacity-100"
+                        }`}
+                        aria-label="Mostrar la foto completa, sin recortar"
+                      >
+                        Ajustar
+                      </button>
+                    )}
+                    <button
+                      onClick={() => onRemove(i)}
+                      className="absolute top-0.5 right-0.5 w-4 h-4 bg-white border border-[#E8E2D8] text-[#6B6B6B] hover:text-[#DC2626] text-[10px] leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      aria-label="Quitar imagen"
+                    >
+                      ×
+                    </button>
+                  </div>
+                );
+              })
+            : pendingFiles.map((file, i) => {
+                const src = URL.createObjectURL(file);
+                const key = `pending-${i}`;
+                const fit = pendingFit[i];
+                const square = isSquare(key);
+                return (
+                  <div key={i} className="relative group">
+                    <div
+                      className="aspect-square bg-[#F0EDE8] rounded-lg overflow-hidden cursor-pointer"
+                      onClick={() => onSelectCover(i)}
+                    >
+                      <ProductImageFrame
+                        src={src}
+                        alt={file.name}
+                        fit={fit}
+                        className="w-full h-full"
+                        onLoadDims={(d) => setDims((prev) => (prev[key] ? prev : { ...prev, [key]: d }))}
+                      />
+                    </div>
+                    {i === coverIndex && (
+                      <span className="absolute bottom-0 left-0 right-0 bg-[#1A2B1C] text-white text-[8px] font-bold text-center py-0.5">
+                        Portada
+                      </span>
+                    )}
+                    {!square && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); onToggleFit(i); }}
+                        className={`absolute top-0.5 left-0.5 px-1 py-0.5 rounded text-[8px] font-bold leading-none transition-opacity ${
+                          fit === "contain"
+                            ? "bg-[#1A2B1C] text-white opacity-100"
+                            : "bg-white/90 text-[#6B6B6B] border border-[#E8E2D8] opacity-0 group-hover:opacity-100"
+                        }`}
+                        aria-label="Mostrar la foto completa, sin recortar"
+                      >
+                        Ajustar
+                      </button>
                     )}
                     <button
                       onClick={() => onRemove(i)}

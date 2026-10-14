@@ -38,6 +38,10 @@ export interface ProductSummary {
   cost_price: number | null;
   currency: string;
   image_url: string | null;
+  /** URL -> "contain": imágenes marcadas como "ajustar" (se muestran completas,
+   * con una copia de fondo recortada y oscurecida, en vez de recortarse). Las
+   * imágenes que no aparecen acá siguen mostrándose recortadas como siempre. */
+  image_fit: Record<string, "contain">;
   is_featured: boolean;
   rating_avg: number | null;
   rating_count: number;

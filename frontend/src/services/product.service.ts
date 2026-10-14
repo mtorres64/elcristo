@@ -106,6 +106,7 @@ export const productService = {
       height_cm?: number | null;
       tags?: string[];
       images?: string[];
+      image_fit?: Record<string, "contain">;
       care?: Record<string, string>;
       attributes?: Record<string, string>;
       variants?: Partial<ProductVariant>[];

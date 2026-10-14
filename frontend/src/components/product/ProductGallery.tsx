@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ProductImageFrame } from "./ProductImageFrame";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
@@ -18,7 +19,15 @@ const THUMB_SIZE = 80;   // w-20
 const THUMB_GAP  = 8;    // gap-2
 const VISIBLE    = 5;
 
-export function ProductGallery({ discount, images }: { discount: number; images: string[] }) {
+export function ProductGallery({
+  discount,
+  images,
+  imageFit = {},
+}: {
+  discount: number;
+  images: string[];
+  imageFit?: Record<string, "contain">;
+}) {
   const [selected, setSelected]     = useState(0);
   const [carouselStart, setCarouselStart] = useState(0);
 
@@ -54,10 +63,11 @@ export function ProductGallery({ discount, images }: { discount: number; images:
           </div>
         )}
         {hasImages ? (
-          <img
+          <ProductImageFrame
             src={resolveUrl(images[selected])}
             alt="Imagen del producto"
-            className="w-full aspect-square object-cover"
+            fit={imageFit[images[selected]]}
+            className="w-full aspect-square"
           />
         ) : (
           <div
@@ -100,10 +110,11 @@ export function ProductGallery({ discount, images }: { discount: number; images:
                     }`}
                     aria-label={`Ver imagen ${i + 1}`}
                   >
-                    <img
+                    <ProductImageFrame
                       src={resolveUrl(url)}
                       alt={`Miniatura ${i + 1}`}
-                      className="w-full h-full object-cover"
+                      fit={imageFit[url]}
+                      className="w-full h-full"
                     />
                   </button>
                 ))

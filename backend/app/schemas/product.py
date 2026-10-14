@@ -70,6 +70,7 @@ class ProductUpdate(BaseModel):
     care: dict[str, str] | None = None
     attributes: dict[str, str] | None = None
     images: list[str] | None = None
+    image_fit: dict[str, Literal["contain"]] | None = None
     variants: list[VariantSchema] | None = None
     recommended_pot_ids: list[str] | None = None
     product_type: Literal["simple", "combo"] | None = None
@@ -87,6 +88,7 @@ class ProductSummary(BaseModel):
     cost_price: int | None = None
     currency: str = "ARS"
     image_url: str | None = None
+    image_fit: dict[str, Literal["contain"]] = {}
     is_featured: bool = False
     rating_avg: float | None = None
     rating_count: int

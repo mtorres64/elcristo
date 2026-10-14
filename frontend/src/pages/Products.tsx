@@ -8,6 +8,7 @@ import { productService } from "../services/product.service";
 import { useCategories } from "../hooks/useCategories";
 import { useCart } from "../hooks/useCart";
 import { ComboBadge } from "../components/product/ComboBadge";
+import { ProductImageFrame } from "../components/product/ProductImageFrame";
 import { CATEGORY_GROUPS, CATEGORY_GROUP_LABEL, type CategoryGroup } from "../types/category";
 import type { ProductSummary } from "../types/product";
 
@@ -391,10 +392,11 @@ function ProductCard({ product, colorIndex }: { product: ProductSummary; colorIn
         className={`w-full aspect-square bg-gradient-to-br ${bg} mb-3 relative overflow-hidden rounded-lg`}
       >
         {product.image_url ? (
-          <img
+          <ProductImageFrame
             src={resolveUrl(product.image_url)}
             alt={product.title}
-            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+            fit={product.image_fit?.[product.image_url]}
+            className="w-full h-full transition-transform duration-500 group-hover:scale-105"
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">

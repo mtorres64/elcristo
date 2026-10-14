@@ -54,6 +54,7 @@ def _to_summary(doc: dict, *, stock_override: int | None = None) -> dict:
         "cost_price": doc.get("cost_price"),
         "currency": doc.get("currency", "ARS"),
         "image_url": doc["images"][0] if doc.get("images") else None,
+        "image_fit": doc.get("image_fit", {}),
         "is_featured": doc.get("is_featured", False),
         "rating_avg": doc.get("rating_avg"),
         "rating_count": doc.get("rating_count", 0),
@@ -368,6 +369,7 @@ async def create_product(body: ProductCreate, request: Request):
         "is_featured": body.is_featured,
         "status": "draft",
         "images": [],
+        "image_fit": {},
         "variants": [v.model_dump() for v in body.variants],
         "recommended_pot_ids": body.recommended_pot_ids,
         "product_type": body.product_type,
@@ -575,6 +577,13 @@ async def update_product(product_id: str, body: ProductUpdate, request: Request)
         await _validate_combo_items(db, effective_combo_items)
 
     updates["updated_at"] = datetime.now(UTC)
+
+    # Si cambia la lista de imágenes, el mapa de "ajustar" (image_fit) se
+    # poda para no acumular entradas de URLs que ya no están entre las
+    # imágenes del producto (quedarían huérfanas y sin efecto).
+    if "images" in updates:
+        base_fit = updates.get("image_fit", old_doc.get("image_fit", {}))
+        updates["image_fit"] = {url: mode for url, mode in base_fit.items() if url in updates["images"]}
 
     await db.products.update_one(f, {"$set": updates})
 
