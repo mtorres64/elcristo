@@ -1372,7 +1372,7 @@ function ProductImageUploader({
 
       {/* Thumbnails */}
       {items.length > 0 && (
-        <div className="grid grid-cols-4 gap-1.5 mb-2">
+        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 sm:gap-1.5 mb-2">
           {productId
             ? images.map((url, i) => {
                 const src = url.startsWith("/uploads") ? `${apiBase}${url}` : url;
@@ -1404,7 +1404,7 @@ function ProductImageUploader({
                         className={`absolute top-0.5 left-0.5 px-1 py-0.5 rounded text-[8px] font-bold leading-none transition-opacity ${
                           fit === "contain"
                             ? "bg-[#1A2B1C] text-white opacity-100"
-                            : "bg-white/90 text-[#6B6B6B] border border-[#E8E2D8] opacity-0 group-hover:opacity-100"
+                            : "bg-white/90 text-[#6B6B6B] border border-[#E8E2D8] opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
                         }`}
                         aria-label="Mostrar la foto completa, sin recortar"
                       >
@@ -1413,7 +1413,7 @@ function ProductImageUploader({
                     )}
                     <button
                       onClick={() => onRemove(i)}
-                      className="absolute top-0.5 right-0.5 w-4 h-4 bg-white border border-[#E8E2D8] text-[#6B6B6B] hover:text-[#DC2626] text-[10px] leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="absolute top-0.5 right-0.5 w-4 h-4 bg-white border border-[#E8E2D8] text-[#6B6B6B] hover:text-[#DC2626] text-[10px] leading-none flex items-center justify-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
                       aria-label="Quitar imagen"
                     >
                       ×
@@ -1452,7 +1452,7 @@ function ProductImageUploader({
                         className={`absolute top-0.5 left-0.5 px-1 py-0.5 rounded text-[8px] font-bold leading-none transition-opacity ${
                           fit === "contain"
                             ? "bg-[#1A2B1C] text-white opacity-100"
-                            : "bg-white/90 text-[#6B6B6B] border border-[#E8E2D8] opacity-0 group-hover:opacity-100"
+                            : "bg-white/90 text-[#6B6B6B] border border-[#E8E2D8] opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
                         }`}
                         aria-label="Mostrar la foto completa, sin recortar"
                       >
@@ -1461,7 +1461,7 @@ function ProductImageUploader({
                     )}
                     <button
                       onClick={() => onRemove(i)}
-                      className="absolute top-0.5 right-0.5 w-4 h-4 bg-white border border-[#E8E2D8] text-[#6B6B6B] hover:text-[#DC2626] text-[10px] leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="absolute top-0.5 right-0.5 w-4 h-4 bg-white border border-[#E8E2D8] text-[#6B6B6B] hover:text-[#DC2626] text-[10px] leading-none flex items-center justify-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
                       aria-label="Quitar imagen"
                     >
                       ×
