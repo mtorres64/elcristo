@@ -72,13 +72,17 @@ export function OrderConfirmation() {
 
           <div className="rounded-lg border border-[#E8E2D8] bg-white p-5">
             <p className="text-xs font-semibold uppercase tracking-wide text-[#8A8A8A] mb-1.5">Envío a</p>
-            <p className="text-sm text-[#4A4A4A]">
-              {order.shipping_address.street} {order.shipping_address.no_number ? "(sin número)" : ""},{" "}
-              {order.shipping_address.locality}, {order.shipping_address.province}
-              <br />
-              {order.shipping_address.full_name} · {order.shipping_address.phone_country_code}{" "}
-              {order.shipping_address.phone}
-            </p>
+            {order.shipping_address ? (
+              <p className="text-sm text-[#4A4A4A]">
+                {order.shipping_address.street} {order.shipping_address.no_number ? "(sin número)" : ""},{" "}
+                {order.shipping_address.locality}, {order.shipping_address.province}
+                <br />
+                {order.shipping_address.full_name} · {order.shipping_address.phone_country_code}{" "}
+                {order.shipping_address.phone}
+              </p>
+            ) : (
+              <p className="text-sm text-[#4A4A4A]">Retira en el local</p>
+            )}
           </div>
 
           <Link to="/products" className="btn-primary w-full text-center">

@@ -183,21 +183,27 @@ export function MyOrderDetail() {
                   <p className="text-xs font-semibold text-[#6B6B6B] uppercase tracking-wider mb-2">
                     Envío a
                   </p>
-                  <p className="text-sm text-[#1A1A1A]">
-                    {order.shipping_address.street}{" "}
-                    {order.shipping_address.no_number ? "(sin número)" : ""}
-                  </p>
-                  <p className="text-sm text-[#4A4A4A]">
-                    {order.shipping_address.locality}, {order.shipping_address.province}
-                    {order.shipping_address.zip ? ` (CP ${order.shipping_address.zip})` : ""}
-                  </p>
-                  {order.shipping_address.department && (
-                    <p className="text-sm text-[#4A4A4A]">Depto/Piso: {order.shipping_address.department}</p>
+                  {order.shipping_address ? (
+                    <>
+                      <p className="text-sm text-[#1A1A1A]">
+                        {order.shipping_address.street}{" "}
+                        {order.shipping_address.no_number ? "(sin número)" : ""}
+                      </p>
+                      <p className="text-sm text-[#4A4A4A]">
+                        {order.shipping_address.locality}, {order.shipping_address.province}
+                        {order.shipping_address.zip ? ` (CP ${order.shipping_address.zip})` : ""}
+                      </p>
+                      {order.shipping_address.department && (
+                        <p className="text-sm text-[#4A4A4A]">Depto/Piso: {order.shipping_address.department}</p>
+                      )}
+                      <p className="text-xs text-[#8A8A8A] mt-2">
+                        {order.shipping_address.full_name} · {order.shipping_address.phone_country_code}{" "}
+                        {order.shipping_address.phone}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-sm text-[#1A1A1A]">Retira en el local</p>
                   )}
-                  <p className="text-xs text-[#8A8A8A] mt-2">
-                    {order.shipping_address.full_name} · {order.shipping_address.phone_country_code}{" "}
-                    {order.shipping_address.phone}
-                  </p>
                 </div>
 
                 <div className="rounded-lg border border-[#E8E2D8] bg-white p-4">

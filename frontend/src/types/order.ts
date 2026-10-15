@@ -24,6 +24,29 @@ export const PAID_ORDER_STATUSES = new Set<OrderStatus>([
   "paid", "preparing", "shipped", "delivered",
 ]);
 
+export type OrderChannel = "online" | "pos";
+
+export const CHANNEL_LABEL: Record<OrderChannel, string> = {
+  online: "Web",
+  pos: "Venta en el local",
+};
+
+export type PosPaymentMethod = "efectivo" | "debito" | "credito" | "transferencia" | "otro";
+
+export const POS_PAYMENT_METHOD_LABEL: Record<PosPaymentMethod, string> = {
+  efectivo: "Efectivo",
+  debito: "Débito",
+  credito: "Crédito",
+  transferencia: "Transferencia",
+  otro: "Otro",
+};
+
+export interface OrderPaymentSplit {
+  method: PosPaymentMethod;
+  amount: number;
+  installments: number | null;
+}
+
 export interface OrderItem {
   product_id: string;
   title: string;
@@ -66,9 +89,10 @@ export interface OrderSummary {
   order_id: string;
   order_number: string;
   tenant_id: string;
-  buyer_id: string;
+  buyer_id: string | null;
   buyer_name: string;
-  buyer_email: string;
+  buyer_email: string | null;
+  channel: OrderChannel;
   status: OrderStatus;
   item_count: number;
   total: number;
@@ -82,8 +106,11 @@ export interface Order extends OrderSummary {
   discount: number;
   pickup: boolean;
   shipping_zone_name: string | null;
-  shipping_address: OrderAddress;
+  shipping_address: OrderAddress | null;
   payment: OrderPayment;
+  payments: OrderPaymentSplit[];
+  guest_name: string | null;
+  guest_phone: string | null;
   tracking_number: string | null;
   notes: string | null;
   updated_at: string;

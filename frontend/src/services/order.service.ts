@@ -1,5 +1,5 @@
 import { api } from "./api";
-import type { Order, OrderStatus, OrderStatusUpdateResult, OrderSummary } from "../types/order";
+import type { Order, OrderStatus, OrderStatusUpdateResult, OrderSummary, PosPaymentMethod } from "../types/order";
 import type { AddressInput } from "../types/address";
 
 interface PaginatedOrders {
@@ -33,6 +33,26 @@ interface CreateOrderData {
   notes?: string | null;
 }
 
+interface CreatePosPaymentItem {
+  method: PosPaymentMethod;
+  amount: number;
+  installments?: number | null;
+}
+
+export interface CreatePosSaleData {
+  items: CreateOrderItem[];
+  buyer_id?: string | null;
+  guest_name?: string | null;
+  guest_phone?: string | null;
+  pickup: boolean;
+  shipping_zone_id?: string | null;
+  shipping_address?: AddressInput;
+  discount_type: "none" | "flat" | "percent";
+  discount_value: number;
+  payments: CreatePosPaymentItem[];
+  notes?: string | null;
+}
+
 interface ListOrdersParams {
   status?: string;
   q?: string;
@@ -49,6 +69,14 @@ export const orderService = {
    * "paid" cuando llega el webhook — nunca en esta misma request. */
   async create(data: CreateOrderData): Promise<{ order_id: string; order_number: string; status: OrderStatus; total: number; checkout_url: string }> {
     const res = await api.post("/orders", data);
+    return res.data;
+  },
+
+  /** Venta registrada en el local (punto de venta): a diferencia de `create`,
+   * nunca pasa por Getnet — el pedido nace `paid` directamente porque el
+   * cobro ya se hizo in situ (efectivo, posnet físico, transferencia, etc.). */
+  async createPosSale(data: CreatePosSaleData): Promise<{ order_id: string; order_number: string; status: OrderStatus; total: number }> {
+    const res = await api.post("/orders/pos", data);
     return res.data;
   },
 

@@ -3,11 +3,12 @@ import { Link } from "react-router-dom";
 import { AdminLayout } from "../../components/admin/AdminLayout";
 import { orderService } from "../../services/order.service";
 import { useAuth } from "../../hooks/useAuth";
-import { ORDER_STATUS_LABEL } from "../../types/order";
+import { ORDER_STATUS_LABEL, CHANNEL_LABEL } from "../../types/order";
 import type { OrderStatus, OrderSummary } from "../../types/order";
 import { formatARS } from "../../utils/currency";
 import { usePageSize } from "../../hooks/usePageSize";
 import { PageSizeSelect } from "../../components/admin/PageSizeSelect";
+import { NewSaleModal } from "../../components/admin/NewSaleModal";
 
 const INPUT =
   "rounded-lg border border-[#E8E2D8] px-3 py-2 text-sm text-[#1A1A1A] bg-white placeholder-[#ABABAB] focus:outline-none focus:border-[#1A2B1C] transition-colors";
@@ -106,7 +107,14 @@ function OrderCardMobile({ order }: { order: OrderSummary }) {
       <button onClick={() => setExpanded((e) => !e)} className="w-full flex items-start gap-3 px-4 py-3.5 text-left">
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-[#1A2B1C] mb-0.5">{order.order_number}</p>
-          <p className="text-sm text-[#1A1A1A] truncate">{order.buyer_name}</p>
+          <p className="text-sm text-[#1A1A1A] truncate flex items-center gap-1.5">
+            {order.buyer_name}
+            {order.channel === "pos" && (
+              <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-[#F0EDE8] text-[#6B6B6B] shrink-0">
+                {CHANNEL_LABEL.pos}
+              </span>
+            )}
+          </p>
           <p className="text-xs text-[#ABABAB] truncate">{order.buyer_email}</p>
         </div>
         <div className="flex flex-col items-end gap-1.5 shrink-0">
@@ -212,6 +220,8 @@ export function OrderList() {
   const [pages, setPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [saleModalOpen, setSaleModalOpen] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQ(q), 400);
@@ -252,7 +262,7 @@ export function OrderList() {
       });
 
     return () => { cancelled = true; };
-  }, [debouncedQ, statusFilter, sort, page, pageSize, user?.tenant_id]);
+  }, [debouncedQ, statusFilter, sort, page, pageSize, user?.tenant_id, reloadKey]);
 
   const hasFilters = !!(q || statusFilter || sort !== "newest");
   const activeFilterCount = [q, statusFilter, sort !== "newest" ? sort : ""].filter(Boolean).length;
@@ -280,6 +290,9 @@ export function OrderList() {
               {loading ? "Cargando..." : `${total} pedido${total !== 1 ? "s" : ""}`}
             </p>
           </div>
+          <button onClick={() => setSaleModalOpen(true)} className="btn-primary shrink-0">
+            Nueva venta
+          </button>
         </div>
 
         {/* Filter toggle (mobile only) */}
@@ -373,7 +386,14 @@ export function OrderList() {
                         </Link>
                       </td>
                       <td className="px-4 py-3">
-                        <p className="text-sm text-[#1A1A1A]">{order.buyer_name}</p>
+                        <p className="text-sm text-[#1A1A1A] flex items-center gap-1.5">
+                          {order.buyer_name}
+                          {order.channel === "pos" && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-[#F0EDE8] text-[#6B6B6B]">
+                              {CHANNEL_LABEL.pos}
+                            </span>
+                          )}
+                        </p>
                         <p className="text-xs text-[#ABABAB]">{order.buyer_email}</p>
                       </td>
                       <td className="px-4 py-3 text-sm text-[#6B6B6B]">{order.item_count}</td>
@@ -412,6 +432,16 @@ export function OrderList() {
           )}
         </div>
       </div>
+
+      {saleModalOpen && (
+        <NewSaleModal
+          onClose={() => setSaleModalOpen(false)}
+          onCreated={() => {
+            setSaleModalOpen(false);
+            setReloadKey((k) => k + 1);
+          }}
+        />
+      )}
     </AdminLayout>
   );
 }

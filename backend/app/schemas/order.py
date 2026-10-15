@@ -84,13 +84,20 @@ class OrderPaymentOut(BaseModel):
     refunded_at: datetime | None = None
 
 
+class OrderPaymentSplitIn(BaseModel):
+    method: Literal["efectivo", "debito", "credito", "transferencia", "otro"]
+    amount: int
+    installments: int | None = None
+
+
 class OrderSummary(BaseModel):
     order_id: str
     order_number: str
     tenant_id: str
-    buyer_id: str
+    buyer_id: str | None = None
     buyer_name: str
-    buyer_email: str
+    buyer_email: str | None = None
+    channel: str = "online"
     status: str
     item_count: int
     total: int
@@ -104,11 +111,79 @@ class OrderDetail(OrderSummary):
     discount: int
     pickup: bool = False
     shipping_zone_name: str | None = None
-    shipping_address: OrderAddressOut
+    shipping_address: OrderAddressOut | None = None
     payment: OrderPaymentOut
+    payments: list[OrderPaymentSplitIn] = []
+    guest_name: str | None = None
+    guest_phone: str | None = None
     tracking_number: str | None = None
     notes: str | None = None
     updated_at: datetime
+
+
+class OrderCreatePos(BaseModel):
+    """Venta registrada en el local (punto de venta). A diferencia de
+    `OrderCreate`, no pasa por Getnet: se crea directamente `paid` y el
+    stock se descuenta en la misma request, porque el cobro ya se hizo in
+    situ (posnet físico, no esta app)."""
+
+    items: list[OrderItemIn]
+
+    # Cliente: o un comprador con cuenta (buyer_id) o uno ocasional
+    # (guest_name + guest_phone) — exactamente uno de los dos caminos.
+    buyer_id: str | None = None
+    guest_name: str | None = None
+    guest_phone: str | None = None
+
+    pickup: bool = False
+    shipping_zone_id: str | None = None
+    shipping_address: AddressCreate | None = None     # requerido sólo si pickup=False
+
+    discount_type: Literal["none", "flat", "percent"] = "none"
+    discount_value: int = 0    # centavos si "flat", 0-100 si "percent"
+
+    payments: list[OrderPaymentSplitIn]
+
+    notes: str | None = None
+
+    @model_validator(mode="after")
+    def check_customer(self) -> "OrderCreatePos":
+        has_account = bool(self.buyer_id)
+        has_guest = bool(self.guest_name) and bool(self.guest_phone)
+        if has_account == has_guest:
+            raise ValueError(
+                "Elegí un cliente registrado o completá nombre y teléfono del cliente ocasional"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def check_address(self) -> "OrderCreatePos":
+        if not self.pickup and not self.shipping_address:
+            raise ValueError("Falta la dirección de envío")
+        return self
+
+    @model_validator(mode="after")
+    def check_payments(self) -> "OrderCreatePos":
+        if not self.payments:
+            raise ValueError("Agregá al menos un método de pago")
+        if any(p.amount <= 0 for p in self.payments):
+            raise ValueError("El monto de cada medio de pago debe ser mayor a cero")
+        return self
+
+    @model_validator(mode="after")
+    def check_discount(self) -> "OrderCreatePos":
+        if self.discount_type == "percent" and not (0 <= self.discount_value <= 100):
+            raise ValueError("El descuento porcentual debe estar entre 0 y 100")
+        if self.discount_type == "flat" and self.discount_value < 0:
+            raise ValueError("El descuento no puede ser negativo")
+        return self
+
+
+class OrderCreatePosResponse(BaseModel):
+    order_id: str
+    order_number: str
+    status: str
+    total: int
 
 
 class OrderStatusUpdate(BaseModel):

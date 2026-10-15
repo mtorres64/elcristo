@@ -10,6 +10,8 @@ from app.database import get_db
 from app.schemas.common import PaginatedResponse
 from app.schemas.order import (
     OrderCreate,
+    OrderCreatePos,
+    OrderCreatePosResponse,
     OrderCreateResponse,
     OrderDetail,
     OrderStatusUpdate,
@@ -55,14 +57,22 @@ ALLOWED_TRANSITIONS: dict[str, set[str]] = {
 _STOCK_DECREMENTED_STATES = {"paid", "preparing", "shipped", "delivered"}
 
 
+def _require_seller(request: Request) -> dict:
+    user = require_user(request)
+    if user.get("role") not in ("seller", "platform_admin"):
+        raise HTTPException(403, "No tenés permisos para registrar ventas")
+    return user
+
+
 def _to_summary(doc: dict) -> dict:
     return {
         "order_id": str(doc["_id"]),
         "order_number": doc["order_number"],
         "tenant_id": doc["tenant_id"],
-        "buyer_id": doc["buyer_id"],
+        "buyer_id": doc.get("buyer_id"),
         "buyer_name": doc["buyer_name"],
-        "buyer_email": doc["buyer_email"],
+        "buyer_email": doc.get("buyer_email"),
+        "channel": doc.get("channel", "online"),
         "status": doc["status"],
         "item_count": sum(i["quantity"] for i in doc["items"]),
         "total": doc["total"],
@@ -79,8 +89,11 @@ def _to_detail(doc: dict) -> dict:
         "discount": doc.get("discount", 0),
         "pickup": doc.get("pickup", False),
         "shipping_zone_name": doc.get("shipping_zone_name"),
-        "shipping_address": doc["shipping_address"],
+        "shipping_address": doc.get("shipping_address"),
         "payment": doc["payment"],
+        "payments": doc.get("payments", []),
+        "guest_name": doc.get("guest_name"),
+        "guest_phone": doc.get("guest_phone"),
         "tracking_number": doc.get("tracking_number"),
         "notes": doc.get("notes"),
         "updated_at": doc["updated_at"],
@@ -283,6 +296,23 @@ async def _mark_stock_decremented(db, doc: dict) -> dict:
     for product_oid, quantity in await _expand_stock_lines(db, doc["items"]):
         await db.products.update_one({"_id": product_oid}, {"$inc": {"stock": -quantity}})
     return {"stock_decremented": True}
+
+
+async def _check_stock_sufficient(db, order_items: list[dict]) -> None:
+    """Valida que haya stock suficiente para `order_items` (ya expandiendo
+    combos a sus componentes vía `_expand_stock_lines`) antes de confirmar
+    una venta POS — a diferencia de `create_order`, acá el stock se
+    descuenta en la misma request, así que hay que chequearlo antes."""
+    required: dict[ObjectId, int] = {}
+    for product_oid, quantity in await _expand_stock_lines(db, order_items):
+        required[product_oid] = required.get(product_oid, 0) + quantity
+
+    for product_oid, quantity in required.items():
+        product = await db.products.find_one({"_id": product_oid, "deleted_at": None})
+        if not product:
+            raise HTTPException(404, "Uno de los productos de la venta ya no está disponible")
+        if product.get("stock", 0) < quantity:
+            raise HTTPException(400, f"Stock insuficiente para \"{product['title']}\"")
 
 
 async def _get_active_getnet_integration(db, tenant_id: str) -> getnet_client.GetnetConfig | None:
@@ -561,6 +591,166 @@ async def create_order(body: OrderCreate, request: Request, background: Backgrou
         "status": initial_status,
         "total": total,
         "checkout_url": checkout_url,
+    }
+
+
+@router.post("/pos", response_model=OrderCreatePosResponse, status_code=201)
+async def create_pos_sale(body: OrderCreatePos, request: Request, background: BackgroundTasks):
+    """Venta registrada en el local (punto de venta): el vendedor ya cobró
+    in situ (efectivo, posnet físico de Getnet, transferencia, etc.) así que,
+    a diferencia de `create_order`, acá nunca se llama a Getnet — el pedido
+    nace directamente `paid` y el stock se descuenta en la misma request."""
+    db = get_db()
+    user = _require_seller(request)
+
+    if not body.items:
+        raise HTTPException(400, "El carrito está vacío")
+
+    order_items = []
+    tenant_ids: set[str] = set()
+    for item in body.items:
+        try:
+            product_oid = ObjectId(item.product_id)
+        except Exception:
+            raise HTTPException(400, f"ID de producto inválido: {item.product_id}")
+
+        product = await db.products.find_one({"_id": product_oid, "deleted_at": None})
+        if not product:
+            raise HTTPException(404, f"Producto no encontrado: {item.title}")
+        if product.get("product_type") == "combo" and not product.get("combo_items"):
+            raise HTTPException(400, f"\"{product['title']}\" ya no está disponible")
+
+        tenant_ids.add(product["tenant_id"])
+        order_items.append({
+            "product_id": str(product["_id"]),
+            "title": item.title,
+            "price": item.price,
+            "quantity": item.quantity,
+            "image_url": item.image_url,
+        })
+
+    if len(tenant_ids) > 1:
+        raise HTTPException(400, "Los productos de la venta deben ser de la misma tienda")
+    tenant_id = next(iter(tenant_ids))
+
+    await _check_stock_sufficient(db, order_items)
+
+    if body.buyer_id:
+        try:
+            buyer_oid = ObjectId(body.buyer_id)
+        except Exception:
+            raise HTTPException(400, "ID de cliente inválido")
+        buyer = await db.users.find_one({"_id": buyer_oid, "deleted_at": None})
+        if not buyer:
+            raise HTTPException(404, "Cliente no encontrado")
+        buyer_id, buyer_name, buyer_email = str(buyer["_id"]), buyer["name"], buyer.get("email")
+        guest_name = guest_phone = None
+    else:
+        buyer_id, buyer_email = None, None
+        buyer_name = body.guest_name
+        guest_name, guest_phone = body.guest_name, body.guest_phone
+
+    subtotal = sum(i["price"] * i["quantity"] for i in order_items)
+    shipping_cost, pickup_discount, shipping_zone_name = await _resolve_shipping(db, tenant_id, subtotal, body)
+
+    if body.discount_type == "flat":
+        manual_discount = body.discount_value
+    elif body.discount_type == "percent":
+        manual_discount = round(subtotal * body.discount_value / 100)
+    else:
+        manual_discount = 0
+    discount = pickup_discount + manual_discount
+
+    total = subtotal + shipping_cost - discount
+
+    payments_sum = sum(p.amount for p in body.payments)
+    if payments_sum != total:
+        raise HTTPException(
+            400,
+            f"La suma de los pagos ({_ars(payments_sum)}) no coincide con el total ({_ars(total)})",
+        )
+
+    shipping_address = None
+    if not body.pickup:
+        addr = body.shipping_address
+        shipping_address = {
+            "full_name": addr.full_name,
+            "phone_country_code": addr.phone_country_code,
+            "phone": addr.phone,
+            "street": addr.street,
+            "no_number": addr.no_number,
+            "province": addr.province,
+            "locality": addr.locality,
+            "zip": None if addr.zip_unknown else addr.zip,
+            "zip_unknown": addr.zip_unknown,
+            "department": addr.department,
+            "lat": addr.lat,
+            "lng": addr.lng,
+        }
+
+    now = datetime.now(UTC)
+    year = now.year
+    count_this_year = await db.orders.count_documents({"order_number": {"$regex": f"^ORD-{year}-"}})
+    order_number = f"ORD-{year}-{count_this_year + 1:04d}"
+
+    order_doc = {
+        "tenant_id": tenant_id,
+        "buyer_id": buyer_id,
+        "buyer_name": buyer_name,
+        "buyer_email": buyer_email,
+        "guest_name": guest_name,
+        "guest_phone": guest_phone,
+        "order_number": order_number,
+        "status": "paid",
+        "items": order_items,
+        "subtotal": subtotal,
+        "shipping_cost": shipping_cost,
+        "discount": discount,
+        "pickup": body.pickup,
+        "shipping_zone_name": shipping_zone_name,
+        "total": total,
+        "shipping_address": shipping_address,
+        "payment": {
+            "provider": "pos",
+            "payment_method_id": None,
+            "brand": None,
+            "last4": None,
+            "payment_id": None,
+            "preference_id": None,
+            "authorization_code": None,
+            "environment": None,
+            "status": "approved",
+            "paid_at": now,
+            "refund_id": None,
+            "refunded_at": None,
+            "refund_attempts": 0,
+        },
+        "payments": [p.model_dump() for p in body.payments],
+        "channel": "pos",
+        "created_by": user.get("sub"),
+        "tracking_number": None,
+        "notes": body.notes,
+        "stock_decremented": False,
+        "created_at": now,
+        "updated_at": now,
+        "deleted_at": None,
+    }
+    result = await db.orders.insert_one(order_doc)
+    order_doc["_id"] = result.inserted_id
+
+    stock_updates = await _mark_stock_decremented(db, order_doc)
+    if stock_updates:
+        await db.orders.update_one({"_id": result.inserted_id}, {"$set": stock_updates})
+
+    if buyer_email and shipping_address:
+        order_doc.update(stock_updates)
+        await _queue_order_confirmation_email(background, tenant_id, order_doc)
+
+    return {
+        "order_id": str(result.inserted_id),
+        "order_number": order_number,
+        "status": "paid",
+        "total": total,
     }
 
 

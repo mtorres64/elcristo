@@ -49,6 +49,7 @@ import { MyOrders } from "./pages/MyOrders";
 import { MyOrderDetail } from "./pages/MyOrderDetail";
 import { OrderList } from "./pages/admin/OrderList";
 import { OrderDetail } from "./pages/admin/OrderDetail";
+import { OrderReceipt } from "./pages/admin/OrderReceipt";
 import { AlertList } from "./pages/admin/AlertList";
 import { Mailbox } from "./pages/admin/Mailbox";
 
@@ -95,6 +96,7 @@ export default function App() {
             <Route path="/seller/mailbox" element={<RequireAuth><Mailbox /></RequireAuth>} />
             <Route path="/seller/alerts" element={<RequireAuth><AlertList /></RequireAuth>} />
             <Route path="/seller/orders/:orderId" element={<RequireAuth><OrderDetail /></RequireAuth>} />
+            <Route path="/seller/orders/:orderId/receipt" element={<RequireAuth><OrderReceipt /></RequireAuth>} />
             <Route path="/seller/products" element={<RequireAuth><ProductList /></RequireAuth>} />
             <Route path="/seller/products/new" element={<RequireAuth><ProductEdit /></RequireAuth>} />
             <Route path="/seller/products/:productId/edit" element={<RequireAuth><ProductEdit /></RequireAuth>} />

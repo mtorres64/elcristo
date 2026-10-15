@@ -4,7 +4,7 @@ import toast from "react-hot-toast";
 import { ImageOff } from "lucide-react";
 import { AdminLayout } from "../../components/admin/AdminLayout";
 import { orderService } from "../../services/order.service";
-import { ORDER_STATUS_LABEL } from "../../types/order";
+import { ORDER_STATUS_LABEL, CHANNEL_LABEL, POS_PAYMENT_METHOD_LABEL } from "../../types/order";
 import type { Order, OrderStatus, RefundOutcome } from "../../types/order";
 import { formatARS } from "../../utils/currency";
 import { getDiscountNote, getShippingNote } from "../../utils/orderExplain";
@@ -139,11 +139,24 @@ export function OrderDetail() {
 
         <div className="flex items-start justify-between gap-4 mb-6">
           <div>
-            <h1 className="font-serif text-2xl font-semibold text-[#1A1A1A] leading-tight">{order.order_number}</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="font-serif text-2xl font-semibold text-[#1A1A1A] leading-tight">{order.order_number}</h1>
+              <span className="inline-flex items-center px-2 py-0.5 text-[11px] font-medium rounded-full bg-[#F0EDE8] text-[#6B6B6B]">
+                {CHANNEL_LABEL[order.channel]}
+              </span>
+            </div>
             <p className="text-xs text-[#8A8A8A] mt-1">
               {new Date(order.created_at).toLocaleString("es-AR")}
             </p>
           </div>
+          <Link
+            to={`/seller/orders/${order.order_id}/receipt`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="shrink-0 rounded-lg border border-[#E8E2D8] text-sm font-medium text-[#4A4A4A] px-4 py-2.5 hover:bg-[#F9F8F5] transition-colors"
+          >
+            Imprimir recibo
+          </Link>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -189,46 +202,68 @@ export function OrderDetail() {
             </div>
 
             <div className="rounded-lg bg-white border border-[#E8E2D8] p-4">
-              <p className="text-xs font-semibold text-[#6B6B6B] uppercase tracking-wider mb-2">Dirección de envío</p>
-              <p className="text-sm text-[#1A1A1A]">
-                {order.shipping_address.street} {order.shipping_address.no_number ? "(sin número)" : ""}
-              </p>
-              <p className="text-sm text-[#4A4A4A]">
-                {order.shipping_address.locality}, {order.shipping_address.province}
-                {order.shipping_address.zip ? ` (CP ${order.shipping_address.zip})` : ""}
-              </p>
-              {order.shipping_address.department && (
-                <p className="text-sm text-[#4A4A4A]">Depto/Piso: {order.shipping_address.department}</p>
-              )}
-              <p className="text-xs text-[#8A8A8A] mt-2">
-                {order.shipping_address.full_name} · {order.shipping_address.phone_country_code} {order.shipping_address.phone}
-              </p>
-              {order.shipping_address.lat != null && order.shipping_address.lng != null && (
-                <div className="mt-3">
-                  <LocationViewer lat={order.shipping_address.lat} lng={order.shipping_address.lng} />
-                  <a
-                    href={`https://www.google.com/maps?q=${order.shipping_address.lat},${order.shipping_address.lng}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-block mt-1.5 text-xs font-medium text-[#1A2B1C] hover:underline"
-                  >
-                    Abrir en Google Maps
-                  </a>
-                </div>
+              <p className="text-xs font-semibold text-[#6B6B6B] uppercase tracking-wider mb-2">Entrega</p>
+              {order.shipping_address ? (
+                <>
+                  <p className="text-sm text-[#1A1A1A]">
+                    {order.shipping_address.street} {order.shipping_address.no_number ? "(sin número)" : ""}
+                  </p>
+                  <p className="text-sm text-[#4A4A4A]">
+                    {order.shipping_address.locality}, {order.shipping_address.province}
+                    {order.shipping_address.zip ? ` (CP ${order.shipping_address.zip})` : ""}
+                  </p>
+                  {order.shipping_address.department && (
+                    <p className="text-sm text-[#4A4A4A]">Depto/Piso: {order.shipping_address.department}</p>
+                  )}
+                  <p className="text-xs text-[#8A8A8A] mt-2">
+                    {order.shipping_address.full_name} · {order.shipping_address.phone_country_code} {order.shipping_address.phone}
+                  </p>
+                  {order.shipping_address.lat != null && order.shipping_address.lng != null && (
+                    <div className="mt-3">
+                      <LocationViewer lat={order.shipping_address.lat} lng={order.shipping_address.lng} />
+                      <a
+                        href={`https://www.google.com/maps?q=${order.shipping_address.lat},${order.shipping_address.lng}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-block mt-1.5 text-xs font-medium text-[#1A2B1C] hover:underline"
+                      >
+                        Abrir en Google Maps
+                      </a>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <p className="text-sm text-[#1A1A1A]">Retira en el local</p>
               )}
             </div>
 
             <div className="rounded-lg bg-white border border-[#E8E2D8] p-4">
               <p className="text-xs font-semibold text-[#6B6B6B] uppercase tracking-wider mb-2">Pago</p>
-              <p className="text-sm text-[#1A1A1A]">
-                {order.payment.last4
-                  ? `${order.payment.brand ?? "Tarjeta"} terminada en ${order.payment.last4}`
-                  : "Tarjeta (cargada en Getnet — no vemos marca ni últimos dígitos)"}
-              </p>
-              <p className="text-xs text-[#8A8A8A] mt-1">
-                Estado del pago: {order.payment.status} · Proveedor: {order.payment.provider}
-                {order.payment.provider === "mock" && " (sin pasarela real conectada todavía)"}
-              </p>
+              {order.channel === "pos" && order.payments.length > 0 ? (
+                <div className="flex flex-col gap-1.5">
+                  {order.payments.map((p, i) => (
+                    <div key={i} className="flex items-center justify-between text-sm">
+                      <span className="text-[#1A1A1A]">
+                        {POS_PAYMENT_METHOD_LABEL[p.method]}
+                        {p.installments ? ` · ${p.installments} cuotas` : ""}
+                      </span>
+                      <span className="font-medium text-[#1A1A1A]">{formatARS(p.amount)}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <>
+                  <p className="text-sm text-[#1A1A1A]">
+                    {order.payment.last4
+                      ? `${order.payment.brand ?? "Tarjeta"} terminada en ${order.payment.last4}`
+                      : "Tarjeta (cargada en Getnet — no vemos marca ni últimos dígitos)"}
+                  </p>
+                  <p className="text-xs text-[#8A8A8A] mt-1">
+                    Estado del pago: {order.payment.status} · Proveedor: {order.payment.provider}
+                    {order.payment.provider === "mock" && " (sin pasarela real conectada todavía)"}
+                  </p>
+                </>
+              )}
             </div>
 
             {order.notes && (
@@ -277,7 +312,12 @@ export function OrderDetail() {
             <div className="rounded-lg bg-white border border-[#E8E2D8] p-4">
               <p className="text-xs font-semibold text-[#6B6B6B] uppercase tracking-wider mb-2">Comprador</p>
               <p className="text-sm text-[#1A1A1A]">{order.buyer_name}</p>
-              <p className="text-xs text-[#8A8A8A]">{order.buyer_email}</p>
+              {order.buyer_email && <p className="text-xs text-[#8A8A8A]">{order.buyer_email}</p>}
+              {!order.buyer_id && (
+                <p className="text-xs text-[#8A8A8A]">
+                  Cliente ocasional{order.guest_phone ? ` · ${order.guest_phone}` : ""}
+                </p>
+              )}
             </div>
           </div>
         </div>
