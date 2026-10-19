@@ -30,6 +30,8 @@ interface ListProductsParams {
   max_price?: number;
   featured?: boolean;
   on_sale?: boolean;
+  has_image?: boolean;
+  in_stock?: boolean;
   ids?: string;
   page?: number;
   page_size?: number;

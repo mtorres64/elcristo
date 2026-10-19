@@ -624,6 +624,8 @@ export function ProductList() {
   const [debouncedQ, setDebouncedQ] = useState("");
   const [status, setStatus] = useState(DEFAULT_STATUS);
   const [categoryId, setCategoryId] = useState("");
+  const [hasImage, setHasImage] = useState("");
+  const [inStock, setInStock] = useState("");
   const [sort, setSort] = useState("newest");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = usePageSize();
@@ -657,7 +659,7 @@ export function ProductList() {
     setPage(1);
     setSelected(new Set());
     setConfirmBulk(false);
-  }, [debouncedQ, status, categoryId, sort, pageSize]);
+  }, [debouncedQ, status, categoryId, hasImage, inStock, sort, pageSize]);
 
   // Fetch products
   useEffect(() => {
@@ -670,6 +672,8 @@ export function ProductList() {
         q: debouncedQ || undefined,
         status: status || undefined,
         category_id: categoryId || undefined,
+        has_image: hasImage ? hasImage === "true" : undefined,
+        in_stock: inStock ? inStock === "true" : undefined,
         product_type: "simple",
         sort,
         page,
@@ -694,7 +698,7 @@ export function ProductList() {
     return () => {
       cancelled = true;
     };
-  }, [debouncedQ, status, categoryId, sort, page, pageSize, user?.tenant_id, refreshKey]);
+  }, [debouncedQ, status, categoryId, hasImage, inStock, sort, page, pageSize, user?.tenant_id, refreshKey]);
 
   // Polling de la importación en segundo plano (sobrevive al cierre del modal
   // y a la navegación: el job id queda guardado en localStorage).
@@ -752,11 +756,13 @@ export function ProductList() {
     }
   }
 
-  const hasFilters = !!(q || status !== DEFAULT_STATUS || categoryId || sort !== "newest");
+  const hasFilters = !!(q || status !== DEFAULT_STATUS || categoryId || hasImage || inStock || sort !== "newest");
   const activeFilterCount = [
     q,
     status !== DEFAULT_STATUS ? status : "",
     categoryId,
+    hasImage,
+    inStock,
     sort !== "newest" ? sort : "",
   ].filter(Boolean).length;
 
@@ -764,6 +770,8 @@ export function ProductList() {
     setQ("");
     setStatus(DEFAULT_STATUS);
     setCategoryId("");
+    setHasImage("");
+    setInStock("");
     setSort("newest");
     setPage(1);
   }
@@ -919,9 +927,9 @@ export function ProductList() {
 
         {/* Filter bar */}
         <div className={`rounded-lg bg-white border border-[#E8E2D8] p-4 mb-4 ${filtersOpen ? "block" : "hidden"} sm:block`}>
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:flex-wrap">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
             {/* Search */}
-            <div className="relative w-full sm:flex-1 sm:min-w-[220px]">
+            <div className="relative w-full sm:w-[540px] shrink-0">
               <SearchIcon />
               <input
                 type="text"
@@ -932,66 +940,96 @@ export function ProductList() {
               />
             </div>
 
-            {/* Category */}
-            <div className="relative w-full sm:w-auto">
-              <select
-                value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
-                className={`${SELECT} w-full sm:w-[180px]`}
-              >
-                <option value="">Todas las categorías</option>
-                {groupedCategories.map((g) => (
-                  <optgroup key={g.value} label={CATEGORY_GROUP_LABEL[g.value]}>
-                    {g.categories.map((c) => (
-                      <option key={c.category_id} value={c.category_id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-              <ChevronDown />
-            </div>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:flex-wrap sm:justify-end sm:ml-auto">
+              {/* Category */}
+              <div className="relative w-full sm:w-auto">
+                <select
+                  value={categoryId}
+                  onChange={(e) => setCategoryId(e.target.value)}
+                  className={`${SELECT} w-full sm:w-[180px]`}
+                >
+                  <option value="">Todas las categorías</option>
+                  {groupedCategories.map((g) => (
+                    <optgroup key={g.value} label={CATEGORY_GROUP_LABEL[g.value]}>
+                      {g.categories.map((c) => (
+                        <option key={c.category_id} value={c.category_id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+                <ChevronDown />
+              </div>
 
-            {/* Status */}
-            <div className="relative w-full sm:w-auto">
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-                className={`${SELECT} w-full sm:w-[160px]`}
-              >
-                <option value="">Todos los estados</option>
-                <option value="active">Activo</option>
-                <option value="draft">Borrador</option>
-                <option value="inactive">Inactivo</option>
-              </select>
-              <ChevronDown />
-            </div>
+              {/* Status */}
+              <div className="relative w-full sm:w-auto">
+                <select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value)}
+                  className={`${SELECT} w-full sm:w-[160px]`}
+                >
+                  <option value="">Todos los estados</option>
+                  <option value="active">Activo</option>
+                  <option value="draft">Borrador</option>
+                  <option value="inactive">Inactivo</option>
+                </select>
+                <ChevronDown />
+              </div>
 
-            {/* Sort */}
-            <div className="relative w-full sm:w-auto">
-              <select
-                value={sort}
-                onChange={(e) => setSort(e.target.value)}
-                className={`${SELECT} w-full sm:w-[200px]`}
-              >
-                <option value="newest">Más recientes</option>
-                <option value="price_asc">Precio: menor a mayor</option>
-                <option value="price_desc">Precio: mayor a menor</option>
-                <option value="title_asc">Nombre A → Z</option>
-              </select>
-              <ChevronDown />
-            </div>
+              {/* Foto */}
+              <div className="relative w-full sm:w-auto">
+                <select
+                  value={hasImage}
+                  onChange={(e) => setHasImage(e.target.value)}
+                  className={`${SELECT} w-full sm:w-[140px]`}
+                >
+                  <option value="">Con/sin foto</option>
+                  <option value="true">Con foto</option>
+                  <option value="false">Sin foto</option>
+                </select>
+                <ChevronDown />
+              </div>
 
-            {/* Clear filters */}
-            {hasFilters && (
-              <button
-                onClick={handleReset}
-                className="text-xs text-[#8A8A8A] hover:text-[#1A2B1C] transition-colors underline underline-offset-2"
-              >
-                Limpiar filtros
-              </button>
-            )}
+              {/* Stock */}
+              <div className="relative w-full sm:w-auto">
+                <select
+                  value={inStock}
+                  onChange={(e) => setInStock(e.target.value)}
+                  className={`${SELECT} w-full sm:w-[140px]`}
+                >
+                  <option value="">Con/sin stock</option>
+                  <option value="true">Con stock</option>
+                  <option value="false">Sin stock</option>
+                </select>
+                <ChevronDown />
+              </div>
+
+              {/* Sort */}
+              <div className="relative w-full sm:w-auto">
+                <select
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value)}
+                  className={`${SELECT} w-full sm:w-[200px]`}
+                >
+                  <option value="newest">Más recientes</option>
+                  <option value="price_asc">Precio: menor a mayor</option>
+                  <option value="price_desc">Precio: mayor a menor</option>
+                  <option value="title_asc">Nombre A → Z</option>
+                </select>
+                <ChevronDown />
+              </div>
+
+              {/* Clear filters */}
+              {hasFilters && (
+                <button
+                  onClick={handleReset}
+                  className="text-xs text-[#8A8A8A] hover:text-[#1A2B1C] transition-colors underline underline-offset-2"
+                >
+                  Limpiar filtros
+                </button>
+              )}
+            </div>
           </div>
         </div>
 

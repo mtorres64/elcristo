@@ -4,6 +4,8 @@ import { useAuth } from "../../hooks/useAuth";
 import { orderService } from "../../services/order.service";
 import { alertService } from "../../services/alert.service";
 import { mailboxService } from "../../services/mailbox.service";
+import { getHelpTopic } from "../../content/adminHelp";
+import { HelpModal } from "./HelpModal";
 
 interface NavItem {
   icon: ReactNode;
@@ -36,6 +38,7 @@ const ROLE_LABEL: Record<string, string> = {
 export function AdminLayout({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 768);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
@@ -87,7 +90,10 @@ export function AdminLayout({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (window.innerWidth < 768) setSidebarOpen(false);
+    setHelpOpen(false);
   }, [location]);
+
+  const helpTopic = getHelpTopic(location.pathname);
 
   function handleLogout() {
     logout();
@@ -214,6 +220,17 @@ export function AdminLayout({ children }: { children: ReactNode }) {
             <HamburgerIcon />
           </button>
 
+          {helpTopic && (
+            <button
+              onClick={() => setHelpOpen(true)}
+              aria-label={`Ayuda: ${helpTopic.title}`}
+              title="Ayuda de esta pantalla"
+              className="flex items-center justify-center w-7 h-7 rounded-full border border-[#1A2B1C] text-[#1A2B1C] hover:bg-[#1A2B1C] hover:text-white transition-colors shrink-0"
+            >
+              <HelpIcon />
+            </button>
+          )}
+
           <div className="flex items-center gap-5 ml-auto">
             {/* Bell */}
             <Link
@@ -277,6 +294,8 @@ export function AdminLayout({ children }: { children: ReactNode }) {
         {/* Content */}
         <main className="flex-1 overflow-auto">{children}</main>
       </div>
+
+      {helpOpen && helpTopic && <HelpModal topic={helpTopic} onClose={() => setHelpOpen(false)} />}
     </div>
   );
 }
@@ -399,6 +418,15 @@ function BellIcon() {
     </svg>
   );
 }
+function HelpIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+      <line x1="12" y1="17" x2="12.01" y2="17" />
+    </svg>
+  );
+}
+
 function CloseIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
