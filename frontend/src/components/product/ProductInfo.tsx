@@ -10,9 +10,9 @@ import type { ProductDetail } from "../../types/product";
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
 const SIZES = [
-  { id: "pequeña" as const, label: "Pequeña", range: "60-80 cm" },
-  { id: "mediana" as const, label: "Mediana", range: "80-120 cm" },
-  { id: "grande" as const, label: "Grande", range: "120-160 cm" },
+  { id: "pequeña" as const, label: "Pequeña" },
+  { id: "mediana" as const, label: "Mediana" },
+  { id: "grande" as const, label: "Grande" },
 ];
 
 const NO_POT = { id: null as string | null, label: "Sin maceta", extra: 0, image: null as string | null };
@@ -226,7 +226,6 @@ export function ProductInfo({ product }: { product: ProductDetail }) {
                   }`}
                 >
                   <p className="text-xs font-semibold text-[#1A1A1A]">{s.label}</p>
-                  <p className="text-[10px] text-[#8A8A8A] mt-0.5">{s.range}</p>
                   <p className="text-[10px] text-[#3D6040] mt-0.5">
                     {sOut ? "Sin stock" : formatARS(sPrice)}
                   </p>
