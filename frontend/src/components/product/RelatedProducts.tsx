@@ -196,7 +196,6 @@ function RelatedCard({ product, colorIndex }: { product: ProductSummary; colorIn
         <div className="flex items-end justify-between">
           <div>
             <p className="text-lg font-bold text-[#1A1A1A]">{formatPrice(product.price, product.currency)}</p>
-            <p className="text-[10px] text-[#8A8A8A] mt-0.5">Envío a todo el país</p>
           </div>
           <button
             onClick={handleAddToCart}

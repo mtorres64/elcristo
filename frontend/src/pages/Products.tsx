@@ -386,7 +386,7 @@ function ProductCard({ product, colorIndex }: { product: ProductSummary; colorIn
   }
 
   return (
-    <Link to={`/products/${product.product_id}`} className="group block relative">
+    <Link to={`/products/${product.product_id}`} className="group block relative min-w-0">
       {product.product_type === "combo" && <ComboBadge />}
       <div
         className={`w-full aspect-square bg-gradient-to-br ${bg} mb-3 relative overflow-hidden rounded-lg`}
@@ -405,9 +405,14 @@ function ProductCard({ product, colorIndex }: { product: ProductSummary; colorIn
         )}
       </div>
       <div>
-        <p className="text-sm font-semibold text-[#1A1A1A] mb-1 group-hover:text-forest-deep transition-colors leading-tight line-clamp-2">
+        <p className="text-sm font-semibold text-[#1A1A1A] mb-1 group-hover:text-forest-deep transition-colors leading-tight truncate" title={product.title}>
           {product.title}
         </p>
+        {product.short_description && (
+          <p className="text-xs text-[#6B6B6B] leading-snug line-clamp-2 break-words mb-1.5">
+            {product.short_description}
+          </p>
+        )}
         <div className="flex items-end justify-between gap-2">
           <div>
             <p className="text-base font-bold text-[#1A1A1A]">
@@ -418,7 +423,6 @@ function ProductCard({ product, colorIndex }: { product: ProductSummary; colorIn
                 {formatPrice(product.compare_at_price, product.currency)}
               </p>
             )}
-            <p className="text-[10px] text-[#8A8A8A] mt-0.5">Envío a todo el país</p>
           </div>
           <button
             onClick={handleAddToCart}
